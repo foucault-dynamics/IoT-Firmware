@@ -29,13 +29,12 @@ MQTT broker
 - RTC memory buffering on the SuperMini for unsent records.
 - LoRa relay with acknowledgement handling and retry logic.
 - MQTT publishing from the gateway, with automatic reconnection.
-- OLED status display on LilyGo devices.
 
 ## Hardware
 
 - ESP32-C3 SuperMini
-- LilyGo / ESP32 LoRa OLED board as the substation relay
-- LilyGo / ESP32 LoRa OLED board as the gateway
+- LilyGo / ESP32 LoRa board as the substation relay
+- LilyGo / ESP32 LoRa board as the gateway
 - LoRa antennas
 - MQTT broker
 
@@ -48,8 +47,7 @@ Project_Kaizen/
 ├── components/
 │   ├── project_config/          # board pin map and secrets.h
 │   ├── shared_payload/          # the on-air frame layout
-│   ├── sx127x/                  # SX1276 LoRa driver
-│   └── ssd1306/                 # SSD1306 OLED driver
+│   └── sx127x/                  # SX1276 LoRa driver
 ├── firmware/
 │   ├── meter_node/              # ESP32-C3 SuperMini
 │   ├── substation/              # LilyGo relay
@@ -72,7 +70,6 @@ Each firmware directory keeps ESP-IDF's own layout, not PlatformIO's: `platformi
 ### Local components
 
 - **`sx127x`** replaces the Arduino `sandeepmistry/LoRa` library. Modem settings reproduce the previous configuration exactly, so the radio link is unchanged. It receives in continuous mode rather than repeatedly re-arming single receive, which closes the window where an inbound frame could be missed.
-- **`ssd1306`** replaces `Adafruit_SSD1306` and `Adafruit_GFX`, with a framebuffer and a 6x8 font.
 - **`shared_payload`** carries the wire format and asserts its size at compile time.
 - **`project_config`** holds `secrets.h` and the LilyGo pin map.
 
@@ -226,6 +223,3 @@ All devices must use the same layout. If it changes, rebuild and flash all three
 - Avoid using MQTT wildcard characters such as `+` when publishing to a topic.
 - The gateway overrides the DHCP-supplied DNS server with `8.8.8.8`, since the deployment network resolved broker hostnames unreliably. Set `FORCE_PUBLIC_DNS` to `0` in `gateway.c` to keep the network's own resolver.
 
-### Nothing on the OLED
-
-- Both LilyGo firmwares carry on without a display if the panel does not respond, and log a warning. Check `BOARD_OLED_SDA` / `BOARD_OLED_SCL` and the `0x3C` address.

@@ -1,5 +1,5 @@
 /*
- * NEXTGEN IEMS substation relay (LilyGo / TTGO ESP32 LoRa + OLED).
+ * NEXTGEN IEMS substation relay (LilyGo / TTGO ESP32 LoRa).
  *
  * Receives readings from meter nodes over ESP-NOW and forwards each one over
  * LoRa to the gateway, retrying until the gateway acknowledges it.
@@ -9,7 +9,6 @@
  * readings arriving mid-retry are held rather than overwritten.
  */
 #include <inttypes.h>
-#include <stdio.h>
 #include <string.h>
 
 #include "esp_check.h"
@@ -29,7 +28,6 @@
 #include "board_lilygo.h"
 #include "secrets.h"
 #include "shared_payload.h"
-#include "ssd1306.h"
 #include "sx127x.h"
 
 static const char *TAG = "substation";
@@ -54,23 +52,8 @@ static const char *TAG = "substation";
 _Static_assert(sizeof(payload_t) <= SX127X_MAX_PAYLOAD,
                "payload_t does not fit in one LoRa frame");
 
-static QueueHandle_t     s_relay_queue;
-static sx127x_handle_t   s_radio;
-static ssd1306_handle_t  s_display;
-
-/* --- Display --- */
-
-static void show_status(const char *title, const char *line1, const char *line2)
-{
-    if (!s_display) {
-        return;
-    }
-    ssd1306_clear(s_display);
-    ssd1306_printf(s_display, 0, 0, "=== %s ===", title);
-    ssd1306_draw_text(s_display, 0, 2, line1);
-    ssd1306_draw_text(s_display, 0, 3, line2);
-    ssd1306_flush(s_display);
-}
+static QueueHandle_t   s_relay_queue;
+static sx127x_handle_t s_radio;
 
 /* --- ESP-NOW --- */
 
@@ -179,19 +162,6 @@ void app_main(void)
     s_relay_queue = xQueueCreate(RELAY_QUEUE_LEN, sizeof(payload_t));
     ESP_ERROR_CHECK(s_relay_queue ? ESP_OK : ESP_ERR_NO_MEM);
 
-    /* The display is a convenience, so a missing panel must not stop the relay. */
-    const ssd1306_config_t oled_cfg = {
-        .port        = I2C_NUM_0,
-        .pin_sda     = BOARD_OLED_SDA,
-        .pin_scl     = BOARD_OLED_SCL,
-        .i2c_address = BOARD_OLED_ADDR,
-    };
-    if (ssd1306_init(&oled_cfg, &s_display) != ESP_OK) {
-        ESP_LOGW(TAG, "No OLED found, continuing without a display");
-        s_display = NULL;
-    }
-    show_status("SUBSTATION", "Booting...", "");
-
     const sx127x_config_t lora_cfg = {
         .host             = SPI2_HOST,
         .pin_sck          = BOARD_LORA_SCK,
@@ -211,7 +181,6 @@ void app_main(void)
     err = sx127x_init(&lora_cfg, &s_radio);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "LoRa init failed: %s", esp_err_to_name(err));
-        show_status("ERROR", "LoRa init failed", "Check wiring");
         return; /* app_main may return; FreeRTOS keeps running */
     }
 
@@ -221,11 +190,7 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_wifi_get_mac(WIFI_IF_STA, mac));
     ESP_LOGI(TAG, ">>> MAC address: " MACSTR " <<<", MAC2STR(mac));
     ESP_LOGI(TAG, "Put this MAC in SECRET_MAC on the meter node.");
-
-    char mac_line[SSD1306_COLS + 1];
-    snprintf(mac_line, sizeof(mac_line), "%02X%02X%02X%02X%02X%02X",
-             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    show_status("SUBSTATION", "Ready to relay", mac_line);
+    ESP_LOGI(TAG, "Ready to relay");
 
     for (;;) {
         payload_t reading;
@@ -233,17 +198,7 @@ void app_main(void)
             continue;
         }
 
-        char uid_line[SSD1306_COLS + 1];
-        snprintf(uid_line, sizeof(uid_line), "UID: %" PRIu32, reading.uid);
-
-        char seq_line[SSD1306_COLS + 1];
-        snprintf(seq_line, sizeof(seq_line), "SEQ: %" PRIu32, reading.seq);
-        show_status("RELAYING", uid_line, seq_line);
-
-        if (relay_with_ack(&reading)) {
-            show_status("RELAY OK", uid_line, "ACK received");
-        } else {
-            show_status("RELAY FAILED", uid_line, "Timeout, dropped");
-        }
+        /* relay_with_ack() logs both outcomes, so its result needs no handling. */
+        (void)relay_with_ack(&reading);
     }
 }

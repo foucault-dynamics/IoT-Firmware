@@ -1,5 +1,5 @@
 /*
- * NEXTGEN IEMS gateway (LilyGo / TTGO ESP32 LoRa + OLED).
+ * NEXTGEN IEMS gateway (LilyGo / TTGO ESP32 LoRa).
  *
  * Listens for readings from the substation over LoRa, acknowledges each one so
  * the substation can retire it, and republishes the raw frame to MQTT.
@@ -9,7 +9,6 @@
  * acknowledged during an outage; they are simply not forwarded.
  */
 #include <inttypes.h>
-#include <stdio.h>
 #include <string.h>
 
 #include "esp_err.h"
@@ -25,7 +24,6 @@
 #include "board_lilygo.h"
 #include "secrets.h"
 #include "shared_payload.h"
-#include "ssd1306.h"
 #include "sx127x.h"
 
 static const char *TAG = "gateway";
@@ -55,29 +53,12 @@ static const char *TAG = "gateway";
  */
 #define ACK_GUARD_MS 30
 
-static sx127x_handle_t  s_radio;
-static ssd1306_handle_t s_display;
+static sx127x_handle_t s_radio;
 
 #if ENABLE_MQTT
+
 static esp_mqtt_client_handle_t s_mqtt;
 static volatile bool            s_mqtt_connected;
-#endif
-
-/* --- Display --- */
-
-static void show_status(const char *title, const char *line1, const char *line2)
-{
-    if (!s_display) {
-        return;
-    }
-    ssd1306_clear(s_display);
-    ssd1306_printf(s_display, 0, 0, "=== %s ===", title);
-    ssd1306_draw_text(s_display, 0, 2, line1);
-    ssd1306_draw_text(s_display, 0, 3, line2);
-    ssd1306_flush(s_display);
-}
-
-#if ENABLE_MQTT
 
 /* --- WiFi --- */
 
@@ -145,7 +126,6 @@ static void on_mqtt_event(void *arg, esp_event_base_t base, int32_t id, void *da
     case MQTT_EVENT_CONNECTED:
         s_mqtt_connected = true;
         ESP_LOGI(TAG, "MQTT connected to %s:%d", SECRET_MQTT_SERVER, SECRET_MQTT_PORT);
-        show_status("GATEWAY", "MQTT connected", "Listening LoRa");
         break;
     case MQTT_EVENT_DISCONNECTED:
         s_mqtt_connected = false;
@@ -189,9 +169,8 @@ static void handle_reading(const payload_t *reading, const sx127x_rx_info_t *rx)
              reading->uid, reading->seq, reading->kwh_import, reading->voltage);
 
     /*
-     * Acknowledge first, before the display and before MQTT. The substation's
-     * timeout is already running, whereas a screen refresh costs about 20 ms of
-     * I2C and MQTT has no deadline at all.
+     * Acknowledge first, before MQTT. The substation's timeout is already
+     * running, whereas MQTT has no deadline at all.
      */
     const ack_payload_t ack = {.uid = reading->uid, .seq = reading->seq};
 
@@ -209,17 +188,9 @@ static void handle_reading(const payload_t *reading, const sx127x_rx_info_t *rx)
         ESP_LOGE(TAG, "Cannot re-enter receive: %s", esp_err_to_name(err));
     }
 
-    char uid_line[SSD1306_COLS + 1];
-    snprintf(uid_line, sizeof(uid_line), "UID: %" PRIu32, reading->uid);
-
-    char rssi_line[SSD1306_COLS + 1];
-    snprintf(rssi_line, sizeof(rssi_line), "RSSI: %d dBm", rx->rssi_dbm);
-    show_status("LORA RX OK", uid_line, rssi_line);
-
 #if ENABLE_MQTT
     if (!s_mqtt || !s_mqtt_connected) {
         ESP_LOGW(TAG, "  MQTT offline, reading not forwarded");
-        show_status("DATA FWD", uid_line, "MQTT offline");
         return;
     }
 
@@ -228,10 +199,8 @@ static void handle_reading(const payload_t *reading, const sx127x_rx_info_t *rx)
                                          sizeof(*reading), 0, 0);
     if (msg_id >= 0) {
         ESP_LOGI(TAG, "  Published %u bytes to %s", (unsigned)sizeof(*reading), SECRET_MQTT_TOPIC);
-        show_status("DATA FWD", uid_line, "Pub: SUCCESS");
     } else {
         ESP_LOGE(TAG, "  Publish failed");
-        show_status("DATA FWD", uid_line, "Pub: FAILED");
     }
 #endif
 }
@@ -248,18 +217,6 @@ void app_main(void)
         err = nvs_flash_init();
     }
     ESP_ERROR_CHECK(err);
-
-    const ssd1306_config_t oled_cfg = {
-        .port        = I2C_NUM_0,
-        .pin_sda     = BOARD_OLED_SDA,
-        .pin_scl     = BOARD_OLED_SCL,
-        .i2c_address = BOARD_OLED_ADDR,
-    };
-    if (ssd1306_init(&oled_cfg, &s_display) != ESP_OK) {
-        ESP_LOGW(TAG, "No OLED found, continuing without a display");
-        s_display = NULL;
-    }
-    show_status("GATEWAY", "Booting...", "");
 
 #if ENABLE_MQTT
     wifi_start();
@@ -287,13 +244,11 @@ void app_main(void)
     err = sx127x_init(&lora_cfg, &s_radio);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "LoRa init failed: %s", esp_err_to_name(err));
-        show_status("ERROR", "LoRa init failed", "Check wiring");
         return; /* app_main may return; FreeRTOS keeps running */
     }
     ESP_ERROR_CHECK(sx127x_start_receive(s_radio));
 
     ESP_LOGI(TAG, "Gateway ready, listening for LoRa");
-    show_status("GATEWAY", "Ready", "Listening LoRa");
 
     for (;;) {
         /*
@@ -316,9 +271,6 @@ void app_main(void)
         } else if (err == ESP_OK || err == ESP_ERR_INVALID_SIZE) {
             ESP_LOGW(TAG, "Unexpected %u byte frame (data frames are %u bytes)",
                      (unsigned)len, (unsigned)sizeof(payload_t));
-            char got_line[SSD1306_COLS + 1];
-            snprintf(got_line, sizeof(got_line), "Got: %u B", (unsigned)len);
-            show_status("RX ERROR", "Size mismatch", got_line);
         } else if (err == ESP_ERR_INVALID_CRC) {
             ESP_LOGW(TAG, "Dropped a frame that failed its CRC");
         } else if (err != ESP_ERR_NOT_FOUND) {

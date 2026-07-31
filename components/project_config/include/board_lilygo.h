@@ -1,7 +1,7 @@
 /*
- * Pin map for the LilyGo / TTGO ESP32 LoRa+OLED board used as both the
- * substation relay and the gateway. Values are carried over unchanged from the
- * Arduino firmware, so the wiring assumptions are identical.
+ * Pin map for the LilyGo / TTGO ESP32 LoRa board used as both the substation
+ * relay and the gateway. Values are carried over unchanged from the Arduino
+ * firmware, so the wiring assumptions are identical.
  */
 #ifndef BOARD_LILYGO_H
 #define BOARD_LILYGO_H
@@ -20,10 +20,5 @@
  * removes a failure mode we cannot verify without the board in hand.
  */
 #define BOARD_LORA_DIO0  26
-
-/* SSD1306 128x64 OLED, I2C address 0x3C. */
-#define BOARD_OLED_SDA   21
-#define BOARD_OLED_SCL   22
-#define BOARD_OLED_ADDR  0x3C
 
 #endif /* BOARD_LILYGO_H */
