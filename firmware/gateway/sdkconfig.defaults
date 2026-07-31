@@ -6,3 +6,8 @@ CONFIG_FREERTOS_HZ=1000
 # The gateway holds WiFi, MQTT and LoRa at once; the default 1M app partition is
 # tight. Matches the table PlatformIO is pinned to in platformio.ini.
 CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+
+# The LilyGo board carries 4MB, which is what the esp32dev board definition in
+# platformio.ini declares too. Without this ESP-IDF falls back to its own 2MB
+# default and PlatformIO warns about the mismatch on every build.
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
