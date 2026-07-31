@@ -1,0 +1,19 @@
+# Editor configuration for clangd.
+#
+# The compilation database comes from the GCC-based ESP-IDF toolchain and
+# carries flags clang has no equivalent for. They affect code generation only,
+# never parsing, so dropping them is safe for indexing.
+#
+# Caveat: clangd has patchy support for the Xtensa and ESP RISC-V targets, so
+# some diagnostics here can be spurious. `pio run` is the authority on whether
+# the code compiles.
+CompileFlags:
+  Remove:
+    - -fstrict-volatile-bitfields
+    - -fno-tree-switch-conversion
+    - -fno-shrink-wrap
+    - -fno-jump-tables
+    - -fzero-init-padding-bits=*
+    - -fno-malloc-dce
+    - -mtext-section-literals
+    - -mlongcalls

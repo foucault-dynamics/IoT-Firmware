@@ -1,0 +1,8 @@
+CONFIG_IDF_TARGET="esp32"
+
+# 1 ms scheduler tick: the LoRa ACK window and the TxDone poll are in milliseconds.
+CONFIG_FREERTOS_HZ=1000
+
+# Match the partition table PlatformIO is pinned to in platformio.ini, so both
+# toolchains flash an identical 1500K app partition.
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
