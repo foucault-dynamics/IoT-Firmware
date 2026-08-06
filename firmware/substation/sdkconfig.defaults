@@ -1,0 +1,13 @@
+CONFIG_IDF_TARGET="esp32"
+
+# 1 ms scheduler tick: the LoRa ACK window and the TxDone poll are in milliseconds.
+CONFIG_FREERTOS_HZ=1000
+
+# Match the partition table PlatformIO is pinned to in platformio.ini, so both
+# toolchains flash an identical 1500K app partition.
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+
+# The LilyGo board carries 4MB, which is what the esp32dev board definition in
+# platformio.ini declares too. Without this ESP-IDF falls back to its own 2MB
+# default and PlatformIO warns about the mismatch on every build.
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y

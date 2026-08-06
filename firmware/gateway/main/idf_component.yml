@@ -1,0 +1,5 @@
+dependencies:
+  # esp-mqtt is no longer bundled with ESP-IDF 6.x; it ships from the registry.
+  espressif/mqtt: "^1.1.0"
+  idf:
+    version: ">=5.3"
