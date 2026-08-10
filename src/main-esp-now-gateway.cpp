@@ -170,12 +170,12 @@ void loop() {
         client.loop(); 
     }
 
-    // 【關鍵修改 6】安全的安全輪詢邏輯 (取代原本的中斷)
+    // Key change 6: safe polling logic (replaces original interrupt-based approach)
     int packetSize = LoRa.parsePacket();
-    
+
     if (packetSize > 0) {
         if (packetSize == sizeof(Payload)) {
-            // 收到正確大小的資料封包
+            // Received data packet with correct size
             LoRa.readBytes((uint8_t*)&globalPayload, sizeof(globalPayload));
             int rssi = LoRa.packetRssi();
             float snr = LoRa.packetSnr();
@@ -197,7 +197,7 @@ void loop() {
 
             delay(10); 
             LoRa.beginPacket();
-            LoRa.write((uint8_t*)&ack, sizeof(ack));
+            LoRa.write(&ack, sizeof(AckPayload));
             LoRa.endPacket();
             
             Serial.println("=> ACK Sent Successfully!");
