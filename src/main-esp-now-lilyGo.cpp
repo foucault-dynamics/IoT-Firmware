@@ -2,41 +2,23 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include <LoRa.h>
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
 #include "SharedPayload.h" 
 
 // config
 #include "secrets.h"
 
 // --- LoRa & OLED Pins ---
-#define SCK 5
-#define MISO 19
-#define MOSI 27
-#define SS 18
-#define RST 14
-#define DIO0 26
-#define OLED_SDA 21
-#define OLED_SCL 22
+#define SCK 4
+#define MISO 5
+#define MOSI 6
+#define SS 7
+#define RST 3
+#define DIO0 1
 #define LORA_BAND SECRET_LORA_BAND
-
-Adafruit_SSD1306 display(128, 64, &Wire, -1);
 
 // --- Interrupt-Safe Variables ---
 volatile bool hasNewDataToRelay = false;
 Payload pendingPayload;
-
-// --- Display Helper ---
-void updateScreen(String title, String line1, String line2) {
-    display.clearDisplay();
-    display.setCursor(0,0);
-    display.println("=== " + title + " ===");
-    display.println("");
-    display.println(line1);
-    display.println(line2);
-    display.display();
-}
 
 // --- ESP-NOW Callback ---
 // This function only handles "receiving", not "sending" or "waiting"
@@ -102,16 +84,12 @@ bool sendLoRaWithAck(Payload data) {
 void setup() {
     Serial.begin(115200);
     delay(5000);
-    Wire.begin(OLED_SDA, OLED_SCL);
-    display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
-    display.setTextSize(1);
-    display.setTextColor(WHITE);
 
     SPI.begin(SCK, MISO, MOSI, SS);
     LoRa.setPins(SS, RST, DIO0);
     if (!LoRa.begin(LORA_BAND)) {
-        updateScreen("ERROR", "LoRa Init Failed", "");
-        while (1);
+	Serial.printf("ERROR: LoRa Init Failed\n");
+        ESP.restart();
     }
     
     // LoRa Optimization for Broadcast
@@ -123,29 +101,32 @@ void setup() {
 
     WiFi.mode(WIFI_STA);
     if (esp_now_init() != ESP_OK) {
-        Serial.println("[Error] ESP-NOW Init Failed");
+        Serial.printf("[Error] ESP-NOW Init Failed\n");
         return;
     }
+
+    //Function triggered at ESP-NOW reception
     esp_now_register_recv_cb(OnDataRecv);
+    
     String fullMac = WiFi.macAddress();
     Serial.println(">>> MAC Address: " + fullMac + " <<<");
-    updateScreen("SUBSTATION", "Ready to Relay", "MAC: " + fullMac);
+    Serial.println("SUBSTATION: Ready to Relay\n");    
 }
 
 void loop() {
     // Triggered when ESP-NOW receives new data
     if (hasNewDataToRelay) {
         hasNewDataToRelay = false; // Reset the flag
-        
-        updateScreen("RELAYING...", "UID: " + String(pendingPayload.uid), "SEQ: " + String(pendingPayload.seq));
+       
+	Serial.printf("RELAYING UID: %s SEQ: %s",String(pendingPayload.uid).c_str(),String(pendingPayload.seq).c_str());
         
         // Execute transmission and retry logic
         bool success = sendLoRaWithAck(pendingPayload);
         
         if (success) {
-            updateScreen("RELAY SUCCESS", "UID: " + String(pendingPayload.uid), "ACK Received");
+	    Serial.printf("RELAY SUCCESS UID = %s ACK RECEIVED",String(pendingPayload.uid).c_str());
         } else {
-            updateScreen("RELAY FAILED", "UID: " + String(pendingPayload.uid), "Timeout Dropped");
+	    Serial.printf("RELAY FAILED UID = %s: Timeout Dropped", String(pendingPayload.uid).c_str());
         }
     }
 }
