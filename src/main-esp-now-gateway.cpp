@@ -2,9 +2,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <LoRa.h>
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+#include <cstdint>
 #include "SharedPayload.h" 
 // config
 #include "secrets.h"
@@ -19,18 +17,15 @@ const int mqtt_port = SECRET_MQTT_PORT;
 
 const char* mqtt_topic = SECRET_MQTT_TOPIC;
 
-// --- LoRa & OLED Pins ---
-#define SCK 5
-#define MISO 19
-#define MOSI 27
-#define SS 18
-#define RST 14
-#define DIO0 26
-#define OLED_SDA 21
-#define OLED_SCL 22
+// --- LoRa Pins ---
+#define SCK 4
+#define MISO 5
+#define MOSI 6
+#define SS 7
+#define RST 3
+#define DIO0 1
 #define LORA_BAND SECRET_LORA_BAND 
 
-Adafruit_SSD1306 display(128, 64, &Wire, -1);
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -43,16 +38,6 @@ Payload globalPayload;
 volatile int globalRssi = 0;
 volatile float globalSnr = 0.0;
 volatile int globalPacketSize = 0;
-
-// --- Display Helper ---
-void updateScreen(String title, String line1, String line2) {
-    display.clearDisplay();
-    display.setCursor(0,0);
-    display.println("=== " + title + " ===");
-    display.println(line1);
-    display.println(line2);
-    display.display();
-}
 
 // --- Network Setup ---
 void setup_wifi() {
@@ -82,7 +67,7 @@ void reconnect_mqtt() {
         String clientId = "LilyGo-Gateway-" + String(random(0xffff), HEX);
         if (client.connect(clientId.c_str())) {
             Serial.println("[MQTT] Connected to Broker");
-            updateScreen("GATEWAY", "MQTT Connected", "Waiting for LoRa...");
+	    Serial.printf("GATEWAY MQTT CONNECTED Waiting for LoRa...\n");
         } else {
             Serial.print("[MQTT] Connection Failed, rc=");
             Serial.print(client.state());
@@ -125,15 +110,6 @@ void setup() {
 
     Serial.println("\n--- Gateway Substation Booting ---");
 
-
-    Wire.begin(OLED_SDA, OLED_SCL);
-    if (display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-        display.setTextSize(1);
-        display.setTextColor(WHITE);
-        updateScreen("GATEWAY", "Booting...", "");
-        Serial.println("[System] OLED Initialized.");
-    }
-
     if (ENABLE_MQTT) {
         setup_wifi();
         client.setServer(mqtt_server, mqtt_port);
@@ -143,8 +119,7 @@ void setup() {
 
     SPI.begin(SCK, MISO, MOSI, SS);
     LoRa.setPins(SS, RST, DIO0);
-    if (!LoRa.begin(LORA_BAND)) {
-        updateScreen("ERROR", "LoRa Init Failed", "");
+    if (!LoRa.begin(LORA_BAND)) {     
         Serial.println("[Critical Error] LoRa Initialization Failed!");
         while (1);
     }
@@ -156,7 +131,7 @@ void setup() {
 
 
     Serial.println("[System] Gateway Ready. Mode: Polling Loop.");
-    updateScreen("GATEWAY", "Ready", "Listening LoRa...");
+
     Serial.println("----------------------------------------------");
 }
 
@@ -184,8 +159,6 @@ void loop() {
             Serial.printf("=> Packet Size: %d Bytes | RSSI: %d dBm | SNR: %.1f dB\n", packetSize, rssi, snr);
             Serial.printf("=> Parsed Data -> UID: %u | SEQ: %u | Volt: %.1fV\n", globalPayload.uid, globalPayload.seq, globalPayload.voltage);
 
-            updateScreen("LORA RX OK", "UID: " + String(globalPayload.uid), "RSSI: " + String(rssi));
-
 
             AckPayload ack;
             ack.uid = globalPayload.uid;
@@ -194,10 +167,9 @@ void loop() {
             Serial.println("[LoRa TX ACK] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
             Serial.printf("=> Sending ACK for UID: %u | SEQ: %u\n", ack.uid, ack.seq);
             
-
             delay(10); 
             LoRa.beginPacket();
-            LoRa.write(&ack, sizeof(AckPayload));
+            LoRa.write((uint8_t *)&ack, sizeof(AckPayload));
             LoRa.endPacket();
             
             Serial.println("=> ACK Sent Successfully!");
@@ -208,10 +180,10 @@ void loop() {
                 bool pubSuccess = client.publish(mqtt_topic, (const uint8_t*)&globalPayload, sizeof(globalPayload));
                 if (pubSuccess) {
                     Serial.println("=> MQTT Publish SUCCESS!");
-                    updateScreen("DATA FWD", "UID: " + String(globalPayload.uid), "Pub: SUCCESS");
+		    Serial.printf("DATA FWD, UID: %s, PUB: SUCCESS\n",String(globalPayload.uid).c_str());
                 } else {
                     Serial.println("=> MQTT Publish FAILED!");
-                    updateScreen("DATA FWD", "UID: " + String(globalPayload.uid), "Pub: FAILED");
+		    Serial.printf("DATA FWD, UID: %s, PUB: FAILED\n",String(globalPayload.uid).c_str());
                 }
             }
             Serial.println("----------------------------------------------");
@@ -225,7 +197,7 @@ void loop() {
             Serial.println("\n[LoRa RX ERROR] ==============================");
             Serial.printf("=> Packet Size Mismatch! Expected: %d | Got: %d\n", sizeof(Payload), packetSize);
             Serial.println("==============================================\n");
-            updateScreen("RX ERROR", "Size Mismatch", "Got: " + String(packetSize) + "B");
+	    Serial.printf("RX ERROR, Size Mismatch, Got: %sB",String(packetSize).c_str());
         }
     }
 
