@@ -12,12 +12,12 @@ struct Payload {
     float battery_v;        // 4 bytes: ESP32 battery level
     uint8_t community_id;   // 1 byte: Community code
     uint8_t unit_id;        // 1 byte: Unit code
-}; 
+} typedef Payload; 
 
 struct AckPayload {
     uint32_t uid;
     uint32_t seq;
-};
+} typedef AckPayload;
 #pragma pack(pop)
 
 #endif 
