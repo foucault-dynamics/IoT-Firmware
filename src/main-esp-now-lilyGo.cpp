@@ -2,7 +2,7 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include <LoRa.h>
-#include "SharedPayload.h" 
+#include "shared_payload.h" 
 
 // config
 #include "secrets.h"

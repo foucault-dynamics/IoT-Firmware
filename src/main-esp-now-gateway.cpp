@@ -3,7 +3,7 @@
 #include <PubSubClient.h>
 #include <LoRa.h>
 #include <cstdint>
-#include "SharedPayload.h" 
+#include "shared_payload.h" 
 // config
 #include "secrets.h"
 
