@@ -16,4 +16,5 @@ struct UartPinConfig {
   uint8_t TX;
 };
 
+
 #endif
