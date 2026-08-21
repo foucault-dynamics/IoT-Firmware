@@ -1,19 +1,49 @@
 #include "sp3485.h"
+#include "HardwareSerial.h"
+#include "pin_config.h"
+#include <cstdint>
+#include <cstdlib>
 
-// TODO: implement on top of Uart.
-//
-// Sp3485::Sp3485(pins, baud, dere) : Uart(pins, baud), derePin(dere) {}
-//
-// setup()  = Uart::setup();
-//            pinMode(derePin, OUTPUT);
-//            digitalWrite(derePin, LOW);   // idle in receive
-//
-// send()   = digitalWrite(derePin, HIGH);  // take the bus
-//            int n = Uart::send(data, len);
-//            flush();                      // MUST block until the last bit
-//                                          // is out; dropping DE early
-//                                          // truncates the final byte
-//            digitalWrite(derePin, LOW);   // release the bus
-//            return n;
-//
-// receive() and available() are inherited from Uart unchanged.
+
+// Default constructor
+Sp3485::Sp3485() : pinConfig(), baudRate(0), serialConfig(SERIAL_8N1), derePin(0) {
+}
+
+
+// Deferred initialization
+void Sp3485::init(UartPinConfig pins, uint32_t baud, SerialConfig serialConfig, uint8_t dere){
+  pinConfig = pins;
+  baudRate = baud;
+  this->serialConfig = serialConfig;
+  derePin = dere;
+}
+
+
+// Setup
+int Sp3485::setup(){
+  // Setup UART controller to listen to specified PINs at given baud rate
+  Serial1.begin(baudRate,serialConfig,pinConfig.RX,pinConfig.TX);
+  // Setup the DE/RE pin on LOW
+  pinMode(derePin,LOW);
+  return EXIT_SUCCESS;
+}
+
+
+int Sp3485::receive(uint8_t *buf, size_t maxLen){
+  return EXIT_SUCCESS;
+}
+
+
+int Sp3485::send(const uint8_t *data, size_t len){
+  return EXIT_SUCCESS;
+}
+
+
+bool Sp3485::available(){
+  return false;
+}
+
+
+void Sp3485::flush(){
+  // TODO: Serial1.flush();
+}
