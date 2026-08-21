@@ -1,6 +1,6 @@
-# NEXTGEN IEMS
+# Focault Dynamics IoT Firmware
 
-NEXTGEN IEMS is an ESP32/PlatformIO prototype for a fault-tolerant intelligent energy metering system. It simulates energy meter readings on an ESP32-C3 SuperMini, sends the readings to a LilyGo substation using ESP-NOW, relays the payload over LoRa, and forwards the received data to an MQTT broker from the gateway.
+Focault Dynamics IoT Firmware is an ESP32/PlatformIO prototype for a fault-tolerant intelligent energy metering system. It simulates energy meter readings on an ESP32-C3 SuperMini, sends the readings to a LilyGo substation using ESP-NOW, relays the payload over LoRa, and forwards the received data to an MQTT broker from the gateway.
 
 ## System Overview
 
