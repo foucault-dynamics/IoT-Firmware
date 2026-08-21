@@ -1,8 +1,8 @@
 #ifndef ESP32CAM_H
 #define ESP32CAM_H
 
+#include "module.h"
 #include "shared_payload.h"
-#include "uart.h"
 
 /*
  * C3-side reader for the ESP32-CAM head.
@@ -12,11 +12,11 @@
  */
 class Esp32CamReader {
  private:
-  Uart &stream;
+  Module &stream;
 
  public:
   // Constructor
-  explicit Esp32CamReader(Uart &stream);
+  explicit Esp32CamReader(Module &stream);
   // Setup
   int setup();
   // Receive payload through stream

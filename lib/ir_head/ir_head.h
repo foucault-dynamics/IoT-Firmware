@@ -12,7 +12,8 @@
  * it unchanged:
  *
  *   IrHead head(irPins, 9600);
- *   ModbusRtuReader meter(head, 1);
+ *   ModbusRtuReader reader(head);
+ *   ModbusMeter meter(reader, 1, registerMap);
  *
  * TODO: decide the modulation scheme and fill in the class.
  */

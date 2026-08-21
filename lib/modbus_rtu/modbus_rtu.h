@@ -1,23 +1,21 @@
 #ifndef MODBUS_RTU_H
 #define MODBUS_RTU_H
 
-#include "sp3485.h"
-#include "shared_payload.h"
-/*
- * Modbus RTU protocol read from the SP3485 transceiver
- */
+#include "module.h"
+#include <cstdint>
+
 class ModbusRtuReader {
  private:
-  Sp3485 &stream;
-  uint8_t slaveAddress;
+  Module *module = nullptr;
 
  public:
-  // Constructor
-  ModbusRtuReader(Sp3485 &stream, uint8_t slaveAddress);
-  // Setup
-  int setup();
-  // Receiving data
-  int poll(Payload &out);
+  // Default constructor; call init() before use.
+  ModbusRtuReader();
+  // Deferred initialization of construction-time parameters.
+  void init(Module &module);
+
+  uint16_t readHoldingRegister(uint8_t slaveAddress, uint16_t address);
+  uint32_t readHoldingRegisters32(uint8_t slaveAddress, uint16_t address);
 };
 
 #endif

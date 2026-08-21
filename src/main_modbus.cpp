@@ -1,65 +1,74 @@
 #include <Arduino.h>
+#include "HardwareSerial.h"
 #include "shared_payload.h"
 #include "pin_config.h"
 #include "sp3485.h"
 #include "modbus_rtu.h"
+#include "modbus_meter.h"
 #include "secrets.h"
 
-// TODO: fill real pins/addresses once hardware is wired.
-//
-// Sp3485 is the Module: it owns the UART and the DE//RE line.
-// ModbusRtuReader sits on top of it and owns framing, CRC16 and the
-// register map.
-//
-// UartPinConfig rs485Pins = {/*RX*/ 0, /*TX*/ 1};
-// Sp3485 bus(rs485Pins, 9600, /*DERE*/ 2);
-// ModbusRtuReader meter(bus, /*slaveAddress*/ 1);
+// TODO: fill real pins, slave address and register map once hardware is wired.
 
 enum States{
-  ESTABLISH_CONNECTION,
-  READ,  
-  SLEEP,  
-}
+  READ,
+  SLEEP,
+};
+
+// Tunable settings
 
 
-UartPinConfig rs485Pins = {};
-Sp3485 bus(rs485Pins,9600,2);
-ModbusRtuReader meter(bus,1);
+// Meter Objects
+Sp3485 bus;
+ModbusRtuReader reader;
+ModbusMeter meter;
 
-volatile States state;
+// State variables
+volatile States state = READ;
 const unsigned long POLL_INTERVAL = 1000; // ms
+unsigned long lastPoll = 0;
+
+Payload payload;
 
 void setup() {
-  // Setup bus
-  bus.setup();
-  // Setup meter
-  meter.setup();
+  //Setup First Serial module (for monitoring)
+  Serial.begin(115200);
+
+  UartPinConfig rs485Pins = {};
+  SerialConfig config = SERIAL_8N1;
+  
+  // Setup SP3485 
+  bus.init(rs485Pins, 9600, config, 2);
+  bus.setup(); // Setup Serial controller
+
+  // Setup Modbus
+  reader.init(bus);
+
+  /* BUILD IN FUTURE AN UPSTREAM REQUEST THAT
+   *  WHAT METER WE ARE USING
+   */
+  uint8_t slave_address = 1;
+  ModbusRegisterMap registerMap = {};
+
+  // Initialise meter
+  meter.init(reader, slave_address, registerMap);  
+    
 }
 
 void loop() {
-  // Payload p;
-  // if (meter.poll(p) == 0) { /* push to uplink */ }
-  switch(state){    
-  case ESTABLISH_CONNECTION:
-    if(meter.poll() == 0){
-      Serial.println("Modbus poll failed");
-      delay(1000);
-      return;
-    }
-    break;
+  switch(state){
   case READ:
-    if(meter.poll() == 0){
-      Serial.println("Reading of data failed");
-      delay(1000);
-      return;
-    }
+    payload.voltage = meter.readVoltage();
+    payload.kwh_import = meter.readImportEnergy();
+    payload.kwh_export = meter.readExportEnergy();
+    lastPoll = millis();
+    state = SLEEP;
     break;
   case SLEEP:
+    if(millis() - lastPoll >= POLL_INTERVAL){
+      state = READ;
+    }
     break;
   default:
     break;
   }
-  
-
-  
 }

@@ -7,5 +7,4 @@ compile_commands.json
 .clangd
 .cache
 .pio
-
-
+ModBusSim/.venv
