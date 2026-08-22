@@ -13,7 +13,7 @@
  *
  *   IrHead head(irPins, 9600);
  *   ModbusRtuReader reader(head);
- *   ModbusMeter meter(reader, 1, registerMap);
+ *   reader.readHoldingRegister(cfg.slaveAddress, cfg.registers.voltage);
  *
  * TODO: decide the modulation scheme and fill in the class.
  */

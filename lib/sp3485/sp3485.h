@@ -16,7 +16,8 @@
  */
 class Sp3485 : public Module {
  private:
-  UartPinConfig pinConfig;
+  uint8_t RX;
+  uint8_t TX;  
   uint32_t baudRate;
   SerialConfig serialConfig;
   uint8_t derePin;  // GPIO driving DE//RE. High = transmit, low = receive.
@@ -28,7 +29,7 @@ class Sp3485 : public Module {
   // Default constructor; call init() before use.
   Sp3485();
   // Deferred initialization of construction-time parameters.
-  void init(UartPinConfig pins, uint32_t baud, SerialConfig serialConfig, uint8_t dere);
+  void init(uint8_t RX, uint8_t TX, uint8_t DERE, uint32_t baud, SerialConfig serialConfig);
   // Setup
   int setup() override;
   // Receive packets
