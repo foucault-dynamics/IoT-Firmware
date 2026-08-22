@@ -5,24 +5,20 @@
 #include <cstdlib>
 
 
-// Default constructor
-Sp3485::Sp3485() : pinConfig(), baudRate(0), serialConfig(SERIAL_8N1), derePin(0) {
-}
-
-
 // Deferred initialization
-void Sp3485::init(UartPinConfig pins, uint32_t baud, SerialConfig serialConfig, uint8_t dere){
-  pinConfig = pins;
-  baudRate = baud;
+void Sp3485::init(uint8_t RX, uint8_t TX, uint8_t DERE, uint32_t baud, SerialConfig serialConfig){
+  this->RX = RX;
+  this->TX = TX;
+  this->derePin = DERE;
+  this->baudRate = baud;
   this->serialConfig = serialConfig;
-  derePin = dere;
 }
 
 
 // Setup
 int Sp3485::setup(){
   // Setup UART controller to listen to specified PINs at given baud rate
-  Serial1.begin(baudRate,serialConfig,pinConfig.RX,pinConfig.TX);
+  Serial1.begin(baudRate,serialConfig,RX,TX);
   // Setup the DE/RE pin on LOW
   pinMode(derePin,LOW);
   return EXIT_SUCCESS;
