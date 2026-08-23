@@ -33,7 +33,7 @@ class Sp3485 : public Module {
   // Setup
   int setup() override;
   // Receive packets
-  int receive(uint8_t *buf, size_t maxLen) override;
+  int readByte() override;
   // Send packets
   int send(const uint8_t *data, size_t len) override;
   // True if at least one byte is waiting to be read.

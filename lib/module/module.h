@@ -26,7 +26,7 @@ class Module {
   virtual int send(const uint8_t *data, size_t len) = 0;
 
   // Read up to maxLen bytes into buf. Returns bytes read (0 if none).
-  virtual int receive(uint8_t *buf, size_t maxLen) = 0;
+  virtual int readByte();
 
   // True if at least one byte is waiting to be read.
   virtual bool available() = 0;

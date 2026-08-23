@@ -10,9 +10,9 @@ class Reader {
  public:
   virtual ~Reader() = default;
 
-  virtual float get_import() = 0;
-  virtual float get_export() = 0;
-  virtual float get_voltage() = 0;
+  virtual int get_import(float *val) = 0;
+  virtual int get_export(float *val) = 0;
+  virtual int get_voltage(float *val) = 0;
 };
 
 #endif
