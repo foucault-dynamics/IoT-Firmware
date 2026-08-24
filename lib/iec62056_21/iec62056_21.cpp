@@ -41,23 +41,36 @@ bool Iec6205621Reader::parseObisFloat(const String &block,
 }
 
 int Iec6205621Reader::poll(Payload &out) {
+
+  // This part sends the universal "wake up" message used in all 
+  // IEC62056 interactions
   const uint8_t request[] = {'/', '?', '!', '\r', '\n'};
   head.send(request, sizeof(request));
 
+  // read back the meter's ID, timeout if taking too long
   String identification = readUntil("\r\n", ID_TIMEOUT_MS);
+  // Return false if there's no meter recieved
   if (identification.length() == 0) {
     return -1;  // no meter responded to the initiation sequence
   }
 
+  // Send back an acknowledgement to the meter of its response, 
+  // universal "050" message. Set the baud rate to 19200. It's at 300 before
+  // at the handshake sped. 
+  // The speed is 300 bits per second because it's slow and universal and 
+  // all meters can manage that reliably. If the opening baud rate was 19200
+  // old meters wouldn't even be able to respond
   const uint8_t ack[] = {0x06, '0', '5', '0', '\r', '\n'};
   head.send(ack, sizeof(ack));
   head.setBaudRate(DATA_BAUD);
 
+  // read the data block sent by the meter until the "!"
   String dataBlock = readUntil("!\r\n", DATA_TIMEOUT_MS);
   if (dataBlock.length() == 0) {
     return -2;  // no data block received after the ACK
   }
 
+  // pulls the two numbers out for export nad import values
   float importKwh, exportKwh;
   bool haveImport = parseObisFloat(dataBlock, "1-0:1.8.0", importKwh);
   bool haveExport = parseObisFloat(dataBlock, "1-0:2.8.0", exportKwh);
