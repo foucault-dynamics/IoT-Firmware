@@ -2,7 +2,7 @@
 #define SP3485_H
 
 #include "module.h"
-#include "pin_config.h"
+#include "node_config.h"
 #include <cstdint>
 #include "HardwareSerial.h"
 
@@ -21,19 +21,19 @@ class Sp3485 : public Module {
   uint32_t baudRate;
   SerialConfig serialConfig;
   uint8_t derePin;  // GPIO driving DE//RE. High = transmit, low = receive.
+  HardwareSerial *serial;
 
   // Blocks until the TX buffer has fully left the wire.
   void flush();
+  void drainRX();
 
  public:
   // Default constructor; call init() before use.
-  Sp3485();
+  Sp3485(Rs485Config config, HardwareSerial &serial);
   // Deferred initialization of construction-time parameters.
-  void init(uint8_t RX, uint8_t TX, uint8_t DERE, uint32_t baud, SerialConfig serialConfig);
-  // Setup
-  int setup() override;
+  void init() override;
   // Receive packets
-  int receive(uint8_t *buf, size_t maxLen) override;
+  int readByte() override;
   // Send packets
   int send(const uint8_t *data, size_t len) override;
   // True if at least one byte is waiting to be read.
