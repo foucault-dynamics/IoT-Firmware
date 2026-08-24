@@ -13,20 +13,21 @@
  * meaning of the bytes it carries. Protocols (Modbus RTU, the ESP32-CAM
  * link) sit ON TOP of a Module by holding a Module& and calling into it.
  *
- * All methods return 0 or a byte count on success, negative on error.
+ * send() returns EXIT_SUCCESS or EXIT_FAILURE. readByte() returns the byte
+ * it read, or -1 when nothing was waiting.
  */
-class Module {
+class Module {  
  public:
   virtual ~Module() = default;
 
-  // Configure GPIOs and bring the peripheral up. Call once from setup().
-  virtual int setup() = 0;
+  // Setup of module
+  virtual void init() = 0;
 
-  // Transmit len bytes. Returns bytes sent.
+  // Transmit len bytes. Returns EXIT_SUCCESS or EXIT_FAILURE.
   virtual int send(const uint8_t *data, size_t len) = 0;
 
-  // Read up to maxLen bytes into buf. Returns bytes read (0 if none).
-  virtual int readByte();
+  // Read one byte. Returns the byte, or -1 if none is waiting.
+  virtual int readByte() = 0;
 
   // True if at least one byte is waiting to be read.
   virtual bool available() = 0;

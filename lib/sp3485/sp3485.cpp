@@ -1,39 +1,36 @@
 #include "sp3485.h"
 #include "HardwareSerial.h"
+#include "esp32-hal-gpio.h"
 #include "pin_config.h"
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 
 
-// Deferred initialization
-void Sp3485::init(uint8_t RX, uint8_t TX, uint8_t DERE, uint32_t baud, SerialConfig serialConfig){
+Sp3485::Sp3485(uint8_t RX, uint8_t TX, uint8_t DERE, uint32_t baud, SerialConfig serialConfig, HardwareSerial &serial){
   this->RX = RX;
   this->TX = TX;
   this->derePin = DERE;
   this->baudRate = baud;
   this->serialConfig = serialConfig;
+  this->serial = &serial;
 }
 
-
-// Setup
-int Sp3485::setup(){
-  // Setup UART controller to listen to specified PINs at given baud rate
-  Serial1.begin(baudRate,serialConfig,RX,TX);
-  // Setup the DE/RE pin on LOW
-  pinMode(derePin,INPUT);
-  digitalWrite(derePin,LOW);
-  return EXIT_SUCCESS;
+// Deferred initialization
+void Sp3485::init(){
+  serial->begin(baudRate,serialConfig,RX,TX);
+  pinMode(derePin,OUTPUT);
+  digitalWrite(derePin,HIGH);  
 }
 
 
 int Sp3485::readByte(){
-  if(digitalRead(derePin) != HIGH){
-    pinMode(derePin,OUTPUT);
-    digitalWrite(derePin,HIGH);
+  if(digitalRead(derePin) != LOW){
+    pinMode(derePin,INPUT);
+    digitalWrite(derePin,LOW);
   }
   if(available()){
-    return Serial1.read();
+    return serial->read();
   }
   else{
     return -1;
@@ -42,8 +39,9 @@ int Sp3485::readByte(){
 
 
 int Sp3485::send(const uint8_t *data, size_t len){
-  digitalWrite(derePin,HIGH);
-  size_t sent = Serial1.write(data,len); 
+  drainRX();
+  digitalWrite(derePin,HIGH);  
+  size_t sent = serial->write(data,len); 
   flush();
   digitalWrite(derePin,LOW);  
   if(sent != len){
@@ -55,11 +53,16 @@ int Sp3485::send(const uint8_t *data, size_t len){
 
 
 bool Sp3485::available(){
-  return Serial1.available();
+  return serial->available();
 }
 
 
 void Sp3485::flush(){
-  // TODO: Serial1.flush();
-  Serial1.flush();
+  serial->flush();
+}
+
+void Sp3485::drainRX(){
+  while(serial->available()){
+    serial->read();
+  }
 }

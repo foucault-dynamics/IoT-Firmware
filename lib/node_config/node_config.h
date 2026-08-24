@@ -26,7 +26,19 @@ struct Rs485Config {
   SerialConfig format;
 };
 
+struct IrConfig{  
+};
+
+struct LoRaConfig{
+};
+
 // #### Protocol configs ####
+
+//Format the Kwh values are stored
+enum class RegisterFormat : uint8_t{
+  ScaledInt = 0,
+    IEEE_754Float = 1,    
+};
 
 struct ModbusRtuConfig {
   ReaderType reader;
@@ -35,6 +47,7 @@ struct ModbusRtuConfig {
 
   Rs485Config bus;
 
+  RegisterFormat registerFormat;
   uint8_t slaveAddress;
   uint8_t functionCode;
   uint16_t voltage_address, import_address, export_address;

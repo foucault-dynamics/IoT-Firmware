@@ -21,17 +21,17 @@ class Sp3485 : public Module {
   uint32_t baudRate;
   SerialConfig serialConfig;
   uint8_t derePin;  // GPIO driving DE//RE. High = transmit, low = receive.
+  HardwareSerial *serial;
 
   // Blocks until the TX buffer has fully left the wire.
   void flush();
+  void drainRX();
 
  public:
   // Default constructor; call init() before use.
-  Sp3485();
+  Sp3485(uint8_t RX, uint8_t TX, uint8_t DERE, uint32_t baud, SerialConfig serialConfig, HardwareSerial &serial);
   // Deferred initialization of construction-time parameters.
-  void init(uint8_t RX, uint8_t TX, uint8_t DERE, uint32_t baud, SerialConfig serialConfig);
-  // Setup
-  int setup() override;
+  void init() override;
   // Receive packets
   int readByte() override;
   // Send packets
