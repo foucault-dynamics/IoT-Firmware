@@ -15,7 +15,7 @@ enum States {
 };
 
 // Meter Objects
-static Sp3485 bus;
+static Sp3485 *bus;
 static Reader *reader;
 
 // Runtime configuration (hardcoded in loadModbusRtuConfig() for now, requested
@@ -36,21 +36,18 @@ void rs485NodeSetup() {
     // Hardcoded for now
     cfg = loadModbusRtuConfig();
 
+    bus = new Sp3485(cfg.bus, Serial1);
+
     // Setup SP3485
-    bus.init(
-	     cfg.bus.rx,
-	     cfg.bus.tx,
-	     cfg.bus.dere,
-	     cfg.bus.baudRate,
-	     cfg.bus.format
-	     );
-    bus.setup();
+    bus->init();
 
     // Setup Modbus
-    auto *modbusReader = new ModbusRtuReader();
-    if (modbusReader->init(bus, cfg) == EXIT_SUCCESS){
-      reader = modbusReader;
+    reader = new ModbusRtuReader();
+    if (reader->init(*bus, &cfg) == EXIT_SUCCESS) {
       readerReady = true;
+    } else {
+      delete reader;
+      reader = nullptr;
     }
     break;
   }
@@ -70,13 +67,10 @@ void rs485NodeLoop() {
   }
   
   switch (state) {
-  case REQUEST:
-    
-    
   case READ:
-    payload.kwh_import = reader->get_import();
-    payload.kwh_export = reader->get_export();
-    payload.voltage = reader->get_voltage();    
+    reader->get_import(&payload.kwh_import);
+    reader->get_export(&payload.kwh_export);
+    reader->get_voltage(&payload.voltage);    
     break;
   case SLEEP:
     break;

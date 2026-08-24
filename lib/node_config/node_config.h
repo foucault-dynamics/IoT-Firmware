@@ -8,9 +8,10 @@
 
 // Which protocol a reader node speaks on its bus.
 enum class ReaderType : uint8_t {
-  ModbusRtu = 0,
+  ModbusRtu = 0,    
     Iec62056 = 1,
-    IEMS = 2
+    IEMS = 2,
+    ModbusTCP = 3    
 };
 // Which meter a reader node is attached to. One entry per supported model;
 enum class MeterModel : uint8_t {

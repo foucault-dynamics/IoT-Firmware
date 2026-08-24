@@ -2,7 +2,7 @@
 #define SP3485_H
 
 #include "module.h"
-#include "pin_config.h"
+#include "node_config.h"
 #include <cstdint>
 #include "HardwareSerial.h"
 
@@ -29,7 +29,7 @@ class Sp3485 : public Module {
 
  public:
   // Default constructor; call init() before use.
-  Sp3485(uint8_t RX, uint8_t TX, uint8_t DERE, uint32_t baud, SerialConfig serialConfig, HardwareSerial &serial);
+  Sp3485(Rs485Config config, HardwareSerial &serial);
   // Deferred initialization of construction-time parameters.
   void init() override;
   // Receive packets

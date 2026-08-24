@@ -2,17 +2,18 @@
 #include "HardwareSerial.h"
 #include "esp32-hal-gpio.h"
 #include "pin_config.h"
+#include "node_config.h"
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 
 
-Sp3485::Sp3485(uint8_t RX, uint8_t TX, uint8_t DERE, uint32_t baud, SerialConfig serialConfig, HardwareSerial &serial){
-  this->RX = RX;
-  this->TX = TX;
-  this->derePin = DERE;
-  this->baudRate = baud;
-  this->serialConfig = serialConfig;
+Sp3485::Sp3485(Rs485Config config, HardwareSerial &serial){
+  this->RX = config.rx;
+  this->TX = config.tx;
+  this->derePin = config.dere;
+  this->baudRate = config.baudRate;
+  this->serialConfig = config.format;
   this->serial = &serial;
 }
 

@@ -39,13 +39,14 @@ ModbusRtuConfig loadModbusRtuConfig() {
   cfg.bus.tx = 9;
   cfg.bus.dere = 10;
   cfg.bus.baudRate = 9600;
-  cfg.bus.format = SERIAL_8N1;
+  cfg.bus.format = SERIAL_8N1;  
 
   cfg.slaveAddress = 1;
   cfg.functionCode = 0x03;
   cfg.voltage_address = entry.voltage;
   cfg.import_address = entry.import_energy;
   cfg.export_address = entry.export_energy;
+  cfg.registerFormat = RegisterFormat::ScaledInt;
 
   return cfg;
 }
