@@ -27,10 +27,22 @@ struct Rs485Config {
   SerialConfig format;
 };
 
-struct IrConfig{  
+struct IrConfig{
 };
 
 struct LoRaConfig{
+};
+
+struct EspNowConfig {
+  bool useApInterface;
+  uint8_t channel;
+  uint32_t sendTimeoutMs;
+};
+
+struct EspNowPeerConfig {
+  uint8_t mac[6];
+  uint8_t channel;
+  bool useApInterface;
 };
 
 // #### Protocol configs ####
@@ -57,5 +69,6 @@ struct ModbusRtuConfig {
 // Hardcoded config should be resolved in runtime by upstream
 ReaderType loadReaderType();
 ModbusRtuConfig loadModbusRtuConfig();
+EspNowConfig loadEspNowConfig();
 
 #endif

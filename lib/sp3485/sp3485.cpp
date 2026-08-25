@@ -1,7 +1,6 @@
 #include "sp3485.h"
 #include "HardwareSerial.h"
 #include "esp32-hal-gpio.h"
-#include "pin_config.h"
 #include "node_config.h"
 #include <cstddef>
 #include <cstdint>
