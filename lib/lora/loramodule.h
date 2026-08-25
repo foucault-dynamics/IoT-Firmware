@@ -1,18 +1,15 @@
 #include "module.h"
-#include <atomic>
+
+#include <cstddef>
 #include <cstdint>
-#include <stdint.h>
-#include <sys/types.h>
-#include "shared_payload.h"
 
-#ifndef LORA_H
-#define LORA_H
+#ifndef LORA_MODULE_H
+#define LORA_MODULE_H
 
-class LoRa : public Module
+class LoRaModule : public Module
 {
-
 private:
-    uint32_t LoRaBand;
+    uint32_t loraBand;
     uint32_t signalBandwidth;
     uint8_t loraSpreadingFactor;
     uint8_t syncWord;
@@ -20,20 +17,20 @@ private:
     uint8_t macAddress[6];
 
 public:
-    LoRa(
-        uint32_t LoraBand,
+    LoRaModule(
+        uint32_t loraBand,
         uint32_t signalBandwidth,
         uint8_t loraSpreadingFactor,
         uint8_t syncWord,
         uint8_t txPower);
 
-    int init();
-    
-    int begin();
+    void init() override;
 
-    int receive(Payload &payload);
+    int send(const uint8_t *data, size_t len) override;
 
-    int send(const Payload &payload);
+    int readByte() override;
+
+    bool available() override;
 };
 
 #endif
