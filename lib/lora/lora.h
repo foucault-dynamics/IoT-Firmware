@@ -27,6 +27,8 @@ public:
         uint8_t syncWord,
         uint8_t txPower);
 
+    int init();
+    
     int begin();
 
     int receive(Payload &payload);

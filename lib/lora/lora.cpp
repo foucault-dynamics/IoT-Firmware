@@ -1,9 +1,18 @@
 #include "lora.h"
+#include <SPI.h>
+#include <LoRa.h>
 
 #include <cstdint>
 #include <stdint.h>
 #include <cstring>
 #include <iostream>
+
+#define LORA_SCK   5
+#define LORA_MISO  19
+#define LORA_MOSI  27
+#define LORA_CS    18
+#define LORA_RST   23
+#define LORA_DIO0  26
 
 LoRa::LoRa(
     uint32_t loraBand,
@@ -21,15 +30,36 @@ LoRa::LoRa(
 }
 
 int LoRa::begin()
-{
-    // Initialize the hardware:
-    // Might include:
-    // 1. Set operating frequency
-    // 2. Set signal bandwidth
-    // 3. Set spreading factor
-    // 4. Set sync word
-    // 5. Set TX power
+{   
+    // Serial.begin(9600);
+    // LoRa.begin(915E6);
+
+    SPI.begin(
+        LORA_SCK,
+        LORA_MISO,
+        LORA_MOSI,
+        LORA_CS
+    );
+
+    ::LoRa.setPins(
+        LORA_CS,
+        LORA_RST,
+        LORA_DIO0
+    );
+
+    if (!::LoRa.begin(loraBand))
+    {   
+        Serial.println("set up failed");
+        return -1;
+    }
+
+    ::LoRa.setSignalBandwidth(signalBandwidth);
+    ::LoRa.setSpreadingFactor(loraSpreadingFactor);
+    ::LoRa.setSyncWord(syncWord);
+    ::LoRa.setTxPower(txPower);
+
     return 0;
+
 }
 
 int LoRa::send(const Payload &payload)
