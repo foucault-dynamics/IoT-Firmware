@@ -58,6 +58,7 @@ static Payload payload;
 
 void rs485NodeSetup() {
 
+  // Hardcoded to take in ModBusTCP
   ReaderType readerType = loadReaderType();
   if (readerType == ReaderType::ModbusTCP) {
     if (!startWifiAp()) {
@@ -67,12 +68,15 @@ void rs485NodeSetup() {
     }
   }
 
+  // Initialise the ESP-NOW module
   wifiLink = new Wifi(loadEspNowConfig());
   if (wifiLink->init() != EXIT_SUCCESS) {
     readerReady = false;
     return;
   }
 
+
+  // Add substation as a Wifi Peer
   EspNowPeerConfig substation{};
   substation.useApInterface = true;
   uint8_t substationMac[] = SECRET_MAC;
@@ -83,6 +87,7 @@ void rs485NodeSetup() {
   }
 
   switch (readerType) {
+    // Modbus over Serial bus
   case ReaderType::ModbusRtu:{
     // Hardcoded for now
     cfg = loadModbusRtuConfig();
@@ -107,9 +112,10 @@ void rs485NodeSetup() {
   case ReaderType::Iec62056:
     Serial.println("Not applicable");
     break;
+    // Modbus over TCP (only for testing)
   case ReaderType::ModbusTCP: {
     cfg = loadModbusRtuConfig();
-
+   
     bus = new TcpBus(loadTcpBusConfig(SECRET_MODBUS_SIM_HOST, SECRET_MODBUS_SIM_PORT));
     bus->init();
 
