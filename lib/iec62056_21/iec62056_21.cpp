@@ -9,21 +9,85 @@ constexpr uint32_t DATA_BAUD = 19200;
 
 Iec6205621Reader::Iec6205621Reader(IrHead &head) : head(head) {}
 
-int Iec6205621Reader::setup() { return head.setup(); }
+int Iec6205621Reader::setup() {
+  head.init();
+  return 0;
+}
 
 String Iec6205621Reader::readUntil(const char *terminator,
                                     unsigned long timeoutMs) {
   String result;
   unsigned long deadline = millis() + timeoutMs;
-  uint8_t byte;
 
   while (millis() < deadline) {
-    if (head.available() && head.receive(&byte, 1) == 1) {
-      result += (char)byte;
+    int b = head.readByte();
+    if (b != -1) {
+      result += (char)b;
       if (result.endsWith(terminator)) break;
     }
   }
   return result;
+}
+
+bool Iec6205621Reader::baudRateFromId(char code, uint32_t &baudOut) {
+  switch (code) {
+    case '0': baudOut = 300;   return true;
+    case '1': baudOut = 600;   return true;
+    case '2': baudOut = 1200;  return true;
+    case '3': baudOut = 2400;  return true;
+    case '4': baudOut = 4800;  return true;
+    case '5': baudOut = 9600;  return true;
+    case '6': baudOut = 19200; return true;
+    default:  return false;  // meter asked for a rate outside the table
+  }
+}
+
+int Iec6205621Reader::handshake(uint32_t &negotiatedBaud) {
+  // Step 1: the request message. "/" marks it as a request, "?" means
+  // "send identification", "!" is a fixed terminator the spec requires,
+  // CRLF ends the line. Sent at 300 baud -- the one speed every mode C
+  // meter is guaranteed to be listening at when idle, regardless of what
+  // higher speeds it supports for the data block.
+  const uint8_t request[] = {'/', '?', '!', '\r', '\n'};
+  head.send(request, sizeof(request));
+
+  // Step 2: the identification response. Shape per IEC 62056-21:
+  //   "/" + 3-char manufacturer ID + 1-char baud-rate ID + identification
+  //   text + CR LF
+  // We only need bytes 0-4 (the "/", the 3 manufacturer chars, and the
+  // baud-rate ID) -- the identification text past that is metadata we
+  // don't need for the handshake itself.
+  String identification = readUntil("\r\n", ID_TIMEOUT_MS);
+  if (identification.length() == 0) {
+    return -1;  // meter never answered the request message
+  }
+
+  // Smallest possible valid message is "/" + 3 mfr chars + 1 baud char +
+  // CRLF = 7 bytes. Anything shorter, or not starting with "/", isn't an
+  // identification message at all.
+  if (identification.length() < 7 || identification[0] != '/') {
+    return -2;
+  }
+
+  char baudId = identification[4];
+  if (!baudRateFromId(baudId, negotiatedBaud)) {
+    return -3;  // baud-rate ID isn't one we have a mapping for
+  }
+
+  // Step 3: acknowledge and select that baud rate. The ACK is fixed except
+  // for the baud digit, which we echo straight back from what the meter
+  // just told us -- we're confirming "yes, switch to the rate you offered,"
+  // not picking one ourselves. '0' (3rd byte) is the fixed protocol-mode
+  // control character for normal mode C.
+  const uint8_t ack[] = {0x06, '0', (uint8_t)baudId, '0', '\r', '\n'};
+  head.send(ack, sizeof(ack));
+
+  // Only now do we retune the link. The meter is still listening at 300
+  // baud until it has received this ACK, so switching any earlier would
+  // mean sending the ACK itself at the wrong speed.
+  head.setBaudRate(negotiatedBaud);
+
+  return 0;
 }
 
 bool Iec6205621Reader::parseObisFloat(const String &block,

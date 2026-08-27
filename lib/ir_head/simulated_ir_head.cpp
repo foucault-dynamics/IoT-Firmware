@@ -1,10 +1,17 @@
 #include "simulated_ir_head.h"
 #include <Arduino.h>
+#include <cstdlib>
 #include <cstring>
 
 // Canned responses matching what a real EM211 would send, per IEC 62056-21
 // mode C.
-static const char ID_RESPONSE[] = "/EM5\\300EM211\r\n";
+//
+// Identification message shape: "/" + 3-char manufacturer ID + 1-char
+// baud-rate ID + identification text + CRLF. The baud-rate ID here is '5',
+// which Table 6 of the standard maps to 9600 -- deliberately different from
+// the 19200 this codebase used to hardcode, so a correct parser and a
+// broken one produce visibly different negotiated baud rates.
+static const char ID_RESPONSE[] = "/EMH5EM211\r\n";
 static const char DATA_BLOCK[] =
     "1-0:1.8.0(001234.567*kWh)\r\n"
     "1-0:2.8.0(000045.123*kWh)\r\n"
@@ -16,10 +23,9 @@ void SimulatedIrHead::queueResponse(const char *response) {
   pendingPos = 0;
 }
 
-int SimulatedIrHead::setup() {
+void SimulatedIrHead::init() {
   state = AWAITING_REQUEST;
   pendingResponse = nullptr;
-  return 0;
 }
 
 int SimulatedIrHead::send(const uint8_t *data, size_t len) {
@@ -33,23 +39,20 @@ int SimulatedIrHead::send(const uint8_t *data, size_t len) {
     queueResponse(DATA_BLOCK);
     state = SENDING_DATA;
   }
-  return len;
+  return EXIT_SUCCESS;
 }
 
-int SimulatedIrHead::receive(uint8_t *buf, size_t maxLen) {
-  if (!pendingResponse) return 0;
+int SimulatedIrHead::readByte() {
+  if (!available()) return -1;
 
-  size_t n = 0;
-  while (n < maxLen && pendingPos < pendingLen) {
-    buf[n++] = pendingResponse[pendingPos++];
-  }
+  uint8_t byte = pendingResponse[pendingPos++];
 
   if (pendingPos >= pendingLen) {
     if (state == SENDING_ID) state = AWAITING_ACK;
     else if (state == SENDING_DATA) state = DONE;
     pendingResponse = nullptr;
   }
-  return n;
+  return byte;
 }
 
 bool SimulatedIrHead::available() {

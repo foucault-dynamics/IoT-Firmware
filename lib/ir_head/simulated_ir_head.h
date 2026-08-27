@@ -24,9 +24,9 @@ class SimulatedIrHead : public IrHead {
   void queueResponse(const char *response);
 
  public:
-  int setup() override;
+  void init() override;
   int send(const uint8_t *data, size_t len) override;
-  int receive(uint8_t *buf, size_t maxLen) override;
+  int readByte() override;
   bool available() override;
   void setBaudRate(uint32_t baud) override;
 };

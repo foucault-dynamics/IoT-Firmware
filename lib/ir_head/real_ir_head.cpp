@@ -1,31 +1,30 @@
 #include "real_ir_head.h"
 #include <Arduino.h>
+#include <cstdlib>
 
-RealIrHead::RealIrHead(UartPinConfig pins, uint32_t initialBaud)
-    : pinConfig(pins), baudRate(initialBaud) {}
+RealIrHead::RealIrHead(IrConfig config, HardwareSerial &serial)
+    : RX(config.rx), TX(config.tx), baudRate(config.baudRate),
+      serialConfig(config.format), serial(&serial) {}
 
-int RealIrHead::setup() {
-  Serial1.begin(baudRate, SERIAL_7E1, pinConfig.RX, pinConfig.TX);
-  return 0;
+void RealIrHead::init() {
+  serial->begin(baudRate, serialConfig, RX, TX);
 }
 
 int RealIrHead::send(const uint8_t *data, size_t len) {
-  size_t written = Serial1.write(data, len);
-  Serial1.flush();  // block until the bytes have actually left the wire
-  return written;
+  size_t written = serial->write(data, len);
+  serial->flush();  // block until the bytes have actually left the wire
+  if (written != len) return EXIT_FAILURE;
+  return EXIT_SUCCESS;
 }
 
-int RealIrHead::receive(uint8_t *buf, size_t maxLen) {
-  size_t n = 0;
-  while (n < maxLen && Serial1.available()) {
-    buf[n++] = Serial1.read();
-  }
-  return n;
+int RealIrHead::readByte() {
+  if (available()) return serial->read();
+  return -1;
 }
 
-bool RealIrHead::available() { return Serial1.available() > 0; }
+bool RealIrHead::available() { return serial->available() > 0; }
 
 void RealIrHead::setBaudRate(uint32_t baud) {
   baudRate = baud;
-  Serial1.begin(baudRate, SERIAL_7E1, pinConfig.RX, pinConfig.TX);
+  serial->begin(baudRate, serialConfig, RX, TX);
 }

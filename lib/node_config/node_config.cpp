@@ -52,6 +52,17 @@ ModbusRtuConfig loadModbusRtuConfig() {
 }
 
 // Hard coded
+// TODO: real RX/TX pins once the EE team's UART-to-IR circuit is wired up.
+IrConfig loadIrConfig() {
+  IrConfig cfg{};
+  cfg.rx = 4;
+  cfg.tx = 5;
+  cfg.baudRate = 300;      // every IEC 62056-21 handshake starts at 300 baud
+  cfg.format = SERIAL_7E1; // 7 data bits, even parity, 1 stop bit -- the standard's framing
+  return cfg;
+}
+
+// Hard coded
 EspNowConfig loadEspNowConfig() {
   EspNowConfig cfg{};
   cfg.useApInterface = false;

@@ -2,7 +2,7 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include "shared_payload.h"
-#include "pin_config.h"
+#include "node_config.h"
 #include "iec62056_21.h"
 
 #ifdef USE_SIMULATED_METER
@@ -17,13 +17,12 @@
 // ==========================================
 // IR meter (IEC 62056-21 over the optical port)
 // ==========================================
-// TODO: real RX/TX pins once the EE team's UART-to-IR circuit is wired up.
-UartPinConfig irPins = {/*RX*/ 4, /*TX*/ 5};
+IrConfig irConfig = loadIrConfig();
 
 #ifdef USE_SIMULATED_METER
 SimulatedIrHead irHead;
 #else
-RealIrHead irHead(irPins, /*initial baud*/ 300);
+RealIrHead irHead(irConfig, Serial1);
 #endif
 Iec6205621Reader meter(irHead);
 
@@ -87,16 +86,27 @@ void setup() {
   // 4. Read the meter over IR
   meter.setup();
 
-  Payload reading = {};
-  reading.uid = DEVICE_UID;
-  reading.seq = messageCounter++;
-
-  if (meter.poll(reading) == 0) {
-    Serial.printf("IR read OK — import: %.3f kWh, export: %.3f kWh\n",
-                   reading.kwh_import, reading.kwh_export);
+  // Handshake only, for now -- confirms the wake-up/negotiation step works
+  // in isolation before the data-block read (meter.poll()) gets layered
+  // back on top of it.
+  uint32_t negotiatedBaud = 0;
+  int handshakeResult = meter.handshake(negotiatedBaud);
+  if (handshakeResult == 0) {
+    Serial.printf("IR handshake OK — negotiated %u baud\n", negotiatedBaud);
   } else {
-    Serial.println("IR read failed");
+    Serial.printf("IR handshake failed (code %d)\n", handshakeResult);
   }
+
+  // meter.poll() (wake-up + data-block read + OBIS parse) is temporarily
+  // not called here -- it duplicates the wake-up handshake() now does
+  // internally, and running both back to back against SimulatedIrHead
+  // would double-drive its state machine. Left for the next step:
+  // reconciling poll() to call handshake() instead of repeating it.
+  //
+  // Payload reading = {};
+  // reading.uid = DEVICE_UID;
+  // reading.seq = messageCounter++;
+  // if (meter.poll(reading) == 0) { ... }
 
   // NOTE: nothing below this actually calls esp_now_send() yet — that was
   // already missing before this change. Not touching it; out of scope for

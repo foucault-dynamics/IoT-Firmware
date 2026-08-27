@@ -27,7 +27,10 @@ struct Rs485Config {
   SerialConfig format;
 };
 
-struct IrConfig{
+struct IrConfig {
+  uint8_t rx, tx;
+  uint32_t baudRate;
+  SerialConfig format;
 };
 
 struct LoRaConfig{
@@ -69,6 +72,7 @@ struct ModbusRtuConfig {
 // Hardcoded config should be resolved in runtime by upstream
 ReaderType loadReaderType();
 ModbusRtuConfig loadModbusRtuConfig();
+IrConfig loadIrConfig();
 EspNowConfig loadEspNowConfig();
 
 #endif
