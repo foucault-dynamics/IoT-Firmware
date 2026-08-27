@@ -20,6 +20,9 @@ static ModuleType moduleType = ModuleType::Unknown;
 void setup() {
   Serial.begin(115200);
 
+  while(!Serial){delay(100);}
+  delay(2000);
+
   moduleType = readModuleType();
   Serial.printf("[BOOT] module type %d\n", (int)moduleType);
 
