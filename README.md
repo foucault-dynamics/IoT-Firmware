@@ -13,21 +13,18 @@ Read this before flashing anything.
 - **The layered architecture is merged.** A single `src/main.cpp` selects the
   node role at boot and dispatches into `src/nodes/`. This is the `unified`
   environment and it builds.
-- **Modbus RTU over RS485 is implemented end to end in firmware.** The
-  `ModbusRtuReader` builds requests, validates CRC and T3.5 framing, decodes
-  exception codes, and returns floats. It has not been tested against a real
-  SP3485 transceiver and a real meter.
 - **The default build is still the legacy skeleton.** `default_envs = supermini`
   in `platformio.ini`, so a bare `pio run` gives you the old non-transmitting
   sketch, not the new architecture. Build `-e unified` explicitly.
-- **Two modules are mid-refactor and uncommitted.** `lib/tcp_bus/` and
-  `lib/substation/` do not compile. See [In Progress](#in-progress).
+- LINE 16 IN `node_config.cpp` SHOULD BE CHANGED FOR READER BEING TESTED
+  
 
 ## System Overview
 
 ```text
 ESP32-C3 meter node
   Sp3485 (Module)  ->  ModbusRtuReader (Reader)     <- implemented, untested on hardware
+  TcpBus (Module)  ->  ModbusRtuReader (Reader)     <- testing path, current default
   Wifi (Transmitter)                                <- implemented, not yet called
         |
         | ESP-NOW                                   <- both sides work
@@ -59,11 +56,11 @@ Configuration is a plain struct per protocol, defined in
 each reader casts to the struct it expects, which keeps the base interface free
 of every protocol's fields. The `load*Config()` functions in `node_config.cpp`
 are hardcoded seams; upstream configuration selection replaces their bodies
-later without touching any call site.
+later without touching any call site (FUTURE IMPLEMENTATION).
 
 Role dispatch lives in `src/main.cpp`. `readModuleType()` is currently hardcoded
 to `Rs485Node` and is meant to read a hardware ID pin, which the hardware team
-owns.
+owns. (in `node_config.cpp`)
 
 ## What Works Today
 
@@ -83,41 +80,19 @@ reminds on serial every 5 seconds.
 
 ### `Sp3485`, `lib/sp3485/`
 
-RS485 transceiver as a `Module`. Drives DE/RE high to transmit, flushes the UART
-so the last bit physically leaves the wire, then drops the line back to receive.
-Drains stale RX bytes before every send so a late reply cannot desync the next
-frame.
+RS485 transceiver as a `Module`.
 
 ### `ModbusRtuReader`, `lib/modbus_rtu/`
 
-Function code 0x03 (Hardcoded) reads of two consecutive registers.
-
-- `init()` derives the T3.5 inter-frame gap from the `SerialConfig`, parsing data
-  bits, parity, and stop bits out of the Arduino format bitmask. Above 19200
-  baud it uses the fixed 1750 us the spec mandates.
-- `read_register()` waits out T3.5, sends the request, then reads until T3.5 of
-  silence closes the response frame or the 500 ms timeout expires.
-- Validates length, slave address, CRC16, function code, and byte count, and
-  decodes the eleven standard exception codes to serial.
-- Decodes the 32-bit result as either a scaled integer (divided by 1000) or an
-  IEEE 754 float, selected by `RegisterFormat` in the config.
-
-Not yet exercised against real hardware. It has been developed against
-`ModbusSim/`.
+ModbusRTU protocol `Reader`
 
 ### `Wifi`, `lib/wifi/`
 
-ESP-NOW as a `Transmitter`. This is the complete send and receive path the old
-SuperMini skeleton never had.
+ESP-NOW based `Transmitter`
 
-- Brings up WiFi as station or access point, optionally pins the channel.
-- Received frames are copied in the callback into a FreeRTOS queue
-  (`ESPNOW_RX_QUEUE_DEPTH` of 4), so `receivePacket()` never runs in interrupt
-  context. Returns the frame length, `-1` when the queue is empty, `-2` when the
-  caller's buffer is too small.
-- `sendPacket()` blocks on a binary semaphore given by the send callback, so it
-  returns only once the radio has confirmed or timed out on delivery.
-- `addPeer()` registers a peer from an `EspNowPeerConfig`.
+### `TCPBus`, `lib/tcpBus`
+
+TCP `Module` created for ModbusRTU over TCP testing 
 
 ### Legacy sketches, `supermini` / `lilygo` / `gateway` envs
 
@@ -133,17 +108,6 @@ in this repository. Nothing drives a display.
 
 ## In Progress
 
-### Uncommitted modules
-
-Both are present in the working tree, both are unfinished, and neither is
-included by any built source, so PlatformIO's dependency finder never compiles
-them and the build stays green.
-
-| Path | State |
-|---|---|
-| `lib/tcp_bus/` | A `Module` carrying  RTU framing over a `WiFiClient` socket, matching `ModbusSimTCP.py`. Logic is written but it needs `TcpBusConfig`, which exists on `origin/RS485` and not on `main`. Will not compile until that struct is merged. |
-| `lib/substation/` | Skeleton only. `substation.h` has a syntax error (`class Substation :: public Transmitter`), the three method bodies are empty, and the signatures do not match the `Transmitter` base. |
-
 ### Meter-reading modules not yet started
 
 | Module | State | Missing include |
@@ -151,17 +115,6 @@ them and the build stays green.
 | `lib/esp32cam/` | Empty. The `.cpp` is two includes and a TODO, with no method bodies | `cam_link_protocol.h` |
 | `lib/ir_head/` | Header only, and it declares nothing. Comment block ends "decide the modulation scheme and fill in the class" | `pin_config.h` |
 
-### Unmerged work on other branches
-
-`RS485` has been merged; it now carries only the two commits below on top of
-`main`. `Substation` is fully merged.
-
-| Branch | Ahead of `main` | Carries |
-|---|---|---|
-| `RS485` | 2 | `TcpBusConfig` plus `loadTcpBusConfig()`, Modbus-over-TCP wiring in `rs485_node`, a boot delay so serial output is not missed, and simulator tweaks. This is what `lib/tcp_bus/` needs. |
-| `lora` | 4 | `lib/lora/loramodule.{h,cpp}`, a LoRa packet transport |
-| `ir-module` | 2 (and 13 behind) | `lib/iec62056_21/`, real and simulated IR head implementations, `lib/uart/`, `lib/sx1276/`, `lib/shared/pin_config.h`, `lib/shared/cam_link_protocol.h` |
-| `ESP-IDF-migration` | 5 (and 21 behind) | Exploratory ESP-IDF port |
 
 ## Repository Layout
 
@@ -228,7 +181,7 @@ Every reusable piece of the firmware, one subdirectory per library, compiled by
 PlatformIO into separate static libraries. It splits into the three abstract base
 classes (`module/`, `reader/`, `transmitter/`), the configuration structs
 (`node_config/`, `shared/`), and the concrete implementations (`sp3485/`,
-`modbus_rtu/`, `wifi/`, and the unfinished `tcp_bus/`, `substation/`, `ir_head/`,
+`modbus_rtu/`, `wifi/`, and the unfinished `substation/`, `ir_head/`,
 `esp32cam/`).
 
 PlatformIO only compiles a library that something includes, which is why the
@@ -239,21 +192,12 @@ each subdirectory** and how the layers fit together.
 
 Python `pymodbus` servers that impersonate a meter, plus a client to poll them.
 This is how the Modbus reader is developed without hardware. See
-`ModbusSim/README.md` for the register map, setup, and the encoding quirk to be
-aware of.
+`ModbusSim/README.md` for the register map and setup
 
 ### `test/`
 
 PlatformIO Test Runner directory. Empty apart from the stock placeholder README.
 No tests exist yet.
-
-### Generated, not source
-
-`.pio/` is PlatformIO's build output. `compile_commands.json` and the per-
-environment copies under `.compile_commands/` are the clangd compilation
-database, regenerated with `pio run -t compiledb`. `.cache/` is clangd's index.
-None of it is tracked; the `.compile_commands/` directory itself is not named in
-`.gitignore`, but everything inside it is a `compile_commands.json`, which is.
 
 
 ## PlatformIO Environments
@@ -268,7 +212,6 @@ the physical board the code was written against, not the build target.
 | `supermini` (default) | `main-esp-now-supermini.cpp` | Builds. Legacy skeleton, transmits nothing. |
 | `lilygo` | `main-esp-now-lilyGo.cpp` | Builds. Legacy, superseded by the `substation` node. |
 | `gateway` | `main-esp-now-gateway.cpp` | Builds, with the serial caveat below. Legacy, superseded by the `gateway` node. |
-| `modbus_node` | `main_modbus.cpp` | **Cannot build.** The file was deleted from `main` by commit `304c27a`. The environment should be removed. |
 
 The `gateway` environment sets no `build_flags`, so unlike the others it is built
 without `ARDUINO_USB_MODE` and `ARDUINO_USB_CDC_ON_BOOT`. Serial output will not
@@ -296,30 +239,25 @@ separately in each file rather than shared: `SCK 4`, `MISO 5`, `MOSI 6`, `SS 7`,
 The firmware expects `src/secrets.h`:
 
 ```cpp
-#pragma once
-
-#define SECRET_WIFI_SSID "your-ssid"
-#define SECRET_WIFI_PASS "your-password"
+#define SECRET_WIFI_SSID "Damian7777"
+#define SECRET_WIFI_PASS "87654321"
 
 #define SECRET_MQTT_SERVER "broker.hivemq.com"
 #define SECRET_MQTT_PORT 1883
-#define SECRET_MQTT_TOPIC "your/mqtt/topic"
+#define SECRET_MQTT_TOPIC "qut_ems_project_888/ems/ZoneA/meters"
+#define SECRET_MAC {0xF0, 0x24, 0xF9, 0x93, 0x04, 0x5C}
+#define SECRET_LORA_BAND 433E6 // 915E6
 
-#define SECRET_MAC {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF}
-#define SECRET_LORA_BAND 433E6
+#define SECRET_AP_SSID "kaizen-rs485"
+#define SECRET_AP_PASS "kaizen123"      // WPA2 minimum is 8 chars
+#define SECRET_MODBUS_SIM_HOST "192.168.4.2"   // was 192.168.1.100
+#define SECRET_MODBUS_SIM_PORT 5020
+
 ```
 
-- `SECRET_WIFI_SSID`, `SECRET_WIFI_PASS`: used by the gateway to reach the broker.
-- `SECRET_MQTT_SERVER`, `SECRET_MQTT_PORT`: broker address and port. Non-TLS MQTT
-  is usually `1883`.
-- `SECRET_MQTT_TOPIC`: topic the gateway publishes to. Avoid wildcard characters.
-- `SECRET_MAC`: MAC address of the substation relay. Flash the substation first,
-  read the MAC it prints on boot, and paste it here. `rs485_node` reads this into
-  its `EspNowPeerConfig`.
-- `SECRET_LORA_BAND`: LoRa frequency. Both LoRa devices must match.
-
-**This file is currently tracked in git with live values.** It should be added to
-`.gitignore` and the committed copy replaced with a `secrets.example.h`.
+- Contains WIFI configurations for a substation
+- Contains configurations for LoRa and MQTT
+- Contains configurations for Modbus over TCP
 
 ## Payload Format
 
@@ -349,38 +287,6 @@ Every device must use the same struct. Both the ESP-NOW receive path and the LoR
 receive path reject frames on a `sizeof()` mismatch, so if you change this file,
 rebuild and reflash all environments together.
 
-`rs485_node` currently fills `kwh_import`, `kwh_export`, and `voltage` only.
-`uid`, `seq`, `battery_v`, `community_id`, and `unit_id` are never set.
-
-## Build and Flash
-
-Flash the substation first, because you need its MAC address for `SECRET_MAC`.
-All three roles come out of the same `unified` build; change the return value of
-`readModuleType()` in `src/main.cpp` before each flash until the ID pin exists.
-
-```bash
-# 1. Set readModuleType() to ModuleType::Substation
-pio run -e unified -t upload
-pio device monitor -e unified
-```
-
-Copy the printed MAC into `SECRET_MAC` in `src/secrets.h`, then:
-
-```bash
-# 2. Set readModuleType() to ModuleType::Gateway, flash the gateway board
-pio run -e unified -t upload
-
-# 3. Set readModuleType() to ModuleType::Rs485Node, flash the meter node
-pio run -e unified -t upload
-pio device monitor -e unified
-```
-
-The meter node prints its three readings every 10 seconds. It does not send them
-onwards yet, so to exercise the ESP-NOW, LoRa, and MQTT path end to end you still
-have to inject a packet yourself.
-
-Note that `pio run` with no `-e` builds `supermini`, the legacy skeleton. Always
-pass `-e unified`.
 
 ## Modbus Simulator
 
@@ -401,40 +307,6 @@ values that change on every poll. These addresses match the
 See `ModbusSim/README.md` for venv setup, how to poll with
 `python3 -m pymodbus.console`, and the `socat` null-modem recipe for the serial
 variant.
-
-## Known Gaps
-
-Recorded rather than fixed. Worth clearing before submission.
-
-- `rs485_node` reads but never transmits. `Wifi::sendPacket()` is implemented and
-  the peer is registered, but nothing calls it.
-- `readModuleType()` in `src/main.cpp` is hardcoded. Every role change needs a
-  source edit and a reflash until the hardware ID pin lands.
-- The RS485 path has not been tested against a real SP3485 and a real meter, only
-  against the simulator.
-- `default_envs = supermini` still points at the legacy skeleton.
-- The `modbus_node` environment references a file that no longer exists and fails
-  immediately.
-- `lib/tcp_bus/` and `lib/substation/` are uncommitted and do not compile.
-- No tests. `test/` holds only the stock PlatformIO placeholder.
-- `src/secrets.h` is committed with live credentials.
-- `platformio.ini` lists `knolleary/PubSubClient @ ^2.8` twice under `[env:gateway]`.
-- `.gitignore` has `ModBusSim/.venv`, capitalised differently from the actual
-  `ModbusSim/` directory. It matches on macOS only because git is case-insensitive
-  there by default; on Linux or CI the virtualenv would stop being ignored. It
-  also does not ignore `ModbusSim/__pycache__/`.
-- `onLoRaReceive()` in the gateway node is defined but never registered with
-  `LoRa.onReceive()`. It is dead code left from an interrupt-based approach that
-  polling replaced.
-- LoRa pin definitions are duplicated between the substation and gateway nodes
-  instead of living in `node_config.h` like the RS485 pins.
-- `Sp3485::readByte()` calls `pinMode(derePin, INPUT)` before driving it low,
-  which releases the pin rather than driving the transceiver into receive. The
-  send path already leaves DE/RE low, so this is redundant at best.
-- In the simulators, `define_device()` seeds the kWh registers as `FLOAT32` but
-  `meter_action()` re-encodes them as `uint32`, so their representation changes
-  after the first poll. The firmware's `RegisterFormat::ScaledInt` matches the
-  post-poll encoding, not the seeded one.
 
 ## Troubleshooting
 
