@@ -1,13 +1,14 @@
 #include <Arduino.h>
-#include <ArduinoJson.h>
-#include <HTTPClient.h>
-#include <WiFi.h>
 
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
-#include "nodes.h"
+#include "cam_http.h"
+#include "cam_wifi.h"
 #include "node_config.h"
+#include "nodes.h"
+#include "reader.h"
 #include "secrets.h"
 #include "shared_payload.h"
 #include "wifi_transmitter.h"
@@ -15,96 +16,75 @@
 // CV module node. Hosts its own WiFi access point so the ESP32-CAM
 // (AI-on-the-edge-device) can join it directly with no router or internet
 // needed at the meter site, matching why the rest of this network uses
-// ESP-NOW/LoRa instead of relying on WiFi. Polls the cam's HTTP "/json" API
-// for the current meter reading and forwards it to the substation over
+// ESP-NOW/LoRa instead of relying on WiFi. The AP and its HTTP client are a
+// Module (lib/cam_wifi); the cam's "/json" API and its reading are a Reader
+// on top of it (lib/cam_http). Readings are forwarded to the substation over
 // ESP-NOW on the same AP radio. A wired UART link (lib/esp32cam) is the
-// planned replacement once the boards are physically connected.
+// planned replacement Module once the boards are physically connected; the
+// reader above it stays unchanged.
 
 // Hardcoded for now, same as DEVICE_UID in main-esp-now-supermini.cpp.
 static const uint32_t DEVICE_UID = 3;
-static const uint32_t POLL_INTERVAL_MS = 30000;
 static const uint8_t AP_CHANNEL = 1;
 
-namespace {
-Wifi *wifiLink = nullptr;
-Payload payload{};
-uint32_t messageCounter = 0;
-unsigned long lastPoll = 0;
-bool wifiLinkReady = false;
+// Substation details
+static Wifi *wifiLink = nullptr;
 
-// Fetches the configured flow from the cam's /json endpoint and parses its
-// "value" field. Returns true and fills *out on success; false on any
-// network, parse, or device-reported error.
-bool fetchCamReading(float *out) {
-  if (WiFi.softAPgetStationNum() == 0) {
-    Serial.println("[CV] No station joined the AP yet, skipping poll.");
-    return false;
-  }
+// Cam objects
+static CamWifi *bus = nullptr;
+static Reader *reader = nullptr;
 
-  HTTPClient http;
-  String url = String("http://") + SECRET_CAM_HOST + "/json";
-  http.begin(url);
-  http.setTimeout(5000);
-  if (strlen(SECRET_CAM_USER) > 0) {
-    http.setAuthorization(SECRET_CAM_USER, SECRET_CAM_PASS);
-  }
+// Runtime configuration. Hardcoded here rather than in node_config.cpp
+// because the values come from secrets.h, which lives under src/.
+static CamHttpConfig cfg;
 
-  int status = http.GET();
-  if (status != HTTP_CODE_OK) {
-    Serial.printf("[CV] GET %s failed, HTTP status %d\n", url.c_str(), status);
-    http.end();
-    return false;
-  }
+// State variables
+static Payload payload;
+static uint32_t messageCounter = 0;
+static unsigned long lastPoll = 0;
+static bool readerReady = false;
 
-  String body = http.getString();
-  http.end();
+static CamHttpConfig loadCamHttpConfig() {
+  CamHttpConfig config{};
+  config.reader = ReaderType::CamHttp;
+  config.pollIntervalMs = 30000;
 
-  JsonDocument doc;
-  DeserializationError err = deserializeJson(doc, body);
-  if (err) {
-    Serial.printf("[CV] JSON parse failed: %s\n", err.c_str());
-    return false;
-  }
+  config.bus.ssid = SECRET_CAM_AP_SSID;
+  config.bus.password = SECRET_CAM_AP_PASSWORD;
+  config.bus.channel = AP_CHANNEL;
+  config.bus.requestTimeoutMs = 5000;
+  config.bus.httpUser = SECRET_CAM_USER;
+  config.bus.httpPass = SECRET_CAM_PASS;
 
-  JsonVariant number = doc[SECRET_CAM_FLOW_NAME];
-  if (number.isNull()) {
-    Serial.printf("[CV] Flow \"%s\" not present in response.\n", SECRET_CAM_FLOW_NAME);
-    return false;
-  }
+  config.host = SECRET_CAM_HOST;
+  config.path = "/json";
+  config.flowName = SECRET_CAM_FLOW_NAME;
 
-  const char *errorMessage = number["error"] | "";
-  if (errorMessage[0] != '\0') {
-    Serial.printf("[CV] Cam reported an error for \"%s\": %s\n", SECRET_CAM_FLOW_NAME, errorMessage);
-    return false;
-  }
-
-  const char *valueStr = number["value"] | "";
-  if (valueStr[0] == '\0') {
-    Serial.printf("[CV] Flow \"%s\" has no value yet.\n", SECRET_CAM_FLOW_NAME);
-    return false;
-  }
-
-  *out = atof(valueStr);
-  return true;
+  return config;
 }
-}  // namespace
 
 void cvNodeSetup() {
-  WiFi.mode(WIFI_AP);
+  // Hardcoded for now
+  cfg = loadCamHttpConfig();
 
-  // Reduced transmit power - needed for this C3 Super Mini.
-  WiFi.setTxPower(WIFI_POWER_8_5dBm);
-
-  bool apOk = WiFi.softAP(SECRET_CAM_AP_SSID, SECRET_CAM_AP_PASSWORD, AP_CHANNEL);
-  Serial.println(apOk ? "[CV] AP started" : "[CV] AP FAILED");
-  Serial.printf("[CV] SSID: %s\n", SECRET_CAM_AP_SSID);
-  Serial.printf("[CV] AP IP: %s\n", WiFi.softAPIP().toString().c_str());
-
-  if (!apOk) {
+  // Setup the AP the cam joins
+  bus = new CamWifi(cfg.bus);
+  bus->init();
+  if (!bus->ready()) {
     Serial.println("[CV] Cannot continue without the AP up.");
     return;
   }
 
+  // Setup the cam's HTTP API
+  reader = new CamHttpReader();
+  if (reader->init(*bus, &cfg) != EXIT_SUCCESS) {
+    Serial.println("[CV] Cam HTTP reader init failed.");
+    delete reader;
+    reader = nullptr;
+    return;
+  }
+
+  // Setup ESP-NOW on the same AP radio
   EspNowConfig espNowCfg{};
   espNowCfg.useApInterface = true;
   espNowCfg.channel = AP_CHANNEL;
@@ -129,21 +109,21 @@ void cvNodeSetup() {
   payload.community_id = 0;
   payload.unit_id = 0;
 
-  wifiLinkReady = true;
+  readerReady = true;
 }
 
 void cvNodeLoop() {
-  if (!wifiLinkReady) {
+  if (!readerReady) {
     return;
   }
 
-  if ((millis() - lastPoll) < POLL_INTERVAL_MS) {
+  if ((millis() - lastPoll) < cfg.pollIntervalMs) {
     return;
   }
   lastPoll = millis();
 
   float reading = 0.0f;
-  if (!fetchCamReading(&reading)) {
+  if (reader->get_import(&reading) != EXIT_SUCCESS) {
     return;
   }
 
