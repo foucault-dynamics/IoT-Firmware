@@ -61,8 +61,10 @@ int CamHttpReader::read_flow(const char *flow, float *val) {
     return EXIT_FAILURE;
   }
 
+  // The cam sets this field to the literal string "no error" on a good read,
+  // so an empty field and that sentinel both mean the reading is usable.
   const char *errorMessage = number["error"] | "";
-  if (errorMessage[0] != '\0') {
+  if (errorMessage[0] != '\0' && strcmp(errorMessage, "no error") != 0) {
     Serial.printf("[Cam HTTP Reader] Cam reported an error for \"%s\": %s\n", flow, errorMessage);
     return EXIT_FAILURE;
   }
