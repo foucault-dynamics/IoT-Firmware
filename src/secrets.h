@@ -15,11 +15,16 @@
 #define SECRET_CAM_AP_PASSWORD "AMR12345"
 
 // AI-on-the-edge-device HTTP API, polled by the CV node.
-// TODO: confirm this against the cam's actual DHCP lease from the C3's AP
-// (default DHCP server hands out .2 first) or set a static IP for the cam
-// in its own WLAN settings so this stays fixed.
+// The cam holds a static IP set in its own wlan.ini, so this stays fixed.
 #define SECRET_CAM_HOST "192.168.4.2"
-// TODO: fill in with the flow/ROI name configured in the cam's config.ini.
+// Matches the number name in the cam's config.ini (main.dig1 / main.ana1).
 #define SECRET_CAM_FLOW_NAME "main"
 #define SECRET_CAM_USER ""
 #define SECRET_CAM_PASS ""
+
+// RS485 node's own WiFi AP and the Modbus TCP simulator it talks to.
+#define SECRET_AP_SSID "kaizen-rs485"
+#define SECRET_AP_PASS "kaizen123"      // WPA2 minimum is 8 chars
+#define SECRET_MODBUS_SIM_HOST "192.168.4.2"   // was 192.168.1.100
+#define SECRET_MODBUS_SIM_PORT 5020
+

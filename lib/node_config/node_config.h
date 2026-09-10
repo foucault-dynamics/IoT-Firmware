@@ -28,6 +28,12 @@ struct Rs485Config {
   SerialConfig format;
 };
 
+struct TcpBusConfig {
+  const char *host;
+  uint16_t port;
+  uint32_t connectTimeoutMs;
+};
+
 struct IrConfig{
 };
 
@@ -94,5 +100,6 @@ struct CamHttpConfig {
 ReaderType loadReaderType();
 ModbusRtuConfig loadModbusRtuConfig();
 EspNowConfig loadEspNowConfig();
+TcpBusConfig loadTcpBusConfig(const char *host, uint16_t port);
 
 #endif

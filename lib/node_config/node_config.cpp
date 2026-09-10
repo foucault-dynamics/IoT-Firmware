@@ -13,12 +13,12 @@ static const struct {
 
 // Hard coded
 ReaderType loadReaderType() {
-  return ReaderType::ModbusRtu;
+  return ReaderType::ModbusTCP;
 }
 
 // Hard coded
 ModbusRtuConfig loadModbusRtuConfig() {
-  const MeterModel model = MeterModel::Simulated_Serial;
+  const MeterModel model = MeterModel::Simulated_Tcp;
 
   // Unknown model: fall back to the first row so the node still runs.
   // Later application of a hash map (looping through array for now)
@@ -46,7 +46,7 @@ ModbusRtuConfig loadModbusRtuConfig() {
   cfg.voltage_address = entry.voltage;
   cfg.import_address = entry.import_energy;
   cfg.export_address = entry.export_energy;
-  cfg.registerFormat = RegisterFormat::ScaledInt;
+  cfg.registerFormat = RegisterFormat::IEEE_754Float;
 
   return cfg;
 }
@@ -54,9 +54,18 @@ ModbusRtuConfig loadModbusRtuConfig() {
 // Hard coded
 EspNowConfig loadEspNowConfig() {
   EspNowConfig cfg{};
-  cfg.useApInterface = false;
+  cfg.useApInterface = true;
   cfg.channel = 0;
   cfg.sendTimeoutMs = 100;
+
+  return cfg;
+}
+
+TcpBusConfig loadTcpBusConfig(const char *host, uint16_t port) {
+  TcpBusConfig cfg{};
+  cfg.host = host;
+  cfg.port = port;
+  cfg.connectTimeoutMs = 3000;
 
   return cfg;
 }
