@@ -12,7 +12,7 @@ enum class ModuleType : uint8_t {
 
 // Change this to read the Module ID pin
 static ModuleType readModuleType() {
-  return ModuleType::Rs485Node;
+  return ModuleType::CvNode;
 }
 
 static ModuleType moduleType = ModuleType::Unknown;
