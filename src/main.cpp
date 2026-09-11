@@ -20,7 +20,7 @@ static ModuleType moduleType = ModuleType::Unknown;
 void setup() {
   Serial.begin(115200);
 
-  while(!Serial){delay(100);}
+  while(!Serial){delay(100);} // SHOULD BE REMOVED IN PRODUCTION FOR DEEP SLEEP TO WORK PROPERLY
   delay(2000);
 
   moduleType = readModuleType();
