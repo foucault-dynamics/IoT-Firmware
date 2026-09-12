@@ -12,7 +12,26 @@ enum class ModuleType : uint8_t {
 
 // Change this to read the Module ID pin
 static ModuleType readModuleType() {
-  return ModuleType::CvNode;
+  Serial.println("[BOOT] Select module to test:");
+  Serial.println("  1: RS485 node");
+  Serial.println("  2: IR node");
+  Serial.println("  3: CV node");
+  Serial.println("  4: Substation");
+  Serial.println("  5: Gateway");
+
+  while (true) {
+    if (!Serial.available()) {
+      delay(10);
+      continue;
+    }
+    char c = Serial.read();
+    if (c >= '1' && c <= '5') {
+      return static_cast<ModuleType>(c - '0');
+    }
+    if (c != '\n' && c != '\r') {
+      Serial.printf("[BOOT] '%c' is not 1-5\n", c);
+    }
+  }
 }
 
 static ModuleType moduleType = ModuleType::Unknown;
