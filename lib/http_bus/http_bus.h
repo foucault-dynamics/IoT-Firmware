@@ -1,5 +1,5 @@
-#ifndef CAM_WIFI_H
-#define CAM_WIFI_H
+#ifndef HTTP_BUS_H
+#define HTTP_BUS_H
 
 #include <Arduino.h>
 
@@ -10,8 +10,8 @@
 #include "node_config.h"
 
 /*
- * WiFi access point + HTTP client link to the ESP32-CAM
- * (AI-on-the-edge-device).
+ * HTTP client link to the ESP32-CAM (AI-on-the-edge-device), carried over
+ * the AP that lib/wifi_radio hosts.
  *
  * The board hosts its own AP so the cam joins it directly, with no router
  * or internet needed at the meter site. Like every other Module this one
@@ -22,18 +22,17 @@
  * A wired UART link (lib/esp32cam) is the planned replacement once the
  * boards are physically connected; the reader above it stays unchanged.
  */
-class CamWifi : public Module {
+class HttpBus : public Module {
  private:
-  CamWifiConfig config;
-  bool apUp = false;
+  HttpBusConfig config;
 
   // Body of the last successful GET, drained by readByte().
   String response;
   size_t readIndex = 0;
 
  public:
-  explicit CamWifi(const CamWifiConfig &config);
-  // Deferred initialization: brings up the access point.
+  explicit HttpBus(const HttpBusConfig &config);
+  // No-op: the radio (lib/wifi_radio) owns bringing the AP up.
   void init() override;
   // Treats data as the request URL, performs the GET and buffers the body.
   int send(const uint8_t *data, size_t len) override;
@@ -41,8 +40,6 @@ class CamWifi : public Module {
   int readByte() override;
   // True while buffered body bytes remain.
   bool available() override;
-  // False when the AP never came up; nothing can be polled in that state.
-  bool ready() const;
 };
 
 #endif

@@ -54,8 +54,6 @@ ModbusRtuConfig loadModbusRtuConfig() {
 // Hard coded
 EspNowConfig loadEspNowConfig() {
   EspNowConfig cfg{};
-  cfg.useApInterface = true;
-  cfg.channel = 0;
   cfg.sendTimeoutMs = 100;
 
   return cfg;

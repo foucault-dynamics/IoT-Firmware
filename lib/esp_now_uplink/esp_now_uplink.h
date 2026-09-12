@@ -1,5 +1,5 @@
-#ifndef WIFI_TRANSMITTER_H
-#define WIFI_TRANSMITTER_H
+#ifndef ESP_NOW_UPLINK_H
+#define ESP_NOW_UPLINK_H
 
 #include "transmitter.h"
 #include "node_config.h"
@@ -9,9 +9,9 @@
 #include <freertos/semphr.h>
 
 #define ESPNOW_RX_QUEUE_DEPTH 4
-#define WIFI_ADDRESS_LEN ESP_NOW_ETH_ALEN
+#define ESP_NOW_ADDRESS_LEN ESP_NOW_ETH_ALEN
 
-class Wifi : public Transmitter {
+class EspNowUplink : public Transmitter {
  private:
   struct RxFrame {
     uint8_t mac[ESP_NOW_ETH_ALEN];
@@ -24,12 +24,12 @@ class Wifi : public Transmitter {
   SemaphoreHandle_t sendDone;
   volatile bool deliverySuccess;
 
-  static Wifi *instance;
+  static EspNowUplink *instance;
   static void onSent(const uint8_t *mac, esp_now_send_status_t status);
   static void onReceived(const uint8_t *mac, const uint8_t *data, int len);
 
  public:
-  Wifi(EspNowConfig config);
+  EspNowUplink(EspNowConfig config);
   int init() override;
   int addPeer(EspNowPeerConfig peer);
   int sendPacket(const void *address, const uint8_t *buf, size_t len) override;
