@@ -40,11 +40,15 @@ struct IrConfig{
 struct LoRaConfig{
 };
 
-// Access point the ESP32-CAM joins, plus the HTTP credentials used on it.
-struct CamWifiConfig {
+// Access point the radio hosts.
+struct WifiRadioConfig {
   const char *ssid;
   const char *password;
   uint8_t channel;
+};
+
+// HTTP credentials and timeout used over the AP.
+struct HttpBusConfig {
   uint32_t requestTimeoutMs;
   // Empty user disables HTTP basic auth.
   const char *httpUser;
@@ -52,15 +56,11 @@ struct CamWifiConfig {
 };
 
 struct EspNowConfig {
-  bool useApInterface;
-  uint8_t channel;
   uint32_t sendTimeoutMs;
 };
 
 struct EspNowPeerConfig {
   uint8_t mac[6];
-  uint8_t channel;
-  bool useApInterface;
 };
 
 // #### Protocol configs ####
@@ -88,7 +88,7 @@ struct CamHttpConfig {
   ReaderType reader;
   uint32_t pollIntervalMs;
 
-  CamWifiConfig bus;
+  HttpBusConfig bus;
 
   // AI-on-the-edge-device endpoint and the flow/ROI to read from it.
   const char *host;

@@ -11,26 +11,10 @@
 #include "nodes.h"
 #include "reader.h"
 #include "modbus_rtu.h"
-#include "wifi_transmitter.h"
+#include "wifi_radio.h"
+#include "esp_now_uplink.h"
 
 #define SOFTAP_CHANNEL 6   // must be 2.4 GHz, 1-11; C3 has no 5 GHz radio
-
-// Brings up the node's own SoftAP. Only used for ModbusTCP; the node is both
-// the AP and the Modbus TCP client, so the Mac joins as a station.
-static bool startWifiAp() {
-  WiFi.mode(WIFI_AP);
-  // Pin the AP subnet explicitly rather than leaning on the 192.168.4.x default.
-  WiFi.softAPConfig(IPAddress(192,168,4,1),
-                    IPAddress(192,168,4,1),
-                    IPAddress(255,255,255,0));
-  if (!WiFi.softAP(SECRET_AP_SSID, SECRET_AP_PASS, SOFTAP_CHANNEL)) {
-    Serial.println("[RS485] SoftAP start failed");
-    return false;
-  }
-  Serial.printf("[RS485] SoftAP up, node IP: %s\n",
-                WiFi.softAPIP().toString().c_str());
-  return true;
-}
 
 enum States {
   READ,
@@ -39,7 +23,7 @@ enum States {
 };
 
 // Substation details
-static Wifi *wifiLink;
+static EspNowUplink *uplink;
 
 // Meter Objects
 static Module *bus;
@@ -60,28 +44,30 @@ void rs485NodeSetup() {
 
   // Hardcoded to take in ModBusTCP
   ReaderType readerType = loadReaderType();
-  if (readerType == ReaderType::ModbusTCP) {
-    if (!startWifiAp()) {
-      Serial.println("[RS485] SoftAP bring-up failed, idling");
-      readerReady = false;
-      return;
-    }
+
+  WifiRadioConfig radioCfg{};
+  radioCfg.ssid = SECRET_AP_SSID;
+  radioCfg.password = SECRET_AP_PASS;
+  radioCfg.channel = SOFTAP_CHANNEL;
+  if (!wifiRadioStart(radioCfg)) {
+    Serial.println("[RS485] SoftAP bring-up failed, idling");
+    readerReady = false;
+    return;
   }
 
   // Initialise the ESP-NOW module
-  wifiLink = new Wifi(loadEspNowConfig());
-  if (wifiLink->init() != EXIT_SUCCESS) {
+  uplink = new EspNowUplink(loadEspNowConfig());
+  if (uplink->init() != EXIT_SUCCESS) {
     readerReady = false;
     return;
   }
 
 
-  // Add substation as a Wifi Peer
+  // Add substation as an ESP-NOW Peer
   EspNowPeerConfig substation{};
-  substation.useApInterface = true;
   uint8_t substationMac[] = SECRET_MAC;
   memcpy(substation.mac, substationMac, 6);
-  if (wifiLink->addPeer(substation) != EXIT_SUCCESS) {
+  if (uplink->addPeer(substation) != EXIT_SUCCESS) {
     readerReady = false;
     return;
   }

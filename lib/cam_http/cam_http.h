@@ -12,7 +12,7 @@
  *
  * Asks the cam's "/json" API for the configured flow and parses the
  * "value" it reports. Sits on top of any Module that can carry the
- * request and hand the response body back (lib/cam_wifi today, the wired
+ * request and hand the response body back (lib/http_bus today, the wired
  * lib/esp32cam link later).
  *
  * The cam only recognises digits, so it reports a single register: the

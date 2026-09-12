@@ -58,9 +58,9 @@ will be something else.
 
 ### `node_config/`
 
-One plain struct per transport and per protocol (`Rs485Config`, `EspNowConfig`,
-`EspNowPeerConfig`, `ModbusRtuConfig`), plus the `ReaderType`, `MeterModel`, and
-`RegisterFormat` enums.
+One plain struct per transport and per protocol (`Rs485Config`, `WifiRadioConfig`,
+`HttpBusConfig`, `EspNowConfig`, `EspNowPeerConfig`, `ModbusRtuConfig`), plus the
+`ReaderType`, `MeterModel`, and `RegisterFormat` enums.
 
 `node_config.cpp` holds `loadReaderType()`, `loadModbusRtuConfig()`, and
 `loadEspNowConfig()`. These are hardcoded on purpose. They are the seam where
@@ -102,9 +102,22 @@ interpreted as a scaled integer or an IEEE 754 float depending on
 
 Developed against `ModbusSim/`. Not yet tested against real hardware.
 
-### `wifi/`
+### `wifi_radio/`
 
-`Wifi : Transmitter`. ESP-NOW.
+Plain functions, not a class: `wifiRadioStart()`, `wifiRadioUp()`,
+`wifiRadioHasStations()`. Owns everything below TCP on the C3's one radio
+(mode, channel, tx power, softAP), so `HttpBus` and `EspNowUplink` only use
+the radio, they never configure it.
+
+### `http_bus/`
+
+`HttpBus : Module`. HTTP client over the AP that `wifi_radio` hosts, for the
+ESP32-CAM (AI-on-the-edge-device). `send()` takes the request URL, performs
+the GET, and buffers the body for `readByte()`/`available()`.
+
+### `esp_now_uplink/`
+
+`EspNowUplink : Transmitter`. ESP-NOW.
 
 Received frames are copied inside the ESP-NOW callback into a FreeRTOS queue
 (depth 4), so `receivePacket()` never runs in interrupt context. It returns the
@@ -114,8 +127,9 @@ gives, so it returns only once the radio has confirmed delivery or the configure
 timeout has expired.
 
 The ESP-NOW C API takes free-function callbacks with no user pointer, so the
-class keeps a `static Wifi *instance` that the callbacks trampoline through. That
-means one `Wifi` per firmware, which is fine, since there is one radio.
+class keeps a `static EspNowUplink *instance` that the callbacks trampoline
+through. That means one `EspNowUplink` per firmware, which is fine, since
+there is one radio.
 
 `addPeer()` registers a peer from an `EspNowPeerConfig`.
 
@@ -135,8 +149,8 @@ branch and not on `main`. It will not compile until that struct is merged.
 
 ### `substation/`
 
-`Substation : Transmitter`, intended to wrap the LoRa link the way `Wifi` wraps
-ESP-NOW, so the substation node stops calling the `LoRa` library directly.
+`Substation : Transmitter`, intended to wrap the LoRa link the way `EspNowUplink`
+wraps ESP-NOW, so the substation node stops calling the `LoRa` library directly.
 
 Skeleton only. `substation.h` currently has a syntax error
 (`class Substation :: public Transmitter`), the three method bodies are empty,
