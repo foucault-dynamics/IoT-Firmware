@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include "lora_module.h"
+#include "loramodule.h"
 #include <SPI.h>
 #include <LoRa.h>
 
@@ -11,8 +11,12 @@
 #define LORA_MISO 19
 #define LORA_MOSI 27
 #define LORA_CS 18
-#define LORA_RST 23
+#define SX1276_RST 23
 #define LORA_DIO0 26
+
+// #include "secrets.h"
+
+#define LORA_BAND SECRET_LORA_BAND
 
 LoRaModule::LoRaModule(
     uint32_t loraBand,
@@ -39,7 +43,7 @@ void LoRaModule::init()
 
     LoRa.setPins(
         LORA_CS,
-        LORA_RST,
+        SX1276_RST,
         LORA_DIO0);
 
     if (!LoRa.begin(loraBand))
@@ -52,6 +56,7 @@ void LoRaModule::init()
     LoRa.setSpreadingFactor(loraSpreadingFactor);
     LoRa.setSyncWord(syncWord);
     LoRa.setTxPower(txPower);
+    LoRa.enableCrc();
 
     Serial.println("LoRa initialized successfully");
 }
@@ -92,4 +97,24 @@ bool LoRaModule::available()
     int packetSize = LoRa.parsePacket();
 
     return packetSize > 0;
+}
+
+int LoRaModule::parsePacket()
+{
+    return LoRa.parsePacket();
+}
+
+void LoRaModule::receive()
+{
+    LoRa.receive();
+}
+
+int LoRaModule::packetRssi()
+{
+    return LoRa.packetRssi();
+}
+
+float LoRaModule::packetSnr()
+{
+    return LoRa.packetSnr();
 }

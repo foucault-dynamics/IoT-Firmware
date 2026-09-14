@@ -31,6 +31,12 @@ public:
     int readByte() override;
 
     bool available() override;
+
+    int parsePacket();
+    void receive();
+
+    int packetRssi();
+    float packetSnr();
 };
 
 #endif
