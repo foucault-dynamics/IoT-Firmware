@@ -26,18 +26,15 @@ def _encode_float32(value: float) -> list[int]:
     return [int.from_bytes(raw[0:2], "big"), int.from_bytes(raw[2:4], "big")]
  
  
-def _decode_uint32(regs: list[int]) -> int:
-    """Unpack 2 big-endian 16-bit registers into an int."""
+def _decode_float32(regs: list[int]) -> float:
+    """Unpack 2 big-endian 16-bit registers into a float."""
     raw = regs[0].to_bytes(2, "big") + regs[1].to_bytes(2, "big")
-    return struct.unpack(">I", raw)[0]
- 
- 
-def _encode_uint32(value: int) -> list[int]:
-    """Pack an int into 2 big-endian 16-bit registers."""
-    raw = struct.pack(">I", value)
-    return [int.from_bytes(raw[0:2], "big"), int.from_bytes(raw[2:4], "big")]
- 
- 
+    return struct.unpack(">f", raw)[0]
+
+
+KWH_STEP = 0.1   # kWh added per poll
+
+
 async def meter_action(
     function_code: int,
     start_address: int,
@@ -59,14 +56,14 @@ async def meter_action(
     # kWh export: monotonically increasing counter
     idx = KWH_EXPORT_ADDR - start_address
     if 0 <= idx < len(current_registers) - 1:
-        current = _decode_uint32(current_registers[idx : idx + 2])
-        current_registers[idx : idx + 2] = _encode_uint32(current + 1)
- 
+        current = _decode_float32(current_registers[idx : idx + 2])
+        current_registers[idx : idx + 2] = _encode_float32(current + KWH_STEP)
+
     # kWh import: monotonically increasing counter
     idx = KWH_IMPORT_ADDR - start_address
     if 0 <= idx < len(current_registers) - 1:
-        current = _decode_uint32(current_registers[idx : idx + 2])
-        current_registers[idx : idx + 2] = _encode_uint32(current + 1)
+        current = _decode_float32(current_registers[idx : idx + 2])
+        current_registers[idx : idx + 2] = _encode_float32(current + KWH_STEP)
  
     return None
 

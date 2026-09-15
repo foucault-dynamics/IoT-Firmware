@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "nodes/nodes.h"
+#include "nodes/nvs_config.h"
 
 enum class ModuleType : uint8_t {
   Unknown = 0,
@@ -12,13 +13,35 @@ enum class ModuleType : uint8_t {
 
 // Change this to read the Module ID pin
 static ModuleType readModuleType() {
-  return ModuleType::Rs485Node;
+  Serial.println("[BOOT] Select module to test:");
+  Serial.println("  1: RS485 node");
+  Serial.println("  2: IR node");
+  Serial.println("  3: CV node");
+  Serial.println("  4: Substation");
+  Serial.println("  5: Gateway");
+
+  while (true) {
+    if (!Serial.available()) {
+      delay(10);
+      continue;
+    }
+    char c = Serial.read();
+    if (c >= '1' && c <= '5') {
+      return static_cast<ModuleType>(c - '0');
+    }
+    if (c != '\n' && c != '\r') {
+      Serial.printf("[BOOT] '%c' is not 1-5\n", c);
+    }
+  }
 }
 
 static ModuleType moduleType = ModuleType::Unknown;
 
 void setup() {
   Serial.begin(115200);
+
+  while(!Serial){delay(100);} // SHOULD BE REMOVED IN PRODUCTION FOR DEEP SLEEP TO WORK PROPERLY
+  delay(2000);
 
   moduleType = readModuleType();
   Serial.printf("[BOOT] module type %d\n", (int)moduleType);
@@ -46,6 +69,8 @@ void setup() {
 }
 
 void loop() {
+  nvsConfigPollSerial();
+
   switch (moduleType) {
   case ModuleType::Rs485Node:
     rs485NodeLoop();

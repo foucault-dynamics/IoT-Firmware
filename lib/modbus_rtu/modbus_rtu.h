@@ -19,13 +19,13 @@
 
 class ModbusRtuReader: public Reader{
  public:
-  // Deferred initialization of construction-time parameters.
-  int init(Module &module, const void *config) override;
+  ModbusRtuReader(const ModbusRtuConfig &config);
+  int init(Module &module) override;
   int get_import(float *val) override;
   int get_export(float *val) override;
   int get_voltage(float *val) override;
 private:
-  const ModbusRtuConfig *config = nullptr;
+  ModbusRtuConfig config;
   uint32_t t35_us = 0;
   uint32_t last_rx_us = 0;
   int read_register(uint16_t data_type_address, float *val);

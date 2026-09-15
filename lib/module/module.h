@@ -20,8 +20,8 @@ class Module {
  public:
   virtual ~Module() = default;
 
-  // Setup of module
-  virtual void init() = 0;
+  // Setup of module. Returns EXIT_SUCCESS or EXIT_FAILURE.
+  virtual int init() = 0;
 
   // Transmit len bytes. Returns EXIT_SUCCESS or EXIT_FAILURE.
   virtual int send(const uint8_t *data, size_t len) = 0;

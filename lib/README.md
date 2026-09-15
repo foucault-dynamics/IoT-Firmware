@@ -1,0 +1,193 @@
+# lib/
+
+Project-private libraries. PlatformIO compiles each subdirectory into its own
+static library and links it into the firmware. The Library Dependency Finder
+scans the source files for `#include`s and pulls in only what is actually
+reachable, so a subdirectory that nothing includes is never compiled. That is
+why the work-in-progress modules below do not break the build.
+
+Each library lives directly in `lib/<name>/` as a flat `.h` plus `.cpp` pair.
+More on the LDF: https://docs.platformio.org/page/librarymanager/ldf.html
+
+## The three abstractions
+
+Everything here fits into one of three layers, or is the configuration that
+feeds them. A node is assembled by picking one of each.
+
+```text
+Reader        protocol meaning   (Modbus RTU registers -> floats)
+   | holds a Module&
+Module        raw bytes on a bus (SP3485, TCP socket, IR head)
+
+Transmitter   whole packets to a peer address (ESP-NOW, LoRa)
+```
+
+`Module` and `Transmitter` are siblings, not stacked. A meter node holds one of
+each: a `Module` facing the meter, a `Transmitter` facing the substation.
+
+## Interfaces
+
+### `module/`
+
+`Module`, the base class for anything that moves raw bytes over one physical
+bus. It knows its pins and its peripheral and nothing about what the bytes mean.
+`init()` (returns `EXIT_SUCCESS`/`EXIT_FAILURE`), `send(data, len)`,
+`readByte()` (returns the byte, or `-1` if none is waiting), `available()`.
+
+### `reader/`
+
+`Reader`, the base class for a meter protocol sitting on top of a `Module&`.
+`init(Module&)`, `get_import()`, `get_export()`, `get_voltage()`, all writing
+through a `float*` and returning `EXIT_SUCCESS` or `EXIT_FAILURE`.
+
+Each concrete reader takes its config in its own constructor (`ModbusRtuReader(const
+ModbusRtuConfig&)`, `CamHttpReader(const CamHttpConfig&)`), storing it by value.
+That keeps every protocol's fields out of the shared base interface without an
+unchecked cast, at the cost of the caller in `src/nodes/` having to construct the
+right reader for its config.
+
+### `transmitter/`
+
+`Transmitter`, the base class for anything that moves a whole packet to a peer
+address. `init()`, `sendPacket(address, buf, len)`,
+`receivePacket(address, buf, bufLen)`. The address is `const void *` for the same
+reason the reader config is: an ESP-NOW address is a 6-byte MAC, a LoRa address
+will be something else.
+
+## Configuration
+
+### `node_config/`
+
+`node_config.h` holds only shapes: one plain struct per transport and per
+protocol (`Rs485Config`, `WifiRadioConfig`, `HttpBusConfig`, `TcpBusConfig`,
+`LoRaConfig` and its `LoRaPins`, `LoRaLinkConfig`, `EspNowConfig`,
+`EspNowPeerConfig`, `ModbusRtuConfig`, `CamHttpConfig`), one struct per node
+composed from those (`Rs485NodeConfig`, `CvNodeConfig`, `SubstationConfig`,
+`GatewayConfig`), plus the `ReaderType`, `MeterModel`, and `RegisterFormat`
+enums. No values, no loaders: those live in `src/nodes/nvs_config.cpp`,
+because that file needs `secrets.h`, which lives under `src/`.
+
+`nvs_config.cpp` holds every default, every NVS key, the `METER_MODELS` table
+mapping a `MeterModel` to its register addresses, and the loaders
+(`loadRs485NodeConfig()`, `loadCvNodeConfig()`, `loadSubstationConfig()`,
+`loadGatewayConfig()`). A field is read from NVS if it was ever set there,
+falling back to its firmware default otherwise, so a fresh board runs on
+defaults and a firmware update can still improve them. It also holds
+`nvsConfigPollSerial()`, a serial command stand-in for the upstream config
+channel a future team will replace it with.
+
+### `shared/`
+
+`shared_payload.h`, the 26-byte packed `Payload` and 8-byte `AckPayload`. Every
+node in the network must be built from the same copy of this header; both the
+ESP-NOW and the LoRa receive paths reject frames on a `sizeof()` mismatch.
+
+## Implementations
+
+### `sp3485/`
+
+`Sp3485 : Module`. The SP3485 RS485 transceiver over a `HardwareSerial`.
+
+Half duplex, so the DE/RE pin has to be driven high to talk and dropped back low
+to listen, and only after the last bit has physically left the UART. `send()`
+drains stale RX bytes first so a late reply to a timed-out poll cannot desync the
+next frame, raises DE/RE, writes, flushes, then lowers DE/RE.
+
+### `modbus_rtu/`
+
+`ModbusRtuReader : Reader`. Function code 0x03 reads of two consecutive
+registers, which is the shape every value in the meter register map takes.
+
+`init()` derives the T3.5 inter-frame gap from the `SerialConfig` bitmask,
+parsing out data bits, parity, and stop bits, and uses the fixed 1750 us the spec
+mandates above 19200 baud. `read_register()` waits out T3.5, sends, then reads
+until T3.5 of silence closes the frame or the 500 ms timeout expires. It
+validates length, slave address, CRC16, function code, and byte count, and
+decodes the eleven standard exception codes to serial. The 32-bit result is
+interpreted as a scaled integer or an IEEE 754 float depending on
+`RegisterFormat`.
+
+Developed against `ModbusSim/`. Not yet tested against real hardware.
+
+### `wifi_radio/`
+
+Plain functions, not a class: `wifiRadioStart()`, `wifiRadioUp()`,
+`wifiRadioHasStations()`. Owns everything below TCP on the C3's one radio
+(mode, channel, tx power, softAP), so `HttpBus` and `EspNowUplink` only use
+the radio, they never configure it.
+
+### `http_bus/`
+
+`HttpBus : Module`. HTTP client over the AP that `wifi_radio` hosts, for the
+ESP32-CAM (AI-on-the-edge-device). `send()` takes the request URL, performs
+the GET, and buffers the body for `readByte()`/`available()`.
+
+### `lora/`
+
+`LoRaModule : Module`. The SX1276 radio only: SPI, pins, band/spreading
+factor/sync word/tx power, one packet out, bytes in. `available()` reports
+`LoRa.available()` with no side effect; `parsePacket()`, `receive()`,
+`packetRssi()` and `packetSnr()` stay here because the radio frames packets
+in hardware, so packet length and signal quality come from the physical
+layer, not from a protocol we wrote.
+
+### `lora_link/`
+
+`LoRaLink : Transmitter`, holding a `LoRaModule&`. Unlike `EspNowUplink`,
+which sits beside a `Module` rather than on top of one, `LoRaLink` has to be
+stacked on `LoRaModule`: ESP-NOW's delivery confirmation is built into the
+radio stack, but LoRa's ACK is our own protocol, keyed on the sent
+`Payload`'s uid/seq, so it needs a layer above the raw radio to live in.
+`sendPacket()` retries up to `maxRetries` times, polling for a matching
+`AckPayload` until `ackTimeoutMs`. `receivePacket()` reads a `Payload`-sized
+frame and replies with its own `AckPayload`. The over-the-air format is
+unchanged by this split.
+
+### `esp_now_uplink/`
+
+`EspNowUplink : Transmitter`. ESP-NOW.
+
+Received frames are copied inside the ESP-NOW callback into a FreeRTOS queue
+(depth 4), so `receivePacket()` never runs in interrupt context. It returns the
+frame length, `-1` when the queue is empty, or `-2` when the caller's buffer is
+too small. `sendPacket()` blocks on a binary semaphore that the send callback
+gives, so it returns only once the radio has confirmed delivery or the configured
+timeout has expired.
+
+The ESP-NOW C API takes free-function callbacks with no user pointer, so the
+class keeps a `static EspNowUplink *instance` that the callbacks trampoline
+through. That means one `EspNowUplink` per firmware, which is fine, since
+there is one radio.
+
+`addPeer()` registers a peer from an `EspNowPeerConfig`.
+
+## Work in progress
+
+Neither of these is included by any built source, so neither is compiled.
+
+### `tcp_bus/`
+
+`TcpBus : Module`. The same raw Modbus RTU byte stream as `Sp3485`, carried over
+a `WiFiClient` socket instead of RS485, matching `ModbusSim/ModbusSimTCP.py`.
+This lets the RS485 node be developed with no transceiver and no meter on the
+desk.
+
+The logic is written, but it needs `TcpBusConfig`, which exists on the `RS485`
+branch and not on `main`. It will not compile until that struct is merged.
+
+## Not started
+
+### `ir_head/`
+
+Header only, and it declares nothing. Intended to be an `IrHead : Module` for the
+optical probe on the meter's front panel. Many meters expose the same register
+map over the optical port as over RS485, so `ModbusRtuReader` should run on it
+unchanged once it exists. Needs `pin_config.h`, which is on the `ir-module`
+branch, along with a working IR stack (`lib/iec62056_21/`, real and simulated
+heads) that should be ported here.
+
+### `esp32cam/`
+
+Two includes and a TODO. Intended to read framed messages from an ESP32-CAM over
+a UART link and fill a `Payload` from an OCR'd meter face. Needs
+`cam_link_protocol.h`, which is on the `ir-module` branch and is itself unwritten.
