@@ -21,14 +21,14 @@
  */
 class CamHttpReader : public Reader {
  public:
-  // Deferred initialization of construction-time parameters.
-  int init(Module &module, const void *config) override;
+  CamHttpReader(const CamHttpConfig &config);
+  int init(Module &module) override;
   int get_import(float *val) override;
   int get_export(float *val) override;
   int get_voltage(float *val) override;
 
  private:
-  const CamHttpConfig *config = nullptr;
+  CamHttpConfig config;
   // Requests the configured flow and parses its value into *val.
   int read_flow(const char *flow, float *val);
   // Drains the module's response bytes into out.

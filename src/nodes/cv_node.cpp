@@ -7,9 +7,9 @@
 #include "cam_http.h"
 #include "http_bus.h"
 #include "node_config.h"
+#include "nvs_config.h"
 #include "nodes.h"
 #include "reader.h"
-#include "secrets.h"
 #include "shared_payload.h"
 #include "wifi_radio.h"
 #include "esp_now_uplink.h"
@@ -25,11 +25,6 @@
 // once the boards are physically connected; the reader above it stays
 // unchanged.
 
-// Hardcoded for now, same as DEVICE_UID in main-esp-now-supermini.cpp.
-static const uint32_t DEVICE_UID = 3;
-static const uint8_t AP_CHANNEL = 1;
-static const uint8_t SUBSTATION_MAC[] = SECRET_MAC;
-
 // Substation details
 static EspNowUplink *uplink = nullptr;
 
@@ -37,9 +32,8 @@ static EspNowUplink *uplink = nullptr;
 static HttpBus *bus = nullptr;
 static Reader *reader = nullptr;
 
-// Runtime configuration. Hardcoded here rather than in node_config.cpp
-// because the values come from secrets.h, which lives under src/.
-static CamHttpConfig cfg;
+// Runtime configuration
+static CvNodeConfig cfg;
 
 // State variables
 static Payload payload;
@@ -47,43 +41,22 @@ static uint32_t messageCounter = 0;
 static unsigned long lastPoll = 0;
 static bool readerReady = false;
 
-static CamHttpConfig loadCamHttpConfig() {
-  CamHttpConfig config{};
-  config.reader = ReaderType::CamHttp;
-  config.pollIntervalMs = 30000;
-
-  config.bus.requestTimeoutMs = 5000;
-  config.bus.httpUser = SECRET_CAM_USER;
-  config.bus.httpPass = SECRET_CAM_PASS;
-
-  config.host = SECRET_CAM_HOST;
-  config.path = "/json";
-  config.flowName = SECRET_CAM_FLOW_NAME;
-
-  return config;
-}
-
 void cvNodeSetup() {
-  // Hardcoded for now
-  cfg = loadCamHttpConfig();
+  cfg = loadCvNodeConfig();
 
   // Bring up the radio the cam and the substation link both share
-  WifiRadioConfig radioCfg{};
-  radioCfg.ssid = SECRET_CAM_AP_SSID;
-  radioCfg.password = SECRET_CAM_AP_PASSWORD;
-  radioCfg.channel = AP_CHANNEL;
-  if (!wifiRadioStart(radioCfg)) {
+  if (!wifiRadioStart(cfg.radio)) {
     Serial.println("[CV] Cannot continue without the AP up.");
     return;
   }
 
   // Setup the cam's HTTP client
-  bus = new HttpBus(cfg.bus);
+  bus = new HttpBus(cfg.cam.bus);
   bus->init();
 
   // Setup the cam's HTTP API
-  reader = new CamHttpReader();
-  if (reader->init(*bus, &cfg) != EXIT_SUCCESS) {
+  reader = new CamHttpReader(cfg.cam);
+  if (reader->init(*bus) != EXIT_SUCCESS) {
     Serial.println("[CV] Cam HTTP reader init failed.");
     delete reader;
     reader = nullptr;
@@ -91,23 +64,18 @@ void cvNodeSetup() {
   }
 
   // Setup ESP-NOW on the same AP radio
-  EspNowConfig espNowCfg{};
-  espNowCfg.sendTimeoutMs = 200;
-
-  uplink = new EspNowUplink(espNowCfg);
+  uplink = new EspNowUplink(cfg.espNow);
   if (uplink->init() != EXIT_SUCCESS) {
     Serial.println("[CV] ESP-NOW init failed.");
     return;
   }
 
-  EspNowPeerConfig substation{};
-  memcpy(substation.mac, SUBSTATION_MAC, 6);
-  if (uplink->addPeer(substation) != EXIT_SUCCESS) {
+  if (uplink->addPeer(cfg.substation) != EXIT_SUCCESS) {
     Serial.println("[CV] Failed to add substation peer.");
     return;
   }
 
-  payload.uid = DEVICE_UID;
+  payload.uid = cfg.uid;
   payload.community_id = 0;
   payload.unit_id = 0;
 
@@ -119,7 +87,7 @@ void cvNodeLoop() {
     return;
   }
 
-  if ((millis() - lastPoll) < cfg.pollIntervalMs) {
+  if ((millis() - lastPoll) < cfg.cam.pollIntervalMs) {
     return;
   }
   lastPoll = millis();
@@ -134,7 +102,7 @@ void cvNodeLoop() {
 
   Serial.printf("[CV] reading=%.3f seq=%lu\n", reading, static_cast<unsigned long>(payload.seq));
 
-  if (uplink->sendPacket(SUBSTATION_MAC, (const uint8_t *)&payload, sizeof(payload)) != EXIT_SUCCESS) {
+  if (uplink->sendPacket(cfg.substation.mac, (const uint8_t *)&payload, sizeof(payload)) != EXIT_SUCCESS) {
     Serial.println("[CV] ESP-NOW send failed.");
   }
 }
