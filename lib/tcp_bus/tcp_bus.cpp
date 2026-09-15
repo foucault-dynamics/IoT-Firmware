@@ -6,12 +6,15 @@ TcpBus::TcpBus(TcpBusConfig config) {
   this->config = config;
 }
 
-void TcpBus::init() {
+// Always succeeds: a failed initial connect just means send() will retry via
+// ensureConnected() rather than the node treating the bus as unusable.
+int TcpBus::init() {
   if (ensureConnected()) {
     Serial.println("[TcpBus] connected to sim");
   } else {
     Serial.println("[TcpBus] initial connect failed, will retry on send()");
   }
+  return EXIT_SUCCESS;
 }
 
 bool TcpBus::ensureConnected() {

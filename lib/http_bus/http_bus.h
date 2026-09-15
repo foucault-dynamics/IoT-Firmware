@@ -33,7 +33,7 @@ class HttpBus : public Module {
  public:
   explicit HttpBus(const HttpBusConfig &config);
   // No-op: the radio (lib/wifi_radio) owns bringing the AP up.
-  void init() override;
+  int init() override;
   // Treats data as the request URL, performs the GET and buffers the body.
   int send(const uint8_t *data, size_t len) override;
   // Next byte of the buffered body, or -1 when it is drained.

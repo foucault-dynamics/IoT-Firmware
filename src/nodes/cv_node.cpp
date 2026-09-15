@@ -52,7 +52,10 @@ void cvNodeSetup() {
 
   // Setup the cam's HTTP client
   bus = new HttpBus(cfg.cam.bus);
-  bus->init();
+  if (bus->init() != EXIT_SUCCESS) {
+    Serial.println("[CV] HTTP bus init failed.");
+    return;
+  }
 
   // Setup the cam's HTTP API
   reader = new CamHttpReader(cfg.cam);

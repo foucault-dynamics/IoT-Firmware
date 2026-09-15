@@ -12,13 +12,6 @@ CvNodeConfig loadCvNodeConfig();
 SubstationConfig loadSubstationConfig();
 GatewayConfig loadGatewayConfig();
 
-// LoRa SPI pins, shared by the substation and gateway. Board wiring, not an
-// NVS key.
-struct LoRaPins {
-  uint8_t sck, miso, mosi, ss, rst, dio0;
-};
-LoRaPins loraPins();
-
 // Non-blocking; call at the top of loop(). Stands in for an upstream config
 // channel: "set <key> <value>" ("set poll_ms 5000", or quote the value for
 // text, e.g. set ap_ssid "Kaizen"), "clear" wipes NVS back to defaults,

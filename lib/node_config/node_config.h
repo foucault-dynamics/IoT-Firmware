@@ -34,12 +34,25 @@ struct TcpBusConfig {
   uint32_t connectTimeoutMs;
 };
 
+// LoRa SPI pins. Board wiring, filled in by the loader from a constant, not
+// read from NVS.
+struct LoRaPins {
+  uint8_t sck, miso, mosi, ss, rst, dio0;
+};
+
 struct LoRaConfig {
   uint32_t band;
   uint8_t spreadingFactor;
   uint32_t bandwidth;
   uint8_t syncWord;
   uint8_t txPower;
+  LoRaPins pins;
+};
+
+// Retry/ACK behaviour for LoRaLink, shared by the substation and gateway.
+struct LoRaLinkConfig {
+  uint8_t maxRetries;
+  uint32_t ackTimeoutMs;
 };
 
 // Access point the radio hosts.
@@ -60,6 +73,9 @@ struct MqttConfig {
   char server[64];
   uint16_t port;
   char topic[64];
+  // Empty username connects without auth, same convention as HttpBusConfig.
+  char username[32];
+  char password[64];
 };
 
 // HTTP credentials and timeout used over the AP.
@@ -130,12 +146,12 @@ struct CvNodeConfig {
 
 struct SubstationConfig {
   LoRaConfig lora;
-  uint8_t maxRetries;
-  uint32_t ackTimeoutMs;
+  LoRaLinkConfig link;
 };
 
 struct GatewayConfig {
   LoRaConfig lora;
+  LoRaLinkConfig link;
   WifiStationConfig wifi;
   MqttConfig mqtt;
 };

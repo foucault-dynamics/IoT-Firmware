@@ -31,8 +31,8 @@ each: a `Module` facing the meter, a `Transmitter` facing the substation.
 
 `Module`, the base class for anything that moves raw bytes over one physical
 bus. It knows its pins and its peripheral and nothing about what the bytes mean.
-`init()`, `send(data, len)`, `readByte()` (returns the byte, or `-1` if none is
-waiting), `available()`.
+`init()` (returns `EXIT_SUCCESS`/`EXIT_FAILURE`), `send(data, len)`,
+`readByte()` (returns the byte, or `-1` if none is waiting), `available()`.
 
 ### `reader/`
 
@@ -60,12 +60,12 @@ will be something else.
 
 `node_config.h` holds only shapes: one plain struct per transport and per
 protocol (`Rs485Config`, `WifiRadioConfig`, `HttpBusConfig`, `TcpBusConfig`,
-`LoRaConfig`, `EspNowConfig`, `EspNowPeerConfig`, `ModbusRtuConfig`,
-`CamHttpConfig`), one struct per node composed from those
-(`Rs485NodeConfig`, `CvNodeConfig`, `SubstationConfig`, `GatewayConfig`), plus
-the `ReaderType`, `MeterModel`, and `RegisterFormat` enums. No values, no
-loaders: those live in `src/nodes/nvs_config.cpp`, because that file needs
-`secrets.h`, which lives under `src/`.
+`LoRaConfig` and its `LoRaPins`, `LoRaLinkConfig`, `EspNowConfig`,
+`EspNowPeerConfig`, `ModbusRtuConfig`, `CamHttpConfig`), one struct per node
+composed from those (`Rs485NodeConfig`, `CvNodeConfig`, `SubstationConfig`,
+`GatewayConfig`), plus the `ReaderType`, `MeterModel`, and `RegisterFormat`
+enums. No values, no loaders: those live in `src/nodes/nvs_config.cpp`,
+because that file needs `secrets.h`, which lives under `src/`.
 
 `nvs_config.cpp` holds every default, every NVS key, the `METER_MODELS` table
 mapping a `MeterModel` to its register addresses, and the loaders
@@ -122,6 +122,27 @@ the radio, they never configure it.
 ESP32-CAM (AI-on-the-edge-device). `send()` takes the request URL, performs
 the GET, and buffers the body for `readByte()`/`available()`.
 
+### `lora/`
+
+`LoRaModule : Module`. The SX1276 radio only: SPI, pins, band/spreading
+factor/sync word/tx power, one packet out, bytes in. `available()` reports
+`LoRa.available()` with no side effect; `parsePacket()`, `receive()`,
+`packetRssi()` and `packetSnr()` stay here because the radio frames packets
+in hardware, so packet length and signal quality come from the physical
+layer, not from a protocol we wrote.
+
+### `lora_link/`
+
+`LoRaLink : Transmitter`, holding a `LoRaModule&`. Unlike `EspNowUplink`,
+which sits beside a `Module` rather than on top of one, `LoRaLink` has to be
+stacked on `LoRaModule`: ESP-NOW's delivery confirmation is built into the
+radio stack, but LoRa's ACK is our own protocol, keyed on the sent
+`Payload`'s uid/seq, so it needs a layer above the raw radio to live in.
+`sendPacket()` retries up to `maxRetries` times, polling for a matching
+`AckPayload` until `ackTimeoutMs`. `receivePacket()` reads a `Payload`-sized
+frame and replies with its own `AckPayload`. The over-the-air format is
+unchanged by this split.
+
 ### `esp_now_uplink/`
 
 `EspNowUplink : Transmitter`. ESP-NOW.
@@ -153,15 +174,6 @@ desk.
 
 The logic is written, but it needs `TcpBusConfig`, which exists on the `RS485`
 branch and not on `main`. It will not compile until that struct is merged.
-
-### `substation/`
-
-`Substation : Transmitter`, intended to wrap the LoRa link the way `EspNowUplink`
-wraps ESP-NOW, so the substation node stops calling the `LoRa` library directly.
-
-Skeleton only. `substation.h` currently has a syntax error
-(`class Substation :: public Transmitter`), the three method bodies are empty,
-and the signatures do not match the `Transmitter` base.
 
 ## Not started
 
