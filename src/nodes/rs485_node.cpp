@@ -1,14 +1,18 @@
 #include <Arduino.h>
+#include <WiFi.h>
 #include <cstdint>
 #include <cstdlib>
-#include "secrets.h"
 #include "shared_payload.h"
 #include "sp3485.h"
+#include "tcp_bus.h"
+#include "module.h"
 #include "node_config.h"
+#include "nvs_config.h"
 #include "nodes.h"
 #include "reader.h"
 #include "modbus_rtu.h"
-#include "wifi_transmitter.h"
+#include "wifi_radio.h"
+#include "esp_now_uplink.h"
 
 enum States {
   READ,
@@ -17,15 +21,14 @@ enum States {
 };
 
 // Substation details
-static Wifi *wifiLink;
+static EspNowUplink *uplink;
 
 // Meter Objects
-static Sp3485 *bus;
+static Module *bus;
 static Reader *reader;
 
-// Runtime configuration (hardcoded in loadModbusRtuConfig() for now, requested
-// from upstream later)
-static ModbusRtuConfig cfg;
+// Runtime configuration
+static Rs485NodeConfig cfg;
 
 // State variables
 static volatile States state = READ;
@@ -36,32 +39,38 @@ static Payload payload;
 
 void rs485NodeSetup() {
 
-  wifiLink = new Wifi(loadEspNowConfig());
-  if (wifiLink->init() != EXIT_SUCCESS) {
+  cfg = loadRs485NodeConfig();
+
+  if (!wifiRadioStart(cfg.radio)) {
+    Serial.println("[RS485] SoftAP bring-up failed, idling");
     readerReady = false;
     return;
   }
 
-  EspNowPeerConfig substation{};
-  uint8_t substationMac[] = SECRET_MAC;
-  memcpy(substation.mac, substationMac, 6);
-  if (wifiLink->addPeer(substation) != EXIT_SUCCESS) {
+  // Initialise the ESP-NOW module
+  uplink = new EspNowUplink(cfg.espNow);
+  if (uplink->init() != EXIT_SUCCESS) {
     readerReady = false;
     return;
   }
 
-  switch (loadReaderType()) {
+  // Add substation as an ESP-NOW Peer
+  if (uplink->addPeer(cfg.substation) != EXIT_SUCCESS) {
+    readerReady = false;
+    return;
+  }
+
+  switch (cfg.readerType) {
+    // Modbus over Serial bus
   case ReaderType::ModbusRtu:{
-    // Hardcoded for now
-    cfg = loadModbusRtuConfig();
+    bus = new Sp3485(cfg.modbus.bus, Serial1);
+    if (bus->init() != EXIT_SUCCESS) {
+      Serial.println("[RS485] Sp3485 init failed.");
+      break;
+    }
 
-    // Setup SP3485
-    bus = new Sp3485(cfg.bus, Serial1);
-    bus->init();
-
-    // Setup Mod bus
-    reader = new ModbusRtuReader();
-    if (reader->init(*bus, &cfg) == EXIT_SUCCESS) {
+    reader = new ModbusRtuReader(cfg.modbus);
+    if (reader->init(*bus) == EXIT_SUCCESS) {
       readerReady = true;
     } else {
       delete reader;
@@ -75,15 +84,30 @@ void rs485NodeSetup() {
   case ReaderType::Iec62056:
     Serial.println("Not applicable");
     break;
-  case ReaderType::ModbusTCP:
-    
-    
-    
+    // Modbus over TCP (only for testing)
+  case ReaderType::ModbusTCP: {
+    bus = new TcpBus(cfg.tcp);
+    if (bus->init() != EXIT_SUCCESS) {
+      Serial.println("[RS485] TcpBus init failed.");
+      break;
+    }
+
+    reader = new ModbusRtuReader(cfg.modbus);
+    if (reader->init(*bus) == EXIT_SUCCESS) {
+      readerReady = true;
+    } else {
+      delete reader;
+      reader = nullptr;
+    }
+    break;
+  }
+  default:
+    Serial.println("[RS485] Reader type not applicable to this node. Idling.");
     break;
   }
 
   state = READ;
-  
+
 }
 
 void rs485NodeLoop() {
@@ -91,7 +115,7 @@ void rs485NodeLoop() {
   if (!readerReady) {
     return;
   }
-  
+
   switch (state) {
   case READ:
     reader->get_import(&payload.kwh_import);
@@ -102,7 +126,7 @@ void rs485NodeLoop() {
     Serial.printf("voltage: %f\n",payload.voltage);
     delay(10000);
     break;
-    
+
   case SLEEP:
     break;
   default:
