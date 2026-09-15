@@ -8,7 +8,7 @@
 
 // Which protocol a reader node speaks on its bus.
 enum class ReaderType : uint8_t {
-  ModbusRtu = 0,    
+  ModbusRtu = 0,
     Iec62056 = 1,
     IEMS = 2,
     ModbusTCP = 3,
@@ -29,30 +29,45 @@ struct Rs485Config {
 };
 
 struct TcpBusConfig {
-  const char *host;
+  char host[64];
   uint16_t port;
   uint32_t connectTimeoutMs;
 };
 
-struct IrConfig{
-};
-
-struct LoRaConfig{
+struct LoRaConfig {
+  uint32_t band;
+  uint8_t spreadingFactor;
+  uint32_t bandwidth;
+  uint8_t syncWord;
+  uint8_t txPower;
 };
 
 // Access point the radio hosts.
 struct WifiRadioConfig {
-  const char *ssid;
-  const char *password;
+  char ssid[33];
+  char password[65];
   uint8_t channel;
+};
+
+// Station credentials the gateway joins an existing network with.
+struct WifiStationConfig {
+  char ssid[33];
+  char password[65];
+};
+
+struct MqttConfig {
+  bool enabled;
+  char server[64];
+  uint16_t port;
+  char topic[64];
 };
 
 // HTTP credentials and timeout used over the AP.
 struct HttpBusConfig {
   uint32_t requestTimeoutMs;
   // Empty user disables HTTP basic auth.
-  const char *httpUser;
-  const char *httpPass;
+  char httpUser[32];
+  char httpPass[64];
 };
 
 struct EspNowConfig {
@@ -68,11 +83,10 @@ struct EspNowPeerConfig {
 //Format the Kwh values are stored
 enum class RegisterFormat : uint8_t{
   ScaledInt = 0,
-    IEEE_754Float = 1,    
+    IEEE_754Float = 1,
 };
 
 struct ModbusRtuConfig {
-  ReaderType reader;
   MeterModel meterModel;
   uint32_t pollIntervalMs;
 
@@ -85,21 +99,45 @@ struct ModbusRtuConfig {
 };
 
 struct CamHttpConfig {
-  ReaderType reader;
   uint32_t pollIntervalMs;
 
   HttpBusConfig bus;
 
   // AI-on-the-edge-device endpoint and the flow/ROI to read from it.
-  const char *host;
-  const char *path;
-  const char *flowName;
+  char host[64];
+  char path[32];
+  char flowName[32];
 };
 
-// Hardcoded config should be resolved in runtime by upstream
-ReaderType loadReaderType();
-ModbusRtuConfig loadModbusRtuConfig();
-EspNowConfig loadEspNowConfig();
-TcpBusConfig loadTcpBusConfig(const char *host, uint16_t port);
+// #### Per-node configs ####
+
+struct Rs485NodeConfig {
+  ReaderType readerType;
+  WifiRadioConfig radio;
+  EspNowConfig espNow;
+  EspNowPeerConfig substation;
+  ModbusRtuConfig modbus;
+  TcpBusConfig tcp;
+};
+
+struct CvNodeConfig {
+  uint32_t uid;
+  WifiRadioConfig radio;
+  EspNowConfig espNow;
+  EspNowPeerConfig substation;
+  CamHttpConfig cam;
+};
+
+struct SubstationConfig {
+  LoRaConfig lora;
+  uint8_t maxRetries;
+  uint32_t ackTimeoutMs;
+};
+
+struct GatewayConfig {
+  LoRaConfig lora;
+  WifiStationConfig wifi;
+  MqttConfig mqtt;
+};
 
 #endif

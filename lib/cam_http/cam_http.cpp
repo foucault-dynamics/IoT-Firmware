@@ -9,11 +9,13 @@
 // draining byte by byte does not realloc on every append.
 #define RESPONSE_RESERVE 512
 
-int CamHttpReader::init(Module &module, const void *config) {
-  this->module = &module;
-  this->config = static_cast<const CamHttpConfig *>(config);
+CamHttpReader::CamHttpReader(const CamHttpConfig &config): config(config) {
+}
 
-  if (this->config->host == nullptr || this->config->flowName == nullptr) {
+int CamHttpReader::init(Module &module) {
+  this->module = &module;
+
+  if (config.host[0] == '\0' || config.flowName[0] == '\0') {
     Serial.println("[Cam HTTP Reader] Host or flow name missing from config");
     return EXIT_FAILURE;
   }
@@ -22,7 +24,7 @@ int CamHttpReader::init(Module &module, const void *config) {
 }
 
 int CamHttpReader::get_import(float *val) {
-  return read_flow(config->flowName, val);
+  return read_flow(config.flowName, val);
 }
 
 int CamHttpReader::get_export(float *val) {
@@ -37,7 +39,7 @@ int CamHttpReader::get_voltage(float *val) {
 
 int CamHttpReader::read_flow(const char *flow, float *val) {
   // Send request
-  String url = String("http://") + config->host + config->path;
+  String url = String("http://") + config.host + config.path;
   if (module->send(reinterpret_cast<const uint8_t *>(url.c_str()), url.length()) == EXIT_FAILURE) {
     return EXIT_FAILURE;
   }

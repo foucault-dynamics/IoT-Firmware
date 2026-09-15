@@ -6,17 +6,19 @@
 #include <cstring>
 
 
-int ModbusRtuReader::init(Module &module, const void *config){
+ModbusRtuReader::ModbusRtuReader(const ModbusRtuConfig &config): config(config){
+}
+
+int ModbusRtuReader::init(Module &module){
   this->module = &module;
-  this->config = static_cast<const ModbusRtuConfig *>(config);
 
   // Data bits
-  float char_len = ((this->config->bus.format & DATA_BITS_MASK) >> 2) + 5;
+  float char_len = ((this->config.bus.format & DATA_BITS_MASK) >> 2) + 5;
   // Parity bits
-  if(this->config->bus.format & PARITY_MASK) char_len++;
+  if(this->config.bus.format & PARITY_MASK) char_len++;
 
   // Stop bit len
-  uint8_t stop_bits_flag = ((this->config->bus.format & STOP_MASK) >> 4);
+  uint8_t stop_bits_flag = ((this->config.bus.format & STOP_MASK) >> 4);
   switch(stop_bits_flag){
   case 0b01:
     char_len++;
@@ -35,25 +37,25 @@ int ModbusRtuReader::init(Module &module, const void *config){
   char_len++;
 
   //Space-between frames
-  if(this->config->bus.baudRate > 19200){
+  if(this->config.bus.baudRate > 19200){
     t35_us = 1750;
   }else{
-    t35_us = (uint32_t)((3.5f * char_len * 1000000.0f) / this->config->bus.baudRate + 0.5f);
+    t35_us = (uint32_t)((3.5f * char_len * 1000000.0f) / this->config.bus.baudRate + 0.5f);
   }
 
   return EXIT_SUCCESS;
 }
 
 int ModbusRtuReader::get_import(float *val){
-  return read_register(config->import_address,val);
+  return read_register(config.import_address,val);
 }
 
 int ModbusRtuReader::get_export(float *val){
-  return read_register(config->export_address,val);
+  return read_register(config.export_address,val);
 }
 
 int ModbusRtuReader::get_voltage(float *val){
-  return read_register(config->voltage_address,val);
+  return read_register(config.voltage_address,val);
 }
 
 
@@ -76,10 +78,10 @@ int ModbusRtuReader::read_register(uint16_t data_type_address, float *val){
   }
 
   uint32_t raw = (uint32_t)response[3] << 24 | (uint32_t)response[4] << 16 | (uint32_t)response[5] << 8 | (uint32_t)response[6];
-  if(config->registerFormat == RegisterFormat::IEEE_754Float){
+  if(config.registerFormat == RegisterFormat::IEEE_754Float){
     memcpy(val,&raw,sizeof(float));
   }
-  else if(config->registerFormat == RegisterFormat::ScaledInt){
+  else if(config.registerFormat == RegisterFormat::ScaledInt){
     *val = raw/ 1000.0f;
   }
   else{
@@ -105,8 +107,8 @@ uint16_t ModbusRtuReader::modbus_crc(const uint8_t *data, size_t len){
 
 
 void ModbusRtuReader::build_request(uint8_t *buffer, uint16_t data_type_address){
-  buffer[0] = config->slaveAddress;
-  buffer[1] = config->functionCode;
+  buffer[0] = config.slaveAddress;
+  buffer[1] = config.functionCode;
   buffer[2] = (data_type_address & 0xFF00) >> 8;
   buffer[3] = data_type_address & 0x00FF;
   buffer[4] = 0x00;
@@ -152,7 +154,7 @@ int ModbusRtuReader::read_response(uint8_t *buffer){
     return EXIT_FAILURE;
   }
 
-  if(buffer[0] != config->slaveAddress){
+  if(buffer[0] != config.slaveAddress){
     Serial.println("[ModbusRTU Reader] Slave address response does not match");
     return EXIT_FAILURE;
   }
@@ -172,7 +174,7 @@ int ModbusRtuReader::read_response(uint8_t *buffer){
     Serial.println("[ModbusRTU Reader] Response incomplete");
     return EXIT_FAILURE;
   }
-  if(buffer[1] != config->functionCode){
+  if(buffer[1] != config.functionCode){
     Serial.println("[ModbusRTU Reader] Function code response does not match");
     return EXIT_FAILURE;
   }

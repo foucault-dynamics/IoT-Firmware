@@ -37,14 +37,14 @@ waiting), `available()`.
 ### `reader/`
 
 `Reader`, the base class for a meter protocol sitting on top of a `Module&`.
-`init(Module&, const void *config)`, `get_import()`, `get_export()`,
-`get_voltage()`, all writing through a `float*` and returning `EXIT_SUCCESS` or
-`EXIT_FAILURE`.
+`init(Module&)`, `get_import()`, `get_export()`, `get_voltage()`, all writing
+through a `float*` and returning `EXIT_SUCCESS` or `EXIT_FAILURE`.
 
-The config is passed as `const void *` and each reader casts it to the struct it
-expects. That keeps every protocol's fields out of the shared base interface, at
-the cost of the cast being unchecked, so a reader and its config must be paired
-correctly by the caller in `src/nodes/`.
+Each concrete reader takes its config in its own constructor (`ModbusRtuReader(const
+ModbusRtuConfig&)`, `CamHttpReader(const CamHttpConfig&)`), storing it by value.
+That keeps every protocol's fields out of the shared base interface without an
+unchecked cast, at the cost of the caller in `src/nodes/` having to construct the
+right reader for its config.
 
 ### `transmitter/`
 
@@ -58,16 +58,23 @@ will be something else.
 
 ### `node_config/`
 
-One plain struct per transport and per protocol (`Rs485Config`, `WifiRadioConfig`,
-`HttpBusConfig`, `EspNowConfig`, `EspNowPeerConfig`, `ModbusRtuConfig`), plus the
-`ReaderType`, `MeterModel`, and `RegisterFormat` enums.
+`node_config.h` holds only shapes: one plain struct per transport and per
+protocol (`Rs485Config`, `WifiRadioConfig`, `HttpBusConfig`, `TcpBusConfig`,
+`LoRaConfig`, `EspNowConfig`, `EspNowPeerConfig`, `ModbusRtuConfig`,
+`CamHttpConfig`), one struct per node composed from those
+(`Rs485NodeConfig`, `CvNodeConfig`, `SubstationConfig`, `GatewayConfig`), plus
+the `ReaderType`, `MeterModel`, and `RegisterFormat` enums. No values, no
+loaders: those live in `src/nodes/nvs_config.cpp`, because that file needs
+`secrets.h`, which lives under `src/`.
 
-`node_config.cpp` holds `loadReaderType()`, `loadModbusRtuConfig()`, and
-`loadEspNowConfig()`. These are hardcoded on purpose. They are the seam where
-upstream configuration selection will plug in later, so their bodies can be
-replaced without touching a single call site. `loadModbusRtuConfig()` also
-carries the `METER_MODELS` table mapping a `MeterModel` to its register
-addresses, currently a linear scan over two rows.
+`nvs_config.cpp` holds every default, every NVS key, the `METER_MODELS` table
+mapping a `MeterModel` to its register addresses, and the loaders
+(`loadRs485NodeConfig()`, `loadCvNodeConfig()`, `loadSubstationConfig()`,
+`loadGatewayConfig()`). A field is read from NVS if it was ever set there,
+falling back to its firmware default otherwise, so a fresh board runs on
+defaults and a firmware update can still improve them. It also holds
+`nvsConfigPollSerial()`, a serial command stand-in for the upstream config
+channel a future team will replace it with.
 
 ### `shared/`
 

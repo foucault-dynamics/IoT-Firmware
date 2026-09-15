@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "nodes/nodes.h"
+#include "nodes/nvs_config.h"
 
 enum class ModuleType : uint8_t {
   Unknown = 0,
@@ -68,6 +69,8 @@ void setup() {
 }
 
 void loop() {
+  nvsConfigPollSerial();
+
   switch (moduleType) {
   case ModuleType::Rs485Node:
     rs485NodeLoop();
