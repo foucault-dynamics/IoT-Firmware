@@ -17,8 +17,9 @@ const uint8_t RS485_RX_PIN = 8;
 const uint8_t RS485_TX_PIN = 9;
 const uint8_t RS485_DERE_PIN = 10;
 
-// LoRa SPI pins. Same reasoning.
-const LoRaPins LORA_PINS = {/*sck*/ 4, /*miso*/ 5, /*mosi*/ 6, /*ss*/ 7, /*rst*/ 3, /*dio0*/ 1};
+// LoRa SPI pins for the LilyGo TTGO LoRa32 v2.1 (classic ESP32). Board
+// wiring, never an NVS key.
+const LoRaPins LORA_PINS = {/*sck*/ 5, /*miso*/ 19, /*mosi*/ 27, /*ss*/ 18, /*rst*/ 23, /*dio0*/ 26};
 
 struct MeterModelEntry {
   MeterModel model;
@@ -95,6 +96,14 @@ LoRaConfig loadLoRaConfig() {
   cfg.bandwidth = readU32("lora_bw", 125000);
   cfg.syncWord = static_cast<uint8_t>(readU32("lora_sync", 0xF3));
   cfg.txPower = static_cast<uint8_t>(readU32("lora_txpwr", 14));
+  cfg.pins = LORA_PINS;
+  return cfg;
+}
+
+LoRaLinkConfig loadLoRaLinkConfig() {
+  LoRaLinkConfig cfg{};
+  cfg.maxRetries = static_cast<uint8_t>(readU32("lora_retries", 3));
+  cfg.ackTimeoutMs = readU32("lora_ack_ms", 1500);
   return cfg;
 }
 
@@ -229,8 +238,7 @@ SubstationConfig loadSubstationConfig() {
 
   SubstationConfig cfg{};
   cfg.lora = loadLoRaConfig();
-  cfg.maxRetries = static_cast<uint8_t>(readU32("lora_retries", 3));
-  cfg.ackTimeoutMs = readU32("lora_ack_ms", 1500);
+  cfg.link = loadLoRaLinkConfig();
 
   prefs.end();
   return cfg;
@@ -241,6 +249,7 @@ GatewayConfig loadGatewayConfig() {
 
   GatewayConfig cfg{};
   cfg.lora = loadLoRaConfig();
+  cfg.link = loadLoRaLinkConfig();
 
   readStr("wifi_ssid", SECRET_WIFI_SSID, cfg.wifi.ssid, sizeof(cfg.wifi.ssid));
   readStr("wifi_pass", SECRET_WIFI_PASS, cfg.wifi.password, sizeof(cfg.wifi.password));
@@ -249,13 +258,11 @@ GatewayConfig loadGatewayConfig() {
   readStr("mqtt_host", SECRET_MQTT_SERVER, cfg.mqtt.server, sizeof(cfg.mqtt.server));
   cfg.mqtt.port = static_cast<uint16_t>(readU32("mqtt_port", SECRET_MQTT_PORT));
   readStr("mqtt_topic", SECRET_MQTT_TOPIC, cfg.mqtt.topic, sizeof(cfg.mqtt.topic));
+  readStr("mqtt_user", SECRET_MQTT_USERNAME, cfg.mqtt.username, sizeof(cfg.mqtt.username));
+  readStr("mqtt_pass", SECRET_MQTT_PASSWORD, cfg.mqtt.password, sizeof(cfg.mqtt.password));
 
   prefs.end();
   return cfg;
-}
-
-LoRaPins loraPins() {
-  return LORA_PINS;
 }
 
 void nvsConfigPollSerial() {

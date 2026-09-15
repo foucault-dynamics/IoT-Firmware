@@ -12,7 +12,8 @@ HttpBus::HttpBus(const HttpBusConfig &config) {
   this->config = config;
 }
 
-void HttpBus::init() {
+int HttpBus::init() {
+  return EXIT_SUCCESS;
 }
 
 int HttpBus::send(const uint8_t *data, size_t len) {

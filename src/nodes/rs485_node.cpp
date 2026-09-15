@@ -64,7 +64,10 @@ void rs485NodeSetup() {
     // Modbus over Serial bus
   case ReaderType::ModbusRtu:{
     bus = new Sp3485(cfg.modbus.bus, Serial1);
-    bus->init();
+    if (bus->init() != EXIT_SUCCESS) {
+      Serial.println("[RS485] Sp3485 init failed.");
+      break;
+    }
 
     reader = new ModbusRtuReader(cfg.modbus);
     if (reader->init(*bus) == EXIT_SUCCESS) {
@@ -84,7 +87,10 @@ void rs485NodeSetup() {
     // Modbus over TCP (only for testing)
   case ReaderType::ModbusTCP: {
     bus = new TcpBus(cfg.tcp);
-    bus->init();
+    if (bus->init() != EXIT_SUCCESS) {
+      Serial.println("[RS485] TcpBus init failed.");
+      break;
+    }
 
     reader = new ModbusRtuReader(cfg.modbus);
     if (reader->init(*bus) == EXIT_SUCCESS) {

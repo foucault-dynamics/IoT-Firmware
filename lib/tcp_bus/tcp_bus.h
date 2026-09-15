@@ -22,7 +22,7 @@ class TcpBus : public Module {
 
  public:
   TcpBus(TcpBusConfig config);
-  void init() override;
+  int init() override;
   int readByte() override;
   int send(const uint8_t *data, size_t len) override;
   bool available() override;
