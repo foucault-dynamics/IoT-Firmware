@@ -121,9 +121,15 @@ void rs485NodeLoop() {
     reader->get_import(&payload.kwh_import);
     reader->get_export(&payload.kwh_export);
     reader->get_voltage(&payload.voltage);
+    // Printing
     Serial.printf("import: %f\n",payload.kwh_import);
     Serial.printf("export: %f\n",payload.kwh_export);
     Serial.printf("voltage: %f\n",payload.voltage);
+
+
+    uplink.
+    
+    //Sending
     delay(10000);
     break;
 
