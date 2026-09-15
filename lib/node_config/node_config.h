@@ -128,6 +128,7 @@ struct CamHttpConfig {
 // #### Per-node configs ####
 
 struct Rs485NodeConfig {
+  uint32_t uid;
   ReaderType readerType;
   WifiRadioConfig radio;
   EspNowConfig espNow;

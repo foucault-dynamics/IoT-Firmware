@@ -210,6 +210,8 @@ Rs485NodeConfig loadRs485NodeConfig() {
 
   Rs485NodeConfig cfg{};
 
+  cfg.uid = readU32("uid", 1);
+
   cfg.readerType = static_cast<ReaderType>(readU32("reader", static_cast<uint32_t>(ReaderType::ModbusTCP)));
 
   readStr("ap_ssid", SECRET_AP_SSID, cfg.radio.ssid, sizeof(cfg.radio.ssid));
