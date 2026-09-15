@@ -10,6 +10,11 @@
 
 namespace {
 
+// ---------------------------------------------------------------------------
+// Board wiring and static config data
+// ---------------------------------------------------------------------------
+
+// Config nvs namespace
 const char *NVS_NAMESPACE = "config";
 
 // RS485 bus pins. Board wiring, never NVS keys.
@@ -28,23 +33,32 @@ struct MeterModelEntry {
   uint16_t export_energy;
 };
 
+// Known meter models (better approach necessary in future)
 const MeterModelEntry METER_MODELS[] = {
     {MeterModel::Simulated_Serial, /*voltage*/ 0, /*import*/ 4, /*export*/ 2},
     {MeterModel::Simulated_Tcp, 0, 4, 2},
 };
 
+// Get the model of a given meter (for registers and other meter specific settings)
 const MeterModelEntry &lookupMeterModel(MeterModel model) {
   for (const auto &entry : METER_MODELS) {
     if (entry.model == model) {
       return entry;
     }
   }
-  // Unknown model: fall back to the first row so the node still runs.
   return METER_MODELS[0];
 }
 
+// ---------------------------------------------------------------------------
+// NVS read helpers
+//
+// Small wrappers around Preferences that fall back to a default value
+// when the key isn't set yet, and log where the value came from.
+// ---------------------------------------------------------------------------
+
 Preferences prefs;
 
+// Read ints from NVS key
 uint32_t readU32(const char *key, uint32_t fallback) {
   if (prefs.isKey(key)) {
     uint32_t value = prefs.getUInt(key, fallback);
@@ -54,6 +68,7 @@ uint32_t readU32(const char *key, uint32_t fallback) {
   return fallback;
 }
 
+// Read strs from NVS key
 void readStr(const char *key, const char *fallback, char *out, size_t outLen) {
   if (prefs.isKey(key)) {
     String value = prefs.getString(key, fallback);
@@ -66,6 +81,7 @@ void readStr(const char *key, const char *fallback, char *out, size_t outLen) {
   out[outLen - 1] = '\0';
 }
 
+// Parse mac address from nvs
 bool parseMac(const String &text, uint8_t out[6]) {
   unsigned int bytes[6];
   if (sscanf(text.c_str(), "%x:%x:%x:%x:%x:%x", &bytes[0], &bytes[1], &bytes[2], &bytes[3], &bytes[4], &bytes[5]) != 6) {
@@ -77,6 +93,7 @@ bool parseMac(const String &text, uint8_t out[6]) {
   return true;
 }
 
+// Read a mac address from NVS, falling back to the default if missing or malformed
 void readMac(const char *key, const uint8_t fallback[6], uint8_t out[6]) {
   if (prefs.isKey(key)) {
     String value = prefs.getString(key, "");
@@ -89,6 +106,14 @@ void readMac(const char *key, const uint8_t fallback[6], uint8_t out[6]) {
   memcpy(out, fallback, 6);
 }
 
+// ---------------------------------------------------------------------------
+// LoRa config loaders
+//
+// Shared between the substation and gateway configs, which both sit on
+// the LoRa link.
+// ---------------------------------------------------------------------------
+
+// Load LoRa radio settings (band, spreading factor, sync word, etc.)
 LoRaConfig loadLoRaConfig() {
   LoRaConfig cfg{};
   cfg.band = readU32("lora_band", static_cast<uint32_t>(SECRET_LORA_BAND));
@@ -100,6 +125,7 @@ LoRaConfig loadLoRaConfig() {
   return cfg;
 }
 
+// Load LoRa link settings (retries, ack timeout)
 LoRaLinkConfig loadLoRaLinkConfig() {
   LoRaLinkConfig cfg{};
   cfg.maxRetries = static_cast<uint8_t>(readU32("lora_retries", 3));
@@ -107,8 +133,16 @@ LoRaLinkConfig loadLoRaLinkConfig() {
   return cfg;
 }
 
+// ---------------------------------------------------------------------------
+// Serial config command handling
+//
+// Lets a dev poke NVS values over the serial monitor without reflashing,
+// e.g. `set wifi_ssid "myssid"`, `clear`, `reboot`.
+// ---------------------------------------------------------------------------
+
 const size_t NVS_MAX_KEY_LEN = 15;
 
+// Parse and execute one line of serial input (reboot / clear / set <key> <value>)
 void processLine(char *line) {
   char *cmd = strtok(line, " ");
   if (cmd == nullptr) {
@@ -163,6 +197,14 @@ void processLine(char *line) {
 
 }  // namespace
 
+// ---------------------------------------------------------------------------
+// Public per-node config loaders
+//
+// Each one opens NVS read-only, fills in a config struct (NVS value if
+// present, otherwise a hardcoded/secrets.h default), and closes NVS again.
+// ---------------------------------------------------------------------------
+
+// Load config for an RS485/Modbus meter node
 Rs485NodeConfig loadRs485NodeConfig() {
   prefs.begin(NVS_NAMESPACE, true);
 
@@ -204,6 +246,7 @@ Rs485NodeConfig loadRs485NodeConfig() {
   return cfg;
 }
 
+// Load config for a CV (camera) node
 CvNodeConfig loadCvNodeConfig() {
   prefs.begin(NVS_NAMESPACE, true);
 
@@ -233,6 +276,7 @@ CvNodeConfig loadCvNodeConfig() {
   return cfg;
 }
 
+// Load config for a substation (LoRa endpoint) node
 SubstationConfig loadSubstationConfig() {
   prefs.begin(NVS_NAMESPACE, true);
 
@@ -244,6 +288,7 @@ SubstationConfig loadSubstationConfig() {
   return cfg;
 }
 
+// Load config for a gateway node (LoRa + WiFi + MQTT)
 GatewayConfig loadGatewayConfig() {
   prefs.begin(NVS_NAMESPACE, true);
 
@@ -264,6 +309,10 @@ GatewayConfig loadGatewayConfig() {
   prefs.end();
   return cfg;
 }
+
+// ---------------------------------------------------------------------------
+// Serial polling entry point (call each loop() to feed processLine())
+// ---------------------------------------------------------------------------
 
 void nvsConfigPollSerial() {
   static char line[64];
