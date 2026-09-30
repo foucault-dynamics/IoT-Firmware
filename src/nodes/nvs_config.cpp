@@ -7,6 +7,8 @@
 #include <cstring>
 
 #include "secrets.h"
+#include "esp_efuse.h"
+#include "esp_efuse_table.h"
 
 namespace {
 
@@ -210,7 +212,11 @@ Rs485NodeConfig loadRs485NodeConfig() {
 
   Rs485NodeConfig cfg{};
 
-  cfg.uid = readU32("uid", 1);
+  // Set unique ID for board
+  esp_efuse_read_field_blob(ESP_EFUSE_OPTIONAL_UNIQUE_ID,cfg.uid,sizeof(cfg.uid) * 8);
+
+  cfg.communityId = static_cast<uint8_t>(readU32("comm_id", 0));
+  cfg.unitId = static_cast<uint8_t>(readU32("unit_id", 0));
 
   cfg.readerType = static_cast<ReaderType>(readU32("reader", static_cast<uint32_t>(ReaderType::ModbusTCP)));
 
@@ -254,7 +260,11 @@ CvNodeConfig loadCvNodeConfig() {
 
   CvNodeConfig cfg{};
 
-  cfg.uid = readU32("uid", 3);
+  // Set unique ID for board
+  esp_efuse_read_field_blob(ESP_EFUSE_OPTIONAL_UNIQUE_ID, cfg.uid, sizeof(cfg.uid) * 8);
+
+  cfg.communityId = static_cast<uint8_t>(readU32("comm_id", 0));
+  cfg.unitId = static_cast<uint8_t>(readU32("unit_id", 0));
 
   readStr("ap_ssid", SECRET_CAM_AP_SSID, cfg.radio.ssid, sizeof(cfg.radio.ssid));
   readStr("ap_pass", SECRET_CAM_AP_PASSWORD, cfg.radio.password, sizeof(cfg.radio.password));

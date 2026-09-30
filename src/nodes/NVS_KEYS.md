@@ -33,6 +33,8 @@ or the value will be written but silently unused / misread.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
+| `comm_id` | uint | `0` | Community code (goes out in the payload) |
+| `unit_id` | uint | `0` | Unit code (goes out in the payload) |
 | `reader` | uint | `ReaderType::ModbusTCP` | Reader backend |
 | `ap_ssid` | string | `SECRET_AP_SSID` | ESP-NOW AP SSID |
 | `ap_pass` | string | `SECRET_AP_PASS` | ESP-NOW AP password |
@@ -50,7 +52,8 @@ or the value will be written but silently unused / misread.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `uid` | uint | `3` | Node UID |
+| `comm_id` | uint | `0` | Community code (goes out in the payload) |
+| `unit_id` | uint | `0` | Unit code (goes out in the payload) |
 | `ap_ssid` | string | `SECRET_CAM_AP_SSID` | ESP-NOW AP SSID |
 | `ap_pass` | string | `SECRET_CAM_AP_PASSWORD` | ESP-NOW AP password |
 | `ap_channel` | uint | `1` | AP channel |
@@ -62,8 +65,8 @@ or the value will be written but silently unused / misread.
 | `cam_host` | string | `SECRET_CAM_HOST` | Camera host |
 | `cam_flow` | string | `SECRET_CAM_FLOW_NAME` | Camera flow name |
 
-Note: `ap_ssid`, `ap_pass`, `ap_channel`, `espnow_to_ms`, `sub_mac`, and
-`poll_ms` are reused key names between the Rs485 and CV loaders, each with
+Note: `ap_ssid`, `ap_pass`, `ap_channel`, `espnow_to_ms`, `sub_mac`,
+`poll_ms`, `comm_id`, and `unit_id` are reused key names between the Rs485 and CV loaders, each with
 their own defaults. This is fine as long as a given board only ever runs one
 node type's firmware image against its NVS namespace.
 

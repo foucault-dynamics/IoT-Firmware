@@ -128,7 +128,10 @@ struct CamHttpConfig {
 // #### Per-node configs ####
 
 struct Rs485NodeConfig {
-  uint32_t uid;
+  uint8_t uid[16];
+  // Where this node is installed. Set by upstream (NVS), not by hardware.
+  uint8_t communityId;
+  uint8_t unitId;
   ReaderType readerType;
   WifiRadioConfig radio;
   EspNowConfig espNow;
@@ -138,7 +141,10 @@ struct Rs485NodeConfig {
 };
 
 struct CvNodeConfig {
-  uint32_t uid;
+  uint8_t uid[16];
+  // Where this node is installed. Set by upstream (NVS), not by hardware.
+  uint8_t communityId;
+  uint8_t unitId;
   WifiRadioConfig radio;
   EspNowConfig espNow;
   EspNowPeerConfig substation;

@@ -100,10 +100,11 @@ void gatewayLoop() {
   int rssi = radio->packetRssi();
   float snr = radio->packetSnr();
   Serial.printf("=> Packet Size: %d Bytes | RSSI: %d dBm | SNR: %.1f dB\n", len, rssi, snr);
-  Serial.printf("=> Parsed Data -> UID: %u | SEQ: %u | Volt: %.1fV\n", payload.uid, payload.seq, payload.voltage);
+  char uidHex[UID_HEX_LEN];
+  Serial.printf("=> Parsed Data -> UID: %s | SEQ: %u | Volt: %.1fV\n", uidToHex(payload.uid, uidHex), payload.seq, payload.voltage);
 
   if (cfg.mqtt.enabled && client.connected()) {
     bool pubSuccess = client.publish(cfg.mqtt.topic, reinterpret_cast<const uint8_t *>(&payload), sizeof(payload));
-    Serial.printf("DATA FWD, UID: %u, PUB: %s\n", payload.uid, pubSuccess ? "SUCCESS" : "FAILED");
+    Serial.printf("DATA FWD, UID: %s, PUB: %s\n", uidToHex(payload.uid, uidHex), pubSuccess ? "SUCCESS" : "FAILED");
   }
 }

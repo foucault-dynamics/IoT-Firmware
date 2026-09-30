@@ -56,7 +56,7 @@ int LoRaLink::sendPacket(const void *address, const uint8_t *buf, size_t len) {
 
       if (packetSize == sizeof(AckPayload)) {
         AckPayload ack{};
-        if (readFrame(reinterpret_cast<uint8_t *>(&ack), sizeof(AckPayload)) && ack.uid == sent.uid && ack.seq == sent.seq) {
+        if (readFrame(reinterpret_cast<uint8_t *>(&ack), sizeof(AckPayload)) && uidEquals(ack.uid, sent.uid) && ack.seq == sent.seq) {
           Serial.println("[LoRa] TX SUCCESS: ACK Received!");
           return EXIT_SUCCESS;
         }
@@ -117,7 +117,7 @@ int LoRaLink::receivePacket(void *address, uint8_t *buf, size_t bufLen) {
   memcpy(&received, buf, sizeof(Payload));
 
   AckPayload ack{};
-  ack.uid = received.uid;
+  memcpy(ack.uid, received.uid, sizeof(ack.uid));
   ack.seq = received.seq;
 
   delay(10);
