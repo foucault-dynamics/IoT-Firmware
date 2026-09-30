@@ -78,9 +78,9 @@ void cvNodeSetup() {
     return;
   }
 
-  payload.uid = cfg.uid;
-  payload.community_id = 0;
-  payload.unit_id = 0;
+  memcpy(payload.uid, cfg.uid, sizeof(payload.uid));
+  payload.community_id = cfg.communityId;
+  payload.unit_id = cfg.unitId;
 
   readerReady = true;
 }

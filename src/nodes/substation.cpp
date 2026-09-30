@@ -64,13 +64,14 @@ void substationLoop() {
   }
   hasNewDataToRelay = false;
 
-  Serial.printf("[Substation] Relaying UID: %u | SEQ: %u\n", pendingPayload.uid, pendingPayload.seq);
+  char uidHex[UID_HEX_LEN];
+  Serial.printf("[Substation] Relaying UID: %s | SEQ: %u\n", uidToHex(pendingPayload.uid, uidHex), pendingPayload.seq);
 
   int result = loraLink->sendPacket(nullptr, reinterpret_cast<const uint8_t *>(&pendingPayload), sizeof(Payload));
 
   if (result == EXIT_SUCCESS) {
-    Serial.printf("[Substation] Relay SUCCESS | UID: %u | SEQ: %u | ACK received\n", pendingPayload.uid, pendingPayload.seq);
+    Serial.printf("[Substation] Relay SUCCESS | UID: %s | SEQ: %u | ACK received\n", uidToHex(pendingPayload.uid, uidHex), pendingPayload.seq);
   } else {
-    Serial.printf("[Substation] Relay FAILED | UID: %u | SEQ: %u | Data dropped\n", pendingPayload.uid, pendingPayload.seq);
+    Serial.printf("[Substation] Relay FAILED | UID: %s | SEQ: %u | Data dropped\n", uidToHex(pendingPayload.uid, uidHex), pendingPayload.seq);
   }
 }

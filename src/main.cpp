@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <cstdint>
 #include "nodes/nodes.h"
 #include "nodes/nvs_config.h"
 
@@ -44,7 +45,8 @@ void setup() {
   delay(2000);
 
   moduleType = readModuleType();
-  Serial.printf("[BOOT] module type %d\n", (int)moduleType);
+  Serial.printf("[BOOT] module type %d\n", (int)moduleType);  
+    
 
   switch (moduleType) {
   case ModuleType::Rs485Node:

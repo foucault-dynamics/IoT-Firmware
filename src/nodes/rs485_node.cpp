@@ -60,6 +60,11 @@ void rs485NodeSetup() {
     return;
   }
 
+  // Store identity on payload
+  memcpy(payload.uid,cfg.uid,sizeof(payload.uid));
+  payload.community_id = cfg.communityId;
+  payload.unit_id = cfg.unitId;
+
   switch (cfg.readerType) {
     // Modbus over Serial bus
   case ReaderType::ModbusRtu:{
@@ -124,10 +129,8 @@ void rs485NodeLoop() {
     // Printing
     Serial.printf("import: %f\n",payload.kwh_import);
     Serial.printf("export: %f\n",payload.kwh_export);
-    Serial.printf("voltage: %f\n",payload.voltage);
-
-
-    uplink.
+    Serial.printf("voltage: %f\n",payload.voltage);    
+    
     
     //Sending
     delay(10000);
