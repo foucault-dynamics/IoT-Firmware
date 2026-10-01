@@ -32,6 +32,9 @@ static Reader *reader;
 // Runtime configuration
 static Rs485NodeConfig cfg;
 
+// Time spent idling in SLEEP between meter reads
+static constexpr unsigned long POLL_INTERVAL_MS = 60UL * 1000UL;
+
 // State variables
 static volatile States state = READ;
 static unsigned long lastPoll = 0;
@@ -95,12 +98,12 @@ void rs485NodeSetup() {
     break;
     // Modbus over TCP (only for testing)
   case ReaderType::ModbusTCP: {
-    bus = new TcpBus(cfg.tcp);
-    if (bus->init() != EXIT_SUCCESS) {
-      Serial.println("[RS485] TcpBus init failed.");
-      break;
+    bus = new TcpBus(cfg.tcp);    
+    while(true){
+      if(bus->init() == EXIT_SUCCESS) break;
+      Serial.println("[RS485] TcpBus init failed.");      
     }
-
+    
     reader = new ModbusRtuReader(cfg.modbus);
     if (reader->init(*bus) == EXIT_SUCCESS) {
       readerReady = true;
@@ -145,12 +148,16 @@ void rs485NodeLoop() {
     payload.seq = seqNext();
     if(uplink->sendPacket(cfg.substation.mac,reinterpret_cast<const uint8_t *>(&payload),sizeof(payload)) == EXIT_FAILURE){
       Serial.printf("Error sending payload at sequence: %u\n",payload.seq);
-      return;
+      // return;
     }
+    lastPoll = millis();
     state = SLEEP;
     break;
   case SLEEP:
-    delay(10000);
+    // Non blocking wait, loop() keeps running so other work is not starved
+    if (millis() - lastPoll >= POLL_INTERVAL_MS) {
+      state = READ;
+    }
     break;
   default:
     break;

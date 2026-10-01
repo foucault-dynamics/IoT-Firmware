@@ -213,7 +213,9 @@ Rs485NodeConfig loadRs485NodeConfig() {
   Rs485NodeConfig cfg{};
 
   // Set unique ID for board
+#if CONFIG_IDF_TARGET_ESP32C3
   esp_efuse_read_field_blob(ESP_EFUSE_OPTIONAL_UNIQUE_ID,cfg.uid,sizeof(cfg.uid) * 8);
+#endif
 
   cfg.communityId = static_cast<uint8_t>(readU32("comm_id", 0));
   cfg.unitId = static_cast<uint8_t>(readU32("unit_id", 0));
@@ -261,7 +263,9 @@ CvNodeConfig loadCvNodeConfig() {
   CvNodeConfig cfg{};
 
   // Set unique ID for board
+#if CONFIG_IDF_TARGET_ESP32C3
   esp_efuse_read_field_blob(ESP_EFUSE_OPTIONAL_UNIQUE_ID, cfg.uid, sizeof(cfg.uid) * 8);
+#endif
 
   cfg.communityId = static_cast<uint8_t>(readU32("comm_id", 0));
   cfg.unitId = static_cast<uint8_t>(readU32("unit_id", 0));
@@ -295,6 +299,7 @@ SubstationConfig loadSubstationConfig() {
   SubstationConfig cfg{};
   cfg.lora = loadLoRaConfig();
   cfg.link = loadLoRaLinkConfig();
+  cfg.espNowChannel = static_cast<uint8_t>(readU32("espnow_chan", 6));
 
   prefs.end();
   return cfg;

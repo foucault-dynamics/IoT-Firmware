@@ -26,6 +26,9 @@ void EspNowUplink::onSent(const uint8_t *mac, esp_now_send_status_t status){
     return;
   }
   instance->deliverySuccess = (status == ESP_NOW_SEND_SUCCESS);
+  Serial.printf("[EspNowUplink] Sent to %02X:%02X:%02X:%02X:%02X:%02X, status: %s\n",
+                mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
+                instance->deliverySuccess ? "SUCCESS" : "FAIL");
   xSemaphoreGive(instance->sendDone);
 }
 
@@ -117,9 +120,12 @@ int EspNowUplink::sendPacket(const void *address, const uint8_t *buf, size_t len
   // Clear for any hanging sends
   xSemaphoreTake(sendDone,0);
 
+  const uint8_t *mac = static_cast<const uint8_t *>(address);
   // Send packet
-  if(esp_now_send(static_cast<const uint8_t *>(address), buf, len) != ESP_OK){
-    Serial.println("[EspNowUplink] esp_now_send failed");
+  esp_err_t err = esp_now_send(mac, buf, len);
+  if(err != ESP_OK){
+    Serial.printf("[EspNowUplink] esp_now_send failed: %s (0x%X)\n",
+                  esp_err_to_name(err), err);
     return EXIT_FAILURE;
   }
 
