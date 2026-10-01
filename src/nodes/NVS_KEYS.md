@@ -106,3 +106,48 @@ device itself, and are not meant to be set by a dev. `clear` only wipes
 | `set <key> <value>` | Write a key (uint, or `"quoted string"`) |
 | `clear` | Wipe the whole `"config"` namespace |
 | `reboot` | Restart the device (needed to apply changes) |
+
+### How to run them
+
+Commands are read by `nvsConfigPollSerial()`, which must be polled from each
+node's `loop()`. It buffers incoming serial bytes (64 char max) and hands a
+full line to `processLine()` as soon as it sees `\n` or `\r`.
+
+To send commands:
+
+1. Open a serial monitor on the device's port (PlatformIO: `pio device
+   monitor`, or the Arduino IDE serial monitor) at the node's configured baud
+   rate.
+2. Set the monitor's line ending to send `\n` or `\r` (most monitors do this
+   by default when you press Enter).
+3. Type a command and send it. The device replies with a `[CFG] ...` line.
+
+Value quoting (matters for whether a value is stored as a string vs a uint,
+see the type table above):
+
+- `set <key> 123` → parsed with `strtoul` and stored with `putUInt`. Anything
+  that doesn't start with `"` is treated this way, including garbage, which
+  will just save as `0`.
+- `set <key> "some text"` → the value must start and end with `"`, stored
+  with `putString` (quotes stripped). A missing or malformed closing quote
+  is rejected with `[CFG] malformed quoted value`.
+
+Example session:
+
+```
+> set wifi_ssid "myssid"
+[CFG] saved, reboot to apply
+> set mqtt_port 1883
+[CFG] saved, reboot to apply
+> reboot
+```
+
+Notes:
+
+- `set` with a key over 15 chars (`NVS_MAX_KEY_LEN`) is rejected.
+- `set` with a missing key or value prints `[CFG] usage: set <key> <value>`.
+- Nothing you `set` takes effect until `reboot`, since config is only loaded
+  once at startup (see each `load*Config` function).
+- `clear` wipes the whole `"config"` namespace in one go; there's no per-key
+  delete command.
+- Unrecognized commands print `[CFG] unknown command`.

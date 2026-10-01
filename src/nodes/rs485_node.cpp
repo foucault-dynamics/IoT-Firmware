@@ -18,6 +18,7 @@
 enum States {
   READ,
   SLEEP,
+  SEND,
   REQUEST
 };
 
@@ -113,9 +114,7 @@ void rs485NodeSetup() {
     Serial.println("[RS485] Reader type not applicable to this node. Idling.");
     break;
   }
-
   state = READ;
-
 }
 
 void rs485NodeLoop() {
@@ -126,21 +125,32 @@ void rs485NodeLoop() {
 
   switch (state) {
   case READ:
-    reader->get_import(&payload.kwh_import);
-    reader->get_export(&payload.kwh_export);
-    reader->get_voltage(&payload.voltage);
+    if(reader->get_import(&payload.kwh_import) == EXIT_FAILURE){
+      return;
+    }
+    if(reader->get_export(&payload.kwh_export) == EXIT_FAILURE){
+      return;
+    }
+    if(reader->get_voltage(&payload.voltage) == EXIT_FAILURE){
+      return;
+    }
     // Printing
     Serial.printf("import: %f\n",payload.kwh_import);
     Serial.printf("export: %f\n",payload.kwh_export);
     Serial.printf("voltage: %f\n",payload.voltage);    
-    
-    
+    state = SEND;
+    break;
+  case SEND:
     //Sending
     payload.seq = seqNext();
-    delay(10000);
+    if(uplink->sendPacket(cfg.substation.mac,reinterpret_cast<const uint8_t *>(&payload),sizeof(payload)) == EXIT_FAILURE){
+      Serial.printf("Error sending payload at sequence: %u\n",payload.seq);
+      return;
+    }
+    state = SLEEP;
     break;
-
   case SLEEP:
+    delay(10000);
     break;
   default:
     break;

@@ -15,7 +15,7 @@ struct Payload {
     float kwh_import;       // 4 bytes: 1.8.0 value
     float kwh_export;       // 4 bytes: 2.8.0 value
     float voltage;          // 4 bytes: Grid voltage
-    float battery_v;        // 4 bytes: ESP32 battery level
+    float battery_v;        // 4 bytes: ESP32 battery level  DUE FOR DEVELOPMENT
     uint8_t community_id;   // 1 byte: Community code
     uint8_t unit_id;        // 1 byte: Unit code
 };
