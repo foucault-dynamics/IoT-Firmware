@@ -10,6 +10,7 @@
 #include "nvs_config.h"
 #include "nodes.h"
 #include "reader.h"
+#include "seq_counter.h"
 #include "shared_payload.h"
 #include "wifi_radio.h"
 #include "esp_now_uplink.h"
@@ -37,7 +38,6 @@ static CvNodeConfig cfg;
 
 // State variables
 static Payload payload;
-static uint32_t messageCounter = 0;
 static unsigned long lastPoll = 0;
 static bool readerReady = false;
 
@@ -82,6 +82,8 @@ void cvNodeSetup() {
   payload.community_id = cfg.communityId;
   payload.unit_id = cfg.unitId;
 
+  seqCounterBegin();
+
   readerReady = true;
 }
 
@@ -101,7 +103,7 @@ void cvNodeLoop() {
   }
 
   payload.kwh_import = reading;
-  payload.seq = messageCounter++;
+  payload.seq = seqNext();
 
   Serial.printf("[CV] reading=%.3f seq=%lu\n", reading, static_cast<unsigned long>(payload.seq));
 

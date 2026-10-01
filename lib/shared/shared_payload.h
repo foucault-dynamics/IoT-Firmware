@@ -26,6 +26,7 @@ struct AckPayload {
 };
 #pragma pack(pop)
 
+// UID specific functions
 const size_t UID_HEX_LEN = UID_LEN * 2 + 1;
 inline const char *uidToHex(const uint8_t *uid, char *out) {
     static const char digits[] = "0123456789abcdef";
