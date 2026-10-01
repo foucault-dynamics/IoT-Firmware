@@ -89,6 +89,16 @@ Also loads the shared LoRa keys above, plus:
 
 Only the shared LoRa keys above.
 
+## Runtime namespace (`seq_counter.cpp`)
+
+Not config. These keys live in the `"runtime"` namespace, are written by the
+device itself, and are not meant to be set by a dev. `clear` only wipes
+`"config"`, so it leaves these alone.
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `seq` | uint | `0` | Last sequence number handed out, persisted before each send so it never repeats across reboots |
+
 ## Serial commands
 
 | Command | Effect |

@@ -10,6 +10,7 @@
 #include "nvs_config.h"
 #include "nodes.h"
 #include "reader.h"
+#include "seq_counter.h"
 #include "modbus_rtu.h"
 #include "wifi_radio.h"
 #include "esp_now_uplink.h"
@@ -64,6 +65,8 @@ void rs485NodeSetup() {
   memcpy(payload.uid,cfg.uid,sizeof(payload.uid));
   payload.community_id = cfg.communityId;
   payload.unit_id = cfg.unitId;
+
+  seqCounterBegin();
 
   switch (cfg.readerType) {
     // Modbus over Serial bus
@@ -133,6 +136,7 @@ void rs485NodeLoop() {
     
     
     //Sending
+    payload.seq = seqNext();
     delay(10000);
     break;
 
