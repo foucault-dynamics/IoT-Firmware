@@ -68,13 +68,13 @@ int ModbusRtuReader::read_register(uint16_t data_type_address, float *val){
   build_request(request,data_type_address);
   if(module->send(request,REQUEST_LEN) == EXIT_FAILURE){
     Serial.println("[ModbusRTU Reader] Error with bus\n");
-    return EXIT_FAILURE;
+    return -1;
   }
 
   //Capture Response
   uint8_t response[RESPONSE_LEN];
   if(read_response(response) == EXIT_FAILURE){
-    return EXIT_FAILURE;
+    return -1;
   }
 
   uint32_t raw = (uint32_t)response[3] << 24 | (uint32_t)response[4] << 16 | (uint32_t)response[5] << 8 | (uint32_t)response[6];
