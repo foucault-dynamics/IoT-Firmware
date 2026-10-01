@@ -10,7 +10,7 @@
 // credentials should be set over serial (`set mqtt_user "..."`), not committed.
 #define SECRET_MQTT_USERNAME ""
 #define SECRET_MQTT_PASSWORD ""
-#define SECRET_MAC {0xF0, 0x24, 0xF9, 0x93, 0x04, 0x5C}
+#define SECRET_MAC {0xF0, 0x24, 0xF9, 0x92, 0xFB, 0xC0}
 #define SECRET_LORA_BAND 433E6 // 915E6
 
 // CV node's own WiFi AP. The ESP32-CAM (AI-on-the-edge-device) joins this

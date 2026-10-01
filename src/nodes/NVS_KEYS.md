@@ -87,7 +87,11 @@ Also loads the shared LoRa keys above, plus:
 
 ## Substation node (`loadSubstationConfig`)
 
-Only the shared LoRa keys above.
+The shared LoRa keys above, plus:
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `espnow_chan` | uint | `6` | WiFi channel ESP-NOW listens on, must match the sending node's `ap_channel` |
 
 ## Runtime namespace (`seq_counter.cpp`)
 

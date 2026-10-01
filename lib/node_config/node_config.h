@@ -154,6 +154,7 @@ struct CvNodeConfig {
 struct SubstationConfig {
   LoRaConfig lora;
   LoRaLinkConfig link;
+  uint8_t espNowChannel;
 };
 
 struct GatewayConfig {

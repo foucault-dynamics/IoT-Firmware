@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <esp_now.h>
+#include <esp_wifi.h>
 #include <WiFi.h>
 
 #include <cstdlib>
@@ -46,6 +47,10 @@ void substationSetup() {
   }
 
   WiFi.mode(WIFI_STA);
+  if (esp_wifi_set_channel(cfg.espNowChannel, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
+    Serial.printf("[Substation] Failed to set channel %u, idling\n", cfg.espNowChannel);
+    return;
+  }
   if (esp_now_init() != ESP_OK) {
     Serial.println("[Substation] ESP-NOW init failed, idling");
     return;
