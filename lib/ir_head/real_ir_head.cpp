@@ -8,8 +8,11 @@ RealIrHead::RealIrHead(IrConfig config, HardwareSerial &serial)
       serialConfig(config.format), serial(&serial) {}
 
 // Initialise the RealIrHead, with baud rate, serialConfig, RX and TX pins set up
-void RealIrHead::init() {
-  serial->begin(baudRate, serialConfig, RX, TX);
+int RealIrHead::init() {
+  if (!serial->begin(baudRate, serialConfig, RX, TX)) {
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
 }
 
 // Send 
