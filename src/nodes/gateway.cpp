@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -11,7 +12,7 @@
 #include "shared_payload.h"
 
 // Gateway node: receives Payloads over LoRa (ACK handled inside LoRaLink)
-// and publishes the raw payload bytes to MQTT.
+// and publishes each payload to MQTT as a JSON object with RSSI and SNR.
 
 static LoRaModule *radio = nullptr;
 static LoRaLink *loraLink = nullptr;
@@ -59,6 +60,22 @@ static void reconnect_mqtt() {
   }
 }
 
+static size_t buildPayloadJson(const Payload &p, int rssi, float snr, char *out, size_t outLen) {
+  char uidHex[UID_HEX_LEN];
+  JsonDocument doc;
+  doc["uid"] = uidToHex(p.uid, uidHex);
+  doc["seq"] = p.seq;
+  doc["kwh_import"] = p.kwh_import;
+  doc["kwh_export"] = p.kwh_export;
+  doc["voltage"] = p.voltage;
+  doc["battery_v"] = p.battery_v;
+  doc["community_id"] = p.community_id;
+  doc["unit_id"] = p.unit_id;
+  doc["rssi"] = rssi;
+  doc["snr"] = snr;
+  return serializeJson(doc, out, outLen);
+}
+
 void gatewaySetup() {
   cfg = loadGatewayConfig();
 
@@ -69,6 +86,7 @@ void gatewaySetup() {
     setup_wifi();
     espClient.setInsecure();  // TODO: use a real CA instead of skipping validation.
     client.setServer(cfg.mqtt.server, cfg.mqtt.port);
+    client.setBufferSize(512);
   }
 
   if (loraLink->init() != EXIT_SUCCESS) {
@@ -104,7 +122,10 @@ void gatewayLoop() {
   Serial.printf("=> Parsed Data -> UID: %s | SEQ: %u | Volt: %.1fV\n", uidToHex(payload.uid, uidHex), payload.seq, payload.voltage);
 
   if (cfg.mqtt.enabled && client.connected()) {
-    bool pubSuccess = client.publish(cfg.mqtt.topic, reinterpret_cast<const uint8_t *>(&payload), sizeof(payload));
+    char json[256];
+    buildPayloadJson(payload, rssi, snr, json, sizeof(json));
+    Serial.printf("=> JSON: %s\n", json);
+    bool pubSuccess = client.publish(cfg.mqtt.topic, json);
     Serial.printf("DATA FWD, UID: %s, PUB: %s\n", uidToHex(payload.uid, uidHex), pubSuccess ? "SUCCESS" : "FAILED");
   }
 }
