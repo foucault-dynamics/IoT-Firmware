@@ -9,9 +9,7 @@ RealIrHead::RealIrHead(IrConfig config, HardwareSerial &serial)
 
 // Initialise the RealIrHead, with baud rate, serialConfig, RX and TX pins set up
 int RealIrHead::init() {
-  if (!serial->begin(baudRate, serialConfig, RX, TX)) {
-    return EXIT_FAILURE;
-  }
+  serial->begin(baudRate, serialConfig, RX, TX);
   return EXIT_SUCCESS;
 }
 
