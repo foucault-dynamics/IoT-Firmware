@@ -31,7 +31,7 @@ class Sp3485 : public Module {
   // Default constructor; call init() before use.
   Sp3485(Rs485Config config, HardwareSerial &serial);
   // Deferred initialization of construction-time parameters.
-  void init() override;
+  int init() override;
   // Receive packets
   int readByte() override;
   // Send packets
