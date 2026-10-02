@@ -15,8 +15,8 @@ class Reader {
 
  public:
   virtual ~Reader() = default;
-  // Initialiser, takes in a config pointer (can be any specified config from the node_config.h)
-  virtual int init(Module &module, const void *config) = 0;
+  // Config is passed to the concrete reader's constructor, not here.
+  virtual int init(Module &module) = 0;
   virtual int get_import(float *val) = 0;
   virtual int get_export(float *val) = 0;
   virtual int get_voltage(float *val) = 0;

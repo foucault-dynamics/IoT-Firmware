@@ -17,10 +17,11 @@ Sp3485::Sp3485(Rs485Config config, HardwareSerial &serial){
 }
 
 // Deferred initialization
-void Sp3485::init(){
+int Sp3485::init(){
   serial->begin(baudRate,serialConfig,RX,TX);
   pinMode(derePin,OUTPUT);
-  digitalWrite(derePin,HIGH);  
+  digitalWrite(derePin,HIGH);
+  return EXIT_SUCCESS;
 }
 
 
