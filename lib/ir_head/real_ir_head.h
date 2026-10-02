@@ -26,7 +26,7 @@ class RealIrHead : public IrHead {
  public:
   RealIrHead(IrConfig config, HardwareSerial &serial);
 
-  void init() override;
+  int init() override;
   int send(const uint8_t *data, size_t len) override;
   int readByte() override;
   bool available() override;

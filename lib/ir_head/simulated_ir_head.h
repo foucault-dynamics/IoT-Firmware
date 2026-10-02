@@ -24,7 +24,7 @@ class SimulatedIrHead : public IrHead {
   void queueResponse(const char *response);
 
  public:
-  void init() override;
+  int init() override;
   int send(const uint8_t *data, size_t len) override;
   int readByte() override;
   bool available() override;

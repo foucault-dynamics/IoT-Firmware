@@ -23,9 +23,10 @@ void SimulatedIrHead::queueResponse(const char *response) {
   pendingPos = 0;
 }
 
-void SimulatedIrHead::init() {
+int SimulatedIrHead::init() {
   state = AWAITING_REQUEST;
   pendingResponse = nullptr;
+  return EXIT_SUCCESS;
 }
 
 int SimulatedIrHead::send(const uint8_t *data, size_t len) {
