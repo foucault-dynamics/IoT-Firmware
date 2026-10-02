@@ -2,14 +2,17 @@
 #include <Arduino.h>
 #include <cstdlib>
 
+
 RealIrHead::RealIrHead(IrConfig config, HardwareSerial &serial)
     : RX(config.rx), TX(config.tx), baudRate(config.baudRate),
       serialConfig(config.format), serial(&serial) {}
 
+// Initialise the RealIrHead, with baud rate, serialConfig, RX and TX pins set up
 void RealIrHead::init() {
   serial->begin(baudRate, serialConfig, RX, TX);
 }
 
+// Send 
 int RealIrHead::send(const uint8_t *data, size_t len) {
   size_t written = serial->write(data, len);
   serial->flush();  // block until the bytes have actually left the wire
