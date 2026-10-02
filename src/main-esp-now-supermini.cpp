@@ -2,29 +2,9 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include "shared_payload.h"
-#include "node_config.h"
-#include "iec62056_21.h"
-
-#ifdef USE_SIMULATED_METER
-#include "simulated_ir_head.h"
-#else
-#include "real_ir_head.h"
-#endif
 
 // config
 #include "secrets.h"
-
-// ==========================================
-// IR meter (IEC 62056-21 over the optical port)
-// ==========================================
-IrConfig irConfig = loadIrConfig();
-
-#ifdef USE_SIMULATED_METER
-SimulatedIrHead irHead;
-#else
-RealIrHead irHead(irConfig, Serial1);
-#endif
-Iec6205621Reader meter(irHead);
 
 // ==========================================
 // 1. Substation (LilyGo) MAC Address
@@ -76,41 +56,13 @@ void setup() {
 
   esp_now_peer_info_t peerInfo;
   memcpy(peerInfo.peer_addr, broadcastAddress, 6);
-  peerInfo.channel = 0;
-  peerInfo.encrypt = false;
+  peerInfo.channel = 0;  
+  peerInfo.encrypt = false; 
   if (esp_now_add_peer(&peerInfo) != ESP_OK) {
       Serial.println("Failed to add peer");
       return;
   }
 
-  // 4. Read the meter over IR
-  meter.setup();
-
-  // Handshake only, for now -- confirms the wake-up/negotiation step works
-  // in isolation before the data-block read (meter.poll()) gets layered
-  // back on top of it.
-  uint32_t negotiatedBaud = 0;
-  int handshakeResult = meter.handshake(negotiatedBaud);
-  if (handshakeResult == 0) {
-    Serial.printf("IR handshake OK — negotiated %u baud\n", negotiatedBaud);
-  } else {
-    Serial.printf("IR handshake failed (code %d)\n", handshakeResult);
-  }
-
-  // meter.poll() (wake-up + data-block read + OBIS parse) is temporarily
-  // not called here -- it duplicates the wake-up handshake() now does
-  // internally, and running both back to back against SimulatedIrHead
-  // would double-drive its state machine. Left for the next step:
-  // reconciling poll() to call handshake() instead of repeating it.
-  //
-  // Payload reading = {};
-  // reading.uid = DEVICE_UID;
-  // reading.seq = messageCounter++;
-  // if (meter.poll(reading) == 0) { ... }
-
-  // NOTE: nothing below this actually calls esp_now_send() yet — that was
-  // already missing before this change. Not touching it; out of scope for
-  // the IR module.
 }
 
 void loop() {
