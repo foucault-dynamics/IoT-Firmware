@@ -131,6 +131,12 @@ struct CamHttpConfig {
   char flowName[32];
 };
 
+struct Iec62056Config {
+  uint32_t pollIntervalMs;
+
+  IrConfig bus;
+};
+
 // #### Per-node configs ####
 
 struct Rs485NodeConfig {
@@ -155,6 +161,20 @@ struct CvNodeConfig {
   EspNowConfig espNow;
   EspNowPeerConfig substation;
   CamHttpConfig cam;
+};
+
+struct IrNodeConfig {
+  uint8_t uid[16];
+  // Where this node is installed. Set by upstream (NVS), not by hardware.
+  uint8_t communityId;
+  uint8_t unitId;
+  // Picks RealIrHead vs SimulatedIrHead at runtime (the EE team's
+  // UART-to-IR circuit doesn't exist yet).
+  bool simulate;
+  WifiRadioConfig radio;
+  EspNowConfig espNow;
+  EspNowPeerConfig substation;
+  Iec62056Config iec;
 };
 
 struct SubstationConfig {

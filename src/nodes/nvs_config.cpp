@@ -24,6 +24,11 @@ const uint8_t RS485_RX_PIN = 8;
 const uint8_t RS485_TX_PIN = 9;
 const uint8_t RS485_DERE_PIN = 10;
 
+// IR optical-port pins. Board wiring, never NVS keys.
+// TODO: real pins once the EE team's UART-to-IR circuit is wired up.
+const uint8_t IR_RX_PIN = 4;
+const uint8_t IR_TX_PIN = 5;
+
 // LoRa SPI pins for the LilyGo TTGO LoRa32 v2.1 (classic ESP32). Board
 // wiring, never an NVS key.
 const LoRaPins LORA_PINS = {/*sck*/ 5, /*miso*/ 19, /*mosi*/ 27, /*ss*/ 18, /*rst*/ 23, /*dio0*/ 26};
@@ -251,6 +256,40 @@ Rs485NodeConfig loadRs485NodeConfig() {
   readStr("tcp_host", SECRET_MODBUS_SIM_HOST, cfg.tcp.host, sizeof(cfg.tcp.host));
   cfg.tcp.port = static_cast<uint16_t>(readU32("tcp_port", SECRET_MODBUS_SIM_PORT));
   cfg.tcp.connectTimeoutMs = 3000;
+
+  prefs.end();
+  return cfg;
+}
+
+// Load config for an IR (optical port) meter node
+IrNodeConfig loadIrNodeConfig() {
+  prefs.begin(NVS_NAMESPACE, true);
+
+  IrNodeConfig cfg{};
+
+  // Set unique ID for board
+#if CONFIG_IDF_TARGET_ESP32C3
+  esp_efuse_read_field_blob(ESP_EFUSE_OPTIONAL_UNIQUE_ID, cfg.uid, sizeof(cfg.uid) * 8);
+#endif
+
+  cfg.communityId = static_cast<uint8_t>(readU32("comm_id", 0));
+  cfg.unitId = static_cast<uint8_t>(readU32("unit_id", 0));
+  cfg.simulate = readU32("simulate", 1) != 0;  // default simulated: real circuit doesn't exist yet
+
+  readStr("ap_ssid", SECRET_IR_AP_SSID, cfg.radio.ssid, sizeof(cfg.radio.ssid));
+  readStr("ap_pass", SECRET_IR_AP_PASS, cfg.radio.password, sizeof(cfg.radio.password));
+  cfg.radio.channel = static_cast<uint8_t>(readU32("ap_channel", 6));  // match substation's fixed listen channel
+
+  cfg.espNow.sendTimeoutMs = readU32("espnow_to_ms", 100);
+
+  uint8_t defaultMac[] = SECRET_MAC;
+  readMac("sub_mac", defaultMac, cfg.substation.mac);
+
+  cfg.iec.pollIntervalMs = readU32("poll_ms", 60000);
+  cfg.iec.bus.rx = IR_RX_PIN;
+  cfg.iec.bus.tx = IR_TX_PIN;
+  cfg.iec.bus.baudRate = 300;       // IEC 62056-21 always starts at 300 baud -- not NVS-tunable
+  cfg.iec.bus.format = SERIAL_7E1;  // fixed by the standard
 
   prefs.end();
   return cfg;

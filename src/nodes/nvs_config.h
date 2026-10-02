@@ -8,6 +8,7 @@
 // table and defaults; this is the single file to check for what any given
 // board is actually running.
 Rs485NodeConfig loadRs485NodeConfig();
+IrNodeConfig loadIrNodeConfig();
 CvNodeConfig loadCvNodeConfig();
 SubstationConfig loadSubstationConfig();
 GatewayConfig loadGatewayConfig();

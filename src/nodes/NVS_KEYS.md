@@ -70,6 +70,25 @@ Note: `ap_ssid`, `ap_pass`, `ap_channel`, `espnow_to_ms`, `sub_mac`,
 their own defaults. This is fine as long as a given board only ever runs one
 node type's firmware image against its NVS namespace.
 
+## IR node (`loadIrNodeConfig`)
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `comm_id` | uint | `0` | Community code (goes out in the payload) |
+| `unit_id` | uint | `0` | Unit code (goes out in the payload) |
+| `simulate` | uint (bool) | `1` | Use `SimulatedIrHead` instead of `RealIrHead` (real circuit doesn't exist yet) |
+| `ap_ssid` | string | `SECRET_IR_AP_SSID` | ESP-NOW AP SSID |
+| `ap_pass` | string | `SECRET_IR_AP_PASS` | ESP-NOW AP password |
+| `ap_channel` | uint | `6` | AP channel |
+| `espnow_to_ms` | uint | `100` | ESP-NOW send timeout (ms) |
+| `sub_mac` | string (MAC) | `SECRET_MAC` | Substation MAC |
+| `poll_ms` | uint | `60000` | Meter poll interval (ms) |
+
+Note: the optical port's bus pins, baud rate (300) and framing (7E1) are
+hardcoded in `loadIrNodeConfig()`, not NVS keys -- the starting baud and
+framing are mandated by IEC 62056-21 itself, not a per-meter choice the
+way RS485's `baud` key is.
+
 ## Gateway node (`loadGatewayConfig`)
 
 Also loads the shared LoRa keys above, plus:
