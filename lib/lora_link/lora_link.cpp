@@ -26,7 +26,7 @@ bool LoRaLink::readFrame(uint8_t *buf, size_t len) {
 }
 
 int LoRaLink::sendPacket(const void *address, const uint8_t *buf, size_t len) {
-  (void)address;
+  (void)address; // Address is unused in Lora modules
 
   if (len != sizeof(Payload)) {
     Serial.println("[LoRaLink] sendPacket: size mismatch");

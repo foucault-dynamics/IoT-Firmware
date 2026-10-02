@@ -1,10 +1,10 @@
 #pragma once
 
-#define SECRET_WIFI_SSID "Damian7777"
-#define SECRET_WIFI_PASS "87654321"
+#define SECRET_WIFI_SSID "Seiji"
+#define SECRET_WIFI_PASS "123456777"
 
 #define SECRET_MQTT_SERVER "broker.hivemq.com"
-#define SECRET_MQTT_PORT 1883
+#define SECRET_MQTT_PORT 8883
 #define SECRET_MQTT_TOPIC "qut_ems_project_888/ems/ZoneA/meters"
 // Empty means connect without auth. secrets.h is tracked in git, so real
 // credentials should be set over serial (`set mqtt_user "..."`), not committed.
