@@ -32,8 +32,3 @@
 #define SECRET_MODBUS_SIM_HOST "192.168.4.2"   // was 192.168.1.100
 #define SECRET_MODBUS_SIM_PORT 5020
 
-// IR node's own WiFi AP. The optical-port meter has no network stack of its
-// own -- this AP exists only to carry ESP-NOW to the substation.
-#define SECRET_IR_AP_SSID "kaizen-ir"
-#define SECRET_IR_AP_PASS "kaizen123"
-

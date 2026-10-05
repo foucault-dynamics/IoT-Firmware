@@ -52,9 +52,9 @@ void EspNowUplink::onReceived(const uint8_t *mac, const uint8_t *data, int len){
 // Initialisation of ESP-NOW transmission
 int EspNowUplink::init(){
 
-  // The radio (lib/wifi_radio) must already have brought the AP up.
-  if(!wifiRadioUp()){
-    Serial.println("[EspNowUplink] Radio is not up");
+  // ESP-NOW rides the radio's station interface (lib/wifi_radio).
+  if(!wifiRadioStartStation(config.channel)){
+    Serial.println("[EspNowUplink] Radio station failed to start");
     return EXIT_FAILURE;
   }
 
@@ -97,8 +97,8 @@ int EspNowUplink::addPeer(EspNowPeerConfig peer){
   // 0 means the peer follows the radio's current channel.
   info.channel = 0;
 
-  // The radio always runs as an AP.
-  info.ifidx = WIFI_IF_AP;
+  // Always the station, the softAP (if any) sits beside it.
+  info.ifidx = WIFI_IF_STA;
 
   if(esp_now_add_peer(&info) != ESP_OK){
     Serial.println("[EspNowUplink] Failed to add peer");

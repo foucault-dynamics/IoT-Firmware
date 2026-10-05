@@ -12,7 +12,6 @@
 #include "reader.h"
 #include "seq_counter.h"
 #include "iec62056_21.h"
-#include "wifi_radio.h"
 #include "esp_now_uplink.h"
 
 // IR reader node. IEC 62056-21 mode C over the meter's optical port: an
@@ -38,11 +37,6 @@ static bool readerReady = false;
 
 void irNodeSetup() {
   cfg = loadIrNodeConfig();
-
-  if (!wifiRadioStart(cfg.radio)) {
-    Serial.println("[IR] SoftAP bring-up failed, idling");
-    return;
-  }
 
   uplink = new EspNowUplink(cfg.espNow);
   if (uplink->init() != EXIT_SUCCESS) {

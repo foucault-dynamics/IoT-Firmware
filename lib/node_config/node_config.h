@@ -62,10 +62,9 @@ struct LoRaLinkConfig {
 };
 
 // Access point the radio hosts.
-struct WifiRadioConfig {
+struct SoftApConfig {
   char ssid[33];
   char password[65];
-  uint8_t channel;
 };
 
 // Station credentials the gateway joins an existing network with.
@@ -93,6 +92,7 @@ struct HttpBusConfig {
 };
 
 struct EspNowConfig {
+  uint8_t channel;
   uint32_t sendTimeoutMs;
 };
 
@@ -145,7 +145,7 @@ struct Rs485NodeConfig {
   uint8_t communityId;
   uint8_t unitId;
   ReaderType readerType;
-  WifiRadioConfig radio;
+  SoftApConfig ap;
   EspNowConfig espNow;
   EspNowPeerConfig substation;
   ModbusRtuConfig modbus;
@@ -157,7 +157,7 @@ struct CvNodeConfig {
   // Where this node is installed. Set by upstream (NVS), not by hardware.
   uint8_t communityId;
   uint8_t unitId;
-  WifiRadioConfig radio;
+  SoftApConfig ap;
   EspNowConfig espNow;
   EspNowPeerConfig substation;
   CamHttpConfig cam;
@@ -171,7 +171,6 @@ struct IrNodeConfig {
   // Picks RealIrHead vs SimulatedIrHead at runtime (the EE team's
   // UART-to-IR circuit doesn't exist yet).
   bool simulate;
-  WifiRadioConfig radio;
   EspNowConfig espNow;
   EspNowPeerConfig substation;
   Iec62056Config iec;

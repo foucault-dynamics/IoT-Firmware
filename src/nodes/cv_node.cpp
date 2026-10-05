@@ -21,8 +21,8 @@
 // ESP-NOW/LoRa instead of relying on WiFi. The radio (lib/wifi_radio) owns
 // the AP; the HTTP client on top of it is a Module (lib/http_bus); the cam's
 // "/json" API and its reading are a Reader on top of that (lib/cam_http).
-// Readings are forwarded to the substation over ESP-NOW on the same AP
-// radio. A wired UART link (lib/esp32cam) is the planned replacement Module
+// Readings are forwarded to the substation over ESP-NOW on the same radio,
+// via its station interface beside the AP. A wired UART link (lib/esp32cam) is the planned replacement Module
 // once the boards are physically connected; the reader above it stays
 // unchanged.
 
@@ -45,7 +45,7 @@ void cvNodeSetup() {
   cfg = loadCvNodeConfig();
 
   // Bring up the radio the cam and the substation link both share
-  if (!wifiRadioStart(cfg.radio)) {
+  if (!wifiRadioStartAp(cfg.ap, cfg.espNow.channel)) {
     Serial.println("[CV] Cannot continue without the AP up.");
     return;
   }
@@ -66,7 +66,7 @@ void cvNodeSetup() {
     return;
   }
 
-  // Setup ESP-NOW on the same AP radio
+  // Setup ESP-NOW on the same radio
   uplink = new EspNowUplink(cfg.espNow);
   if (uplink->init() != EXIT_SUCCESS) {
     Serial.println("[CV] ESP-NOW init failed.");

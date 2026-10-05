@@ -20,7 +20,7 @@ int HttpBus::send(const uint8_t *data, size_t len) {
   response = String();
   readIndex = 0;
 
-  if (!wifiRadioUp()) {
+  if (!wifiRadioApUp()) {
     Serial.println("[HttpBus] AP is not up, cannot reach the cam.");
     return EXIT_FAILURE;
   }

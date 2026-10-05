@@ -227,10 +227,10 @@ Rs485NodeConfig loadRs485NodeConfig() {
 
   cfg.readerType = static_cast<ReaderType>(readU32("reader", static_cast<uint32_t>(ReaderType::ModbusTCP)));
 
-  readStr("ap_ssid", SECRET_AP_SSID, cfg.radio.ssid, sizeof(cfg.radio.ssid));
-  readStr("ap_pass", SECRET_AP_PASS, cfg.radio.password, sizeof(cfg.radio.password));
-  cfg.radio.channel = static_cast<uint8_t>(readU32("ap_channel", 6));
+  readStr("ap_ssid", SECRET_AP_SSID, cfg.ap.ssid, sizeof(cfg.ap.ssid));
+  readStr("ap_pass", SECRET_AP_PASS, cfg.ap.password, sizeof(cfg.ap.password));
 
+  cfg.espNow.channel = static_cast<uint8_t>(readU32("espnow_chan", 6));
   cfg.espNow.sendTimeoutMs = readU32("espnow_to_ms", 100);
 
   uint8_t defaultMac[] = SECRET_MAC;
@@ -276,10 +276,7 @@ IrNodeConfig loadIrNodeConfig() {
   cfg.unitId = static_cast<uint8_t>(readU32("unit_id", 0));
   cfg.simulate = readU32("simulate", 1) != 0;  // default simulated: real circuit doesn't exist yet
 
-  readStr("ap_ssid", SECRET_IR_AP_SSID, cfg.radio.ssid, sizeof(cfg.radio.ssid));
-  readStr("ap_pass", SECRET_IR_AP_PASS, cfg.radio.password, sizeof(cfg.radio.password));
-  cfg.radio.channel = static_cast<uint8_t>(readU32("ap_channel", 6));  // match substation's fixed listen channel
-
+  cfg.espNow.channel = static_cast<uint8_t>(readU32("espnow_chan", 6));  // match substation's fixed listen channel
   cfg.espNow.sendTimeoutMs = readU32("espnow_to_ms", 100);
 
   uint8_t defaultMac[] = SECRET_MAC;
@@ -309,10 +306,10 @@ CvNodeConfig loadCvNodeConfig() {
   cfg.communityId = static_cast<uint8_t>(readU32("comm_id", 0));
   cfg.unitId = static_cast<uint8_t>(readU32("unit_id", 0));
 
-  readStr("ap_ssid", SECRET_CAM_AP_SSID, cfg.radio.ssid, sizeof(cfg.radio.ssid));
-  readStr("ap_pass", SECRET_CAM_AP_PASSWORD, cfg.radio.password, sizeof(cfg.radio.password));
-  cfg.radio.channel = static_cast<uint8_t>(readU32("ap_channel", 1));
+  readStr("ap_ssid", SECRET_CAM_AP_SSID, cfg.ap.ssid, sizeof(cfg.ap.ssid));
+  readStr("ap_pass", SECRET_CAM_AP_PASSWORD, cfg.ap.password, sizeof(cfg.ap.password));
 
+  cfg.espNow.channel = static_cast<uint8_t>(readU32("espnow_chan", 1));
   cfg.espNow.sendTimeoutMs = readU32("espnow_to_ms", 200);
 
   uint8_t defaultMac[] = SECRET_MAC;

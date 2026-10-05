@@ -36,9 +36,9 @@ or the value will be written but silently unused / misread.
 | `comm_id` | uint | `0` | Community code (goes out in the payload) |
 | `unit_id` | uint | `0` | Unit code (goes out in the payload) |
 | `reader` | uint | `ReaderType::ModbusTCP` | Reader backend |
-| `ap_ssid` | string | `SECRET_AP_SSID` | ESP-NOW AP SSID |
-| `ap_pass` | string | `SECRET_AP_PASS` | ESP-NOW AP password |
-| `ap_channel` | uint | `6` | AP channel |
+| `ap_ssid` | string | `SECRET_AP_SSID` | SoftAP SSID (ModbusTCP mode only) |
+| `ap_pass` | string | `SECRET_AP_PASS` | SoftAP password (ModbusTCP mode only) |
+| `espnow_chan` | uint | `6` | Radio channel, shared by ESP-NOW and the softAP |
 | `espnow_to_ms` | uint | `100` | ESP-NOW send timeout (ms) |
 | `sub_mac` | string (MAC) | `SECRET_MAC` | Substation MAC, `aa:bb:cc:dd:ee:ff` |
 | `meter_model` | uint | `MeterModel::Simulated_Tcp` | Meter model (selects registers) |
@@ -54,9 +54,9 @@ or the value will be written but silently unused / misread.
 |---|---|---|---|
 | `comm_id` | uint | `0` | Community code (goes out in the payload) |
 | `unit_id` | uint | `0` | Unit code (goes out in the payload) |
-| `ap_ssid` | string | `SECRET_CAM_AP_SSID` | ESP-NOW AP SSID |
-| `ap_pass` | string | `SECRET_CAM_AP_PASSWORD` | ESP-NOW AP password |
-| `ap_channel` | uint | `1` | AP channel |
+| `ap_ssid` | string | `SECRET_CAM_AP_SSID` | SoftAP SSID the cam joins |
+| `ap_pass` | string | `SECRET_CAM_AP_PASSWORD` | SoftAP password |
+| `espnow_chan` | uint | `1` | Radio channel, shared by ESP-NOW and the softAP |
 | `espnow_to_ms` | uint | `200` | ESP-NOW send timeout (ms) |
 | `sub_mac` | string (MAC) | `SECRET_MAC` | Substation MAC |
 | `poll_ms` | uint | `30000` | Camera poll interval (ms) |
@@ -65,7 +65,7 @@ or the value will be written but silently unused / misread.
 | `cam_host` | string | `SECRET_CAM_HOST` | Camera host |
 | `cam_flow` | string | `SECRET_CAM_FLOW_NAME` | Camera flow name |
 
-Note: `ap_ssid`, `ap_pass`, `ap_channel`, `espnow_to_ms`, `sub_mac`,
+Note: `ap_ssid`, `ap_pass`, `espnow_chan`, `espnow_to_ms`, `sub_mac`,
 `poll_ms`, `comm_id`, and `unit_id` are reused key names between the Rs485 and CV loaders, each with
 their own defaults. This is fine as long as a given board only ever runs one
 node type's firmware image against its NVS namespace.
@@ -77,9 +77,7 @@ node type's firmware image against its NVS namespace.
 | `comm_id` | uint | `0` | Community code (goes out in the payload) |
 | `unit_id` | uint | `0` | Unit code (goes out in the payload) |
 | `simulate` | uint (bool) | `1` | Use `SimulatedIrHead` instead of `RealIrHead` (real circuit doesn't exist yet) |
-| `ap_ssid` | string | `SECRET_IR_AP_SSID` | ESP-NOW AP SSID |
-| `ap_pass` | string | `SECRET_IR_AP_PASS` | ESP-NOW AP password |
-| `ap_channel` | uint | `6` | AP channel |
+| `espnow_chan` | uint | `6` | ESP-NOW channel |
 | `espnow_to_ms` | uint | `100` | ESP-NOW send timeout (ms) |
 | `sub_mac` | string (MAC) | `SECRET_MAC` | Substation MAC |
 | `poll_ms` | uint | `60000` | Meter poll interval (ms) |
@@ -110,7 +108,7 @@ The shared LoRa keys above, plus:
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `espnow_chan` | uint | `6` | WiFi channel ESP-NOW listens on, must match the sending node's `ap_channel` |
+| `espnow_chan` | uint | `6` | WiFi channel ESP-NOW listens on, must match the sending node's `espnow_chan` |
 
 ## Runtime namespace (`seq_counter.cpp`)
 

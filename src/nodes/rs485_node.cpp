@@ -46,7 +46,8 @@ void rs485NodeSetup() {
 
   cfg = loadRs485NodeConfig();
 
-  if (!wifiRadioStart(cfg.radio)) {
+  if (cfg.readerType == ReaderType::ModbusTCP
+      && !wifiRadioStartAp(cfg.ap, cfg.espNow.channel)) {
     Serial.println("[RS485] SoftAP bring-up failed, idling");
     readerReady = false;
     return;

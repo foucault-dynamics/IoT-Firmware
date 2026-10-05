@@ -59,7 +59,7 @@ will be something else.
 ### `node_config/`
 
 `node_config.h` holds only shapes: one plain struct per transport and per
-protocol (`Rs485Config`, `WifiRadioConfig`, `HttpBusConfig`, `TcpBusConfig`,
+protocol (`Rs485Config`, `SoftApConfig`, `HttpBusConfig`, `TcpBusConfig`,
 `LoRaConfig` and its `LoRaPins`, `LoRaLinkConfig`, `EspNowConfig`,
 `EspNowPeerConfig`, `ModbusRtuConfig`, `CamHttpConfig`), one struct per node
 composed from those (`Rs485NodeConfig`, `CvNodeConfig`, `SubstationConfig`,
@@ -111,10 +111,17 @@ Developed against `ModbusSim/`. Not yet tested against real hardware.
 
 ### `wifi_radio/`
 
-Plain functions, not a class: `wifiRadioStart()`, `wifiRadioUp()`,
-`wifiRadioHasStations()`. Owns everything below TCP on the C3's one radio
-(mode, channel, tx power, softAP), so `HttpBus` and `EspNowUplink` only use
-the radio, they never configure it.
+Plain functions, not a class: `wifiRadioStartAp()`, `wifiRadioStartStation()`,
+`wifiRadioApUp()`, `wifiRadioHasStations()`. Owns everything below TCP on the
+C3's one radio (mode, channel, tx power, softAP), so `HttpBus` and
+`EspNowUplink` never configure the radio themselves, they only ask it to start.
+The two starts add to each other (`WIFI_AP_STA`) rather than replace each
+other, so they work in either order, and both refuse a channel different from
+the one the radio is already on. `EspNowUplink::init()` starts the station
+itself on `EspNowConfig::channel` and always registers peers on the station
+interface, so ESP-NOW only nodes (IR, RS485 RTU) never touch this library.
+Nodes that host a network (CV, RS485 in ModbusTCP mode) also call
+`wifiRadioStartAp()` on that same channel.
 
 ### `http_bus/`
 
