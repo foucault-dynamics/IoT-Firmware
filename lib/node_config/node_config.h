@@ -20,6 +20,14 @@ enum class MeterModel : uint8_t {
     Simulated_Tcp = 1,
 };
 
+// What an IR node's optical port is actually wired to. Stored in the
+// "simulate" NVS key, so the original 0/1 values keep their meaning.
+enum class IrHeadMode : uint8_t {
+  Real = 0,       // RealIrHead: the UART pins
+  Simulated = 1,  // SimulatedIrHead: canned replies, no wires at all
+  TcpSim = 2,     // TcpIrHead: IrSim/IrSimTCP.py over WiFi
+};
+
 // #### Transports ####
 
 struct Rs485Config {
@@ -168,12 +176,14 @@ struct IrNodeConfig {
   // Where this node is installed. Set by upstream (NVS), not by hardware.
   uint8_t communityId;
   uint8_t unitId;
-  // Picks RealIrHead vs SimulatedIrHead at runtime (the EE team's
-  // UART-to-IR circuit doesn't exist yet).
-  bool simulate;
+  // Picks RealIrHead, SimulatedIrHead or TcpIrHead at runtime (the EE
+  // team's UART-to-IR circuit doesn't exist yet).
+  IrHeadMode headMode;
+  SoftApConfig ap;  // TcpSim mode only
   EspNowConfig espNow;
   EspNowPeerConfig substation;
   Iec62056Config iec;
+  TcpBusConfig tcp;  // TcpSim mode only
 };
 
 struct SubstationConfig {

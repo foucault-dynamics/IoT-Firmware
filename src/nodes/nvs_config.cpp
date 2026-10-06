@@ -29,6 +29,9 @@ const uint8_t RS485_DERE_PIN = 10;
 const uint8_t IR_RX_PIN = 4;
 const uint8_t IR_TX_PIN = 5;
 
+// IrSim/IrSimTCP.py's default port. 5021 so it can run next to ModbusSimTCP.py on 5020.
+const uint16_t IR_SIM_PORT = 5021;
+
 // LoRa SPI pins for the LilyGo TTGO LoRa32 v2.1 (classic ESP32). Board
 // wiring, never an NVS key.
 const LoRaPins LORA_PINS = {/*sck*/ 5, /*miso*/ 19, /*mosi*/ 27, /*ss*/ 18, /*rst*/ 23, /*dio0*/ 26};
@@ -274,7 +277,11 @@ IrNodeConfig loadIrNodeConfig() {
 
   cfg.communityId = static_cast<uint8_t>(readU32("comm_id", 0));
   cfg.unitId = static_cast<uint8_t>(readU32("unit_id", 0));
-  cfg.simulate = readU32("simulate", 1) != 0;  // default simulated: real circuit doesn't exist yet
+  // default simulated: real circuit doesn't exist yet
+  cfg.headMode = static_cast<IrHeadMode>(readU32("simulate", static_cast<uint32_t>(IrHeadMode::Simulated)));
+
+  readStr("ap_ssid", SECRET_AP_SSID, cfg.ap.ssid, sizeof(cfg.ap.ssid));
+  readStr("ap_pass", SECRET_AP_PASS, cfg.ap.password, sizeof(cfg.ap.password));
 
   cfg.espNow.channel = static_cast<uint8_t>(readU32("espnow_chan", 6));  // match substation's fixed listen channel
   cfg.espNow.sendTimeoutMs = readU32("espnow_to_ms", 100);
@@ -287,6 +294,10 @@ IrNodeConfig loadIrNodeConfig() {
   cfg.iec.bus.tx = IR_TX_PIN;
   cfg.iec.bus.baudRate = 300;       // IEC 62056-21 always starts at 300 baud -- not NVS-tunable
   cfg.iec.bus.format = SERIAL_7E1;  // fixed by the standard
+
+  readStr("tcp_host", SECRET_MODBUS_SIM_HOST, cfg.tcp.host, sizeof(cfg.tcp.host));  // the laptop on the softAP
+  cfg.tcp.port = static_cast<uint16_t>(readU32("tcp_port", IR_SIM_PORT));
+  cfg.tcp.connectTimeoutMs = 3000;
 
   prefs.end();
   return cfg;
