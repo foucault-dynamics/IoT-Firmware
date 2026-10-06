@@ -40,6 +40,10 @@ struct IrConfig {
   uint8_t rx, tx;
   uint32_t baudRate;
   SerialConfig format;
+  // Flip RX and TX polarity in the UART. IEC 62056-21 sends a 0 bit as
+  // light ON, but the IR circuit reads/drives light ON as HIGH, which a
+  // plain UART treats as a 1.
+  bool invert;
 };
 
 struct TcpBusConfig {

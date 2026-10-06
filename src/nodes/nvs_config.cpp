@@ -25,9 +25,10 @@ const uint8_t RS485_TX_PIN = 9;
 const uint8_t RS485_DERE_PIN = 10;
 
 // IR optical-port pins. Board wiring, never NVS keys.
-// TODO: real pins once the EE team's UART-to-IR circuit is wired up.
-const uint8_t IR_RX_PIN = 4;
-const uint8_t IR_TX_PIN = 5;
+// From the EE team's IR_probe_signal_testing rig on the C3 SuperMini
+// (phototransistor on 20, IR LED on 21). Check against the PCB.
+const uint8_t IR_RX_PIN = 20;
+const uint8_t IR_TX_PIN = 21;
 
 // IrSim/IrSimTCP.py's default port. 5021 so it can run next to ModbusSimTCP.py on 5020.
 const uint16_t IR_SIM_PORT = 5021;
@@ -294,6 +295,9 @@ IrNodeConfig loadIrNodeConfig() {
   cfg.iec.bus.tx = IR_TX_PIN;
   cfg.iec.bus.baudRate = 300;       // IEC 62056-21 always starts at 300 baud -- not NVS-tunable
   cfg.iec.bus.format = SERIAL_7E1;  // fixed by the standard
+  // On for the IR circuit (light ON reads HIGH); off for a plain USB-serial
+  // adapter wired straight to the pins, as in IrSim/IrSimSerial.py testing.
+  cfg.iec.bus.invert = readU32("ir_invert", 1) != 0;
 
   readStr("tcp_host", SECRET_MODBUS_SIM_HOST, cfg.tcp.host, sizeof(cfg.tcp.host));  // the laptop on the softAP
   cfg.tcp.port = static_cast<uint16_t>(readU32("tcp_port", IR_SIM_PORT));

@@ -5,6 +5,10 @@
 namespace {
 constexpr unsigned long ID_TIMEOUT_MS = 2000;
 constexpr unsigned long DATA_TIMEOUT_MS = 3000;
+constexpr unsigned long BCC_TIMEOUT_MS = 500;
+
+constexpr char STX = 0x02;
+constexpr char ETX = 0x03;
 }  // namespace
 
 Iec6205621Reader::Iec6205621Reader(const Iec62056Config &config) : config(config) {}
@@ -33,6 +37,44 @@ String Iec6205621Reader::readUntil(const char *terminator,
   return result;
 }
 
+size_t Iec6205621Reader::readBytes(uint8_t *out, size_t count,
+                                   unsigned long timeoutMs) {
+  size_t got = 0;
+  unsigned long deadline = millis() + timeoutMs;
+
+  while (got < count && millis() < deadline) {
+    int b = head->readByte();
+    if (b != -1) out[got++] = (uint8_t)b;
+  }
+  return got;
+}
+
+bool Iec6205621Reader::checkFrame(const String &block) {
+  int stx = block.indexOf(STX);
+  if (stx < 0) return true;  // unframed, nothing to check
+
+  // The block ends "!\r\n" ETX BCC. readUntil() stopped at "!\r\n", so ETX
+  // and BCC are still waiting -- read them now, or they'd be the first two
+  // bytes of the next identification message.
+  uint8_t tail[2];
+  if (readBytes(tail, sizeof(tail), BCC_TIMEOUT_MS) != sizeof(tail) ||
+      tail[0] != ETX) {
+    Serial.println("[IEC62056-21] data block not closed with ETX + BCC");
+    return false;
+  }
+
+  // BCC: XOR of every byte after STX, up to and including ETX.
+  uint8_t bcc = 0;
+  for (unsigned int i = stx + 1; i < block.length(); i++) bcc ^= (uint8_t)block[i];
+  bcc ^= ETX;
+
+  if (bcc != tail[1]) {
+    Serial.printf("[IEC62056-21] BCC mismatch: got %02X, expected %02X\n", tail[1], bcc);
+    return false;
+  }
+  return true;
+}
+
 bool Iec6205621Reader::baudRateFromId(char code, uint32_t &baudOut) {
   switch (code) {
     case '0': baudOut = 300;   return true;
@@ -47,6 +89,17 @@ bool Iec6205621Reader::baudRateFromId(char code, uint32_t &baudOut) {
 }
 
 int Iec6205621Reader::handshake(uint32_t &negotiatedBaud) {
+  // Step 0: back to the starting baud rate. The last read left the link at
+  // whatever rate it negotiated, but the meter dropped back to 300 as soon
+  // as it finished sending -- skip this and every read after the first
+  // goes out at the wrong speed.
+  head->setBaudRate(config.bus.baudRate);
+
+  // Throw away anything still waiting from the last read (late bytes,
+  // line noise) so it can't be mistaken for the identification message.
+  while (head->readByte() != -1) {
+  }
+
   // Step 1: the request message. "/" marks it as a request, "?" means
   // "send identification", "!" is a fixed terminator the spec requires,
   // CRLF ends the line. Sent at 300 baud -- the one speed every mode C
@@ -62,6 +115,11 @@ int Iec6205621Reader::handshake(uint32_t &negotiatedBaud) {
   // baud-rate ID) -- the identification text past that is metadata we
   // don't need for the handshake itself.
   String identification = readUntil("\r\n", ID_TIMEOUT_MS);
+  // An IR head can see its own LED, so our request may come straight back
+  // before the meter's answer. Skip it.
+  if (identification == "/?!\r\n") {
+    identification = readUntil("\r\n", ID_TIMEOUT_MS);
+  }
   if (identification.length() == 0) {
     Serial.println("[IEC62056-21] meter never responded to request message");
     return -1;  // meter never answered the request message
@@ -124,6 +182,10 @@ int Iec6205621Reader::get_import(float *val) {
   String dataBlock = readUntil("!\r\n", DATA_TIMEOUT_MS);
   if (dataBlock.length() == 0) {
     Serial.println("[IEC62056-21] no data block received after ACK");
+    return EXIT_FAILURE;
+  }
+
+  if (!checkFrame(dataBlock)) {
     return EXIT_FAILURE;
   }
 

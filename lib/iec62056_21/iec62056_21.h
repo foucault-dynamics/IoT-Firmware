@@ -15,8 +15,7 @@
 class Iec6205621Reader : public Reader {
  private:
   IrHead *head = nullptr;
-  // Kept for interface symmetry with ModbusRtuReader/CamHttpReader;
-  // nothing in this protocol is actually per-meter configurable.
+  // Only bus.baudRate is used: the rate every handshake starts at.
   Iec62056Config config;
 
   // Set by get_import(), consumed by the next get_export() call this cycle.
@@ -26,6 +25,15 @@ class Iec6205621Reader : public Reader {
   // Reads bytes from `head` until `terminator` is seen or `timeoutMs`
   // elapses. Returns everything read, including the terminator.
   String readUntil(const char *terminator, unsigned long timeoutMs);
+
+  // Reads exactly `count` bytes into `out`, or fewer if `timeoutMs`
+  // elapses. Returns how many it got.
+  size_t readBytes(uint8_t *out, size_t count, unsigned long timeoutMs);
+
+  // Checks the ETX + BCC that close a framed data block. `block` is
+  // everything readUntil() returned up to "!\r\n". Unframed blocks (no STX,
+  // as SimulatedIrHead sends) pass with nothing to check.
+  bool checkFrame(const String &block);
 
   static bool parseObisFloat(const String &block, const char *obisCode,
                               float &out);

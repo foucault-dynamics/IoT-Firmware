@@ -14,6 +14,7 @@
  */
 class SimulatedIrHead : public IrHead {
  private:
+  // DONE is only a resting state: the next request starts over.
   enum State { AWAITING_REQUEST, SENDING_ID, AWAITING_ACK, SENDING_DATA, DONE };
   State state = AWAITING_REQUEST;
 

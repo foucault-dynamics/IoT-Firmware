@@ -31,9 +31,9 @@ int SimulatedIrHead::init() {
 
 int SimulatedIrHead::send(const uint8_t *data, size_t len) {
   // Look at what the reader just sent to decide what a real meter would
-  // send back next.
-  if (state == AWAITING_REQUEST && len == 5 &&
-      memcmp(data, "/?!\r\n", 5) == 0) {
+  // send back next. A request restarts the session from any state, as it
+  // does on a real meter -- otherwise only the first poll would ever work.
+  if (len == 5 && memcmp(data, "/?!\r\n", 5) == 0) {
     queueResponse(ID_RESPONSE);
     state = SENDING_ID;
   } else if (state == AWAITING_ACK && len >= 1 && data[0] == 0x06) {

@@ -21,6 +21,7 @@ class RealIrHead : public IrHead {
   uint8_t TX;
   uint32_t baudRate;
   SerialConfig serialConfig;
+  bool invert;
   HardwareSerial *serial;
 
  public:

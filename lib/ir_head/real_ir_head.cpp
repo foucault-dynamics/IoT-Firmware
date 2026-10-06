@@ -5,11 +5,11 @@
 
 RealIrHead::RealIrHead(IrConfig config, HardwareSerial &serial)
     : RX(config.rx), TX(config.tx), baudRate(config.baudRate),
-      serialConfig(config.format), serial(&serial) {}
+      serialConfig(config.format), invert(config.invert), serial(&serial) {}
 
 // Initialise the RealIrHead, with baud rate, serialConfig, RX and TX pins set up
 int RealIrHead::init() {
-  serial->begin(baudRate, serialConfig, RX, TX);
+  serial->begin(baudRate, serialConfig, RX, TX, invert);
   return EXIT_SUCCESS;
 }
 
@@ -30,5 +30,5 @@ bool RealIrHead::available() { return serial->available() > 0; }
 
 void RealIrHead::setBaudRate(uint32_t baud) {
   baudRate = baud;
-  serial->begin(baudRate, serialConfig, RX, TX);
+  serial->begin(baudRate, serialConfig, RX, TX, invert);
 }
