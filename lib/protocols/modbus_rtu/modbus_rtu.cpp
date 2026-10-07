@@ -69,12 +69,12 @@ int ModbusRtuReader::read_register(uint16_t data_type_address, float *val){
   build_request(request,data_type_address);
   if(module->send(request,REQUEST_LEN) == EXIT_FAILURE){
     Serial.println("[ModbusRTU Reader] Error with bus\n");
-    return -1;
+    return EXIT_FAILURE;
   }
 
   uint8_t response[RESPONSE_LEN];
   if(read_response(response) == EXIT_FAILURE){
-    return -1;
+    return EXIT_FAILURE;
   }
 
   // Data bytes are big endian, high register first

@@ -38,10 +38,6 @@
  * Frame timing follows the spec: a request is only sent after T3.5 (3.5
  * character times) of bus silence, and T3.5 of silence after the last byte
  * ends a response.
- *
- * @warning get_import(), get_export() and get_voltage() return -1, not
- *          EXIT_FAILURE, when the bus or the response fails. See
- *          read_register().
  */
 class ModbusRtuReader: public Reader{
  public:
@@ -81,8 +77,8 @@ private:
    * @param[in]  data_type_address  Start address of the register pair.
    * @param[out] val                Decoded value. Untouched on failure.
    * @retval EXIT_SUCCESS  @p val holds the value.
-   * @retval EXIT_FAILURE  The register format was unknown.
-   * @retval -1            The send failed or the response was invalid.
+   * @retval EXIT_FAILURE  The send failed, the response was invalid, or the
+   *                       register format was unknown.
    */
   int read_register(uint16_t data_type_address, float *val);
 
