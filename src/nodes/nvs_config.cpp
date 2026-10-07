@@ -19,7 +19,7 @@ namespace {
 // Config nvs namespace
 const char *NVS_NAMESPACE = "config";
 
-// RS485 bus pins. Board wiring, never NVS keys.
+// RS485 bus pins. Board wiring, never NVS 
 const uint8_t RS485_RX_PIN = 8;
 const uint8_t RS485_TX_PIN = 9;
 const uint8_t RS485_DERE_PIN = 10;
@@ -225,7 +225,7 @@ Rs485NodeConfig loadRs485NodeConfig() {
   cfg.communityId = static_cast<uint8_t>(readU32("comm_id", 0));
   cfg.unitId = static_cast<uint8_t>(readU32("unit_id", 0));
 
-  cfg.readerType = static_cast<ReaderType>(readU32("reader", static_cast<uint32_t>(ReaderType::ModbusTCP)));
+  cfg.readerType = static_cast<ReaderType>(readU32("reader", static_cast<uint32_t>(ReaderType::ModbusRtu)));
 
   readStr("ap_ssid", SECRET_AP_SSID, cfg.ap.ssid, sizeof(cfg.ap.ssid));
   readStr("ap_pass", SECRET_AP_PASS, cfg.ap.password, sizeof(cfg.ap.password));

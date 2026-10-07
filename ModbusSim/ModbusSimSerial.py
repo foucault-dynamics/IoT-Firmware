@@ -13,7 +13,7 @@ from pymodbus import FramerType
 
 # LOGGER
 _logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 #REGISTER ADDRESS
 VOLTAGE_ADDR = 0
@@ -21,7 +21,7 @@ KWH_EXPORT_ADDR = 2
 KWH_IMPORT_ADDR = 4
 
 # SERIAL PORT
-PORT = "/dev/ttyUSB0"
+PORT = sys.argv[1] if len(sys.argv) > 1 else "/dev/cu.wchusbserial10"
 
 def _encode_float32(value: float) -> list[int]:
     """Pack a float into 2 big-endian 16-bit registers."""

@@ -2,7 +2,7 @@
 Firmware for the Focault Dynamics IoT metering network, a QUT capstone project.
 The repository began as a fork of [NEXTGEN_IEMS](https://github.com/kahoQUT/NEXTGEN_IEMS),
 whose SuperMini end-node plus LilyGo substation and gateway prototype is still
-here as reference. The goal of this repository is to move every node onto the
+here as reference and as legacy. The goal of this repository is to move every node onto the
 ESP32-C3 SuperMini and give each one a swappable meter-reading module (RS485,
 IR optical head, or camera) chosen by its role in the network.
 
@@ -12,33 +12,44 @@ Read this before flashing anything.
 
 - **The layered architecture is merged.** A single `src/main.cpp` selects the
   node role at boot and dispatches into `src/nodes/`. This is the `unified`
-  environment and it builds.
+  environment and it builds. If flashing to a LilyGo Lora chip use the `lilygo_lora` environment.
 - **The default build is still the legacy skeleton.** `default_envs = supermini`
   in `platformio.ini`, so a bare `pio run` gives you the old non-transmitting
   sketch, not the new architecture. Build `-e unified` explicitly.
-- LINE 16 IN `node_config.cpp` SHOULD BE CHANGED FOR READER BEING TESTED
-  
+
 
 ## System Overview
 
-```text
-ESP32-C3 meter node
-  Sp3485 (Module)  ->  ModbusRtuReader (Reader)     <- implemented, untested on hardware
-  TcpBus (Module)  ->  ModbusRtuReader (Reader)     <- testing path, current default
-  Wifi (Transmitter)                                <- implemented, not yet called
-        |
-        | ESP-NOW                                   <- both sides work
-        v
-substation / relay                                  <- works
-        |
-        | LoRa (with ACK + retry)                   <- works
-        v
-     gateway                                        <- works
-        |
-        | MQTT                                      <- works (publishes raw binary)
-        v
-MQTT broker
+```mermaid
+flowchart TD
+    subgraph node["ESP32-C3 meter node"]
+        direction TB
+        A["Sp3485 (Module)"] --> R1["ModbusRtuReader"]
+        B["TcpBus (Module)"] --> R1
+        C["RealIRHead (Module)"] --> R2["Iec6205621Reader"]
+        D["SimulatedIRHead (Module)"] --> R2
+        E["http_bus (Module)"] --> R3["http_reader"]
+        W["Wifi (Transmitter)"]
+    end
+
+    node -->|"ESP-NOW"| S["Substation / relay"]
+    S -->|"LoRa (ACK + retry)"| G["Gateway"]
+    G -->|"MQTT (JSON)"| M["MQTT broker"]
+
+    classDef working fill:#d4edda,stroke:#28a745,color:#000
+    classDef untested fill:#fff3cd,stroke:#e0a800,color:#000
+    classDef pending fill:#e2e3e5,stroke:#6c757d,color:#000
+
+    class A,B,R1,E,R3,S,G,M working
+    class C,D,R2 untested
+    class W pending
 ```
+
+| Colour | Meaning |
+|---|---|
+| Green | Works (RS485 and CV paths tested, ESP-NOW, LoRa and MQTT working) |
+| Yellow | Untested (IR path) |
+| Grey | Implemented, not yet called (Wifi transmitter) |
 
 ## Architecture
 
