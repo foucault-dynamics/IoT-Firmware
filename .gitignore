@@ -12,3 +12,4 @@ ModBusSim/.venv
 
 # Doxygen output
 build/
+doxygen_warnings_temp_*

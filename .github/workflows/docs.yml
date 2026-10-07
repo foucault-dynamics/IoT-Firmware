@@ -1,0 +1,70 @@
+# Builds the Doxygen docs site and publishes it to GitHub Pages.
+#
+# Every push and pull request runs the build, and Doxygen fails it on any
+# missing or broken doc comment (WARN_AS_ERROR in the Doxyfile). Only a push
+# to main deploys. One time setup: Settings > Pages > Source: GitHub Actions.
+
+name: Docs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same PR cancels the stale build. Deploys to main are
+# never cancelled half way, they queue instead.
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Keep in step with the version in the Doxyfile header and docs/COMMENTING.md,
+  # so CI and local builds report the same warnings.
+  DOXYGEN_VERSION: 1.18.0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Graphviz
+        run: sudo apt-get update && sudo apt-get install -y graphviz
+
+      # The Ubuntu package lags behind, so use the official release binary.
+      - name: Install Doxygen ${{ env.DOXYGEN_VERSION }}
+        run: |
+          tag="Release_${DOXYGEN_VERSION//./_}"
+          curl -fsSL "https://github.com/doxygen/doxygen/releases/download/${tag}/doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/doxygen-${DOXYGEN_VERSION}/bin" >> "$GITHUB_PATH"
+
+      - name: Build docs
+        run: |
+          doxygen --version
+          doxygen
+
+      - name: Upload site
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: build/docs
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write     # publish to Pages
+      id-token: write  # prove the deploy came from this workflow
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
