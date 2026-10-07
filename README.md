@@ -6,17 +6,6 @@ here as reference and as legacy. The goal of this repository is to move every no
 ESP32-C3 SuperMini and give each one a swappable meter-reading module (RS485,
 IR optical head, or camera) chosen by its role in the network.
 
-## Project Status
-
-Read this before flashing anything.
-
-- **The layered architecture is merged.** A single `src/main.cpp` selects the
-  node role at boot and dispatches into `src/nodes/`. This is the `unified`
-  environment and it builds. If flashing to a LilyGo Lora chip use the `lilygo_lora` environment.
-- **The default build is still the legacy skeleton.** `default_envs = supermini`
-  in `platformio.ini`, so a bare `pio run` gives you the old non-transmitting
-  sketch, not the new architecture. Build `-e unified` explicitly.
-
 
 ## System Overview
 
