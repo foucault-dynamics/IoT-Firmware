@@ -22,17 +22,28 @@ Read this before flashing anything.
 
 ```mermaid
 flowchart TD
-    subgraph node["ESP32-C3 meter node"]
+    subgraph rs485["RS485 node (ESP32-C3)"]
         direction TB
         A["Sp3485 (Module)"] --> R1["ModbusRtuReader"]
         B["TcpBus (Module)"] --> R1
-        C["RealIRHead (Module)"] --> R2["Iec6205621Reader"]
-        D["SimulatedIRHead (Module)"] --> R2
-        E["http_bus (Module)"] --> R3["http_reader"]
-        W["Wifi (Transmitter)"]
     end
 
-    node -->|"ESP-NOW"| S["Substation / relay"]
+    subgraph ir["IR node (ESP32-C3)"]
+        direction TB
+        C["RealIRHead (Module)"] --> R2["Iec6205621Reader"]
+        D["SimulatedIRHead (Module)"] --> R2
+    end
+
+    subgraph cv["CV node (ESP32-C3)"]
+        direction TB
+        E["http_bus (Module)"] --> R3["http_reader"]
+    end
+
+    W["Wifi (Transmitter)"]
+
+    rs485 -->|"ESP-NOW"| S["Substation / relay"]
+    ir -->|"ESP-NOW"| S
+    cv -->|"ESP-NOW"| S
     S -->|"LoRa (ACK + retry)"| G["Gateway"]
     G -->|"MQTT (JSON)"| M["MQTT broker"]
 
