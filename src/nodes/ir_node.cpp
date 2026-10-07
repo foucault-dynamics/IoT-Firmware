@@ -6,7 +6,7 @@
 #include "real_ir_head.h"
 #include "simulated_ir_head.h"
 #include "module.h"
-#include "node_config.h"
+#include "ir_config.h"
 #include "nvs_config.h"
 #include "nodes.h"
 #include "reader.h"

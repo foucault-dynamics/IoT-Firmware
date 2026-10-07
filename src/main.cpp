@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <cstdint>
 #include "nodes/nodes.h"
-#include "nodes/nvs_config.h"
+#include "nvs_config.h"
 
 enum class ModuleType : uint8_t {
   Unknown = 0,

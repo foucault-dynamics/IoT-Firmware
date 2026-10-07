@@ -1,11 +1,9 @@
 # Focault Dynamics IoT Firmware
 Firmware for the Focault Dynamics IoT metering network, a QUT capstone project.
 The repository began as a fork of [NEXTGEN_IEMS](https://github.com/kahoQUT/NEXTGEN_IEMS),
-whose SuperMini end-node plus LilyGo substation and gateway prototype is still
-here as reference and as legacy. The goal of this repository is to move every node onto the
+. The goal of this repository is to move every node onto the
 ESP32-C3 SuperMini and give each one a swappable meter-reading module (RS485,
 IR optical head, or camera) chosen by its role in the network.
-
 
 ## System Overview
 
@@ -53,9 +51,9 @@ one below it, so a node is assembled by picking one of each.
 
 | Layer | Header | Responsibility |
 |---|---|---|
-| `Module` | `lib/module/module.h` | Moves raw bytes over one physical bus. Knows its pins and its peripheral, knows nothing about meaning. `init()`, `send()`, `readByte()`, `available()`. |
-| `Reader` | `lib/reader/reader.h` | Speaks a meter protocol on top of a `Module&`. Turns registers into values. `init(Module&, const void *config)`, `get_import()`, `get_export()`, `get_voltage()`. |
-| `Transmitter` | `lib/transmitter/transmitter.h` | Moves whole packets to a peer address. `init()`, `sendPacket()`, `receivePacket()`. |
+| `Module` | `lib/interfaces/module/module.h` | Moves raw bytes over one physical bus. Knows its pins and its peripheral, knows nothing about meaning. `init()`, `send()`, `readByte()`, `available()`. |
+| `Reader` | `lib/interfaces/reader/reader.h` | Speaks a meter protocol on top of a `Module&`. Turns registers into values. `init(Module&, const void *config)`, `get_import()`, `get_export()`, `get_voltage()`. |
+| `Transmitter` | `lib/interfaces/transmitter/transmitter.h` | Moves whole packets to a peer address. `init()`, `sendPacket()`, `receivePacket()`. |
 
 Configuration is a plain struct per protocol, defined in
 `lib/node_config/node_config.h`. `Reader::init()` takes it as `const void *` and
@@ -84,11 +82,11 @@ reminds on serial every 5 seconds.
 | `ir_node` | `src/nodes/ir_node.cpp` | Prints a not-implemented notice. Stack lives on `ir-module`. |
 | `cv_node` | `src/nodes/cv_node.cpp` | Prints a not-implemented notice. |
 
-### `Sp3485`, `lib/sp3485/`
+### `Sp3485`, `lib/buses/sp3485/`
 
 RS485 transceiver as a `Module`.
 
-### `ModbusRtuReader`, `lib/modbus_rtu/`
+### `ModbusRtuReader`, `lib/protocols/modbus_rtu/`
 
 ModbusRTU protocol `Reader`
 
@@ -100,18 +98,6 @@ ESP-NOW based `Transmitter`
 
 TCP `Module` created for ModbusRTU over TCP testing 
 
-### Legacy sketches, `supermini` / `lilygo` / `gateway` envs
-
-The three original single-file firmwares are still on `main` and still build.
-`main-esp-now-lilyGo.cpp` and `main-esp-now-gateway.cpp` are the sources the
-substation and gateway nodes were ported from, kept as reference.
-`main-esp-now-supermini.cpp` is the non-transmitting skeleton described in
-[PlatformIO Environments](#platformio-environments); it is superseded by
-`rs485_node`.
-
-Note: the LilyGo pin comment says "LoRa & OLED Pins", but there is no OLED code
-in this repository. Nothing drives a display.
-
 ## In Progress
 
 ### Meter-reading modules not yet started
@@ -119,7 +105,7 @@ in this repository. Nothing drives a display.
 | Module | State | Missing include |
 |---|---|---|
 | `lib/esp32cam/` | Empty. The `.cpp` is two includes and a TODO, with no method bodies | `cam_link_protocol.h` |
-| `lib/ir_head/` | Header only, and it declares nothing. Comment block ends "decide the modulation scheme and fill in the class" | `pin_config.h` |
+| `lib/buses/ir_head/` | Header only, and it declares nothing. Comment block ends "decide the modulation scheme and fill in the class" | `pin_config.h` |
 
 
 ## Repository Layout
@@ -127,31 +113,41 @@ in this repository. Nothing drives a display.
 ```text
 Project_Kaizen/
 ├── lib/
-│   ├── module/          Module base class
-│   ├── reader/          Reader base class
-│   ├── transmitter/     Transmitter base class
-│   ├── node_config/     Per-protocol config structs and the hardcoded loaders
-│   ├── shared/          shared_payload.h
-│   ├── sp3485/          RS485 transceiver Module
-│   ├── modbus_rtu/      Modbus RTU Reader
-│   ├── wifi/            ESP-NOW Transmitter
-│   ├── tcp_bus/         RTU-over-TCP Module (WIP, does not compile)
-│   ├── substation/      LoRa Transmitter (WIP, does not compile)
-│   ├── esp32cam/        empty
-│   └── ir_head/         empty
+│   ├── interfaces/
+│   │   ├── module/          Module base class
+│   │   ├── reader/          Reader base class
+│   │   ├── transmitter/     Transmitter base class
+│   │   └── shared/          shared_payload.h
+│   ├── config/
+│   │   ├── node_config/     Per-node config structs
+│   │   ├── nvs_config/      NVS loaders filling the config structs
+│   │   └── secrets/         secrets.h
+│   ├── buses/
+│   │   ├── sp3485/          RS485 transceiver Module
+│   │   ├── http_bus/        HTTP client Module for the ESP32-CAM
+│   │   ├── tcp_bus/         RTU-over-TCP Module
+│   │   ├── lora/            SX1276 radio Module
+│   │   └── ir_head/         Optical probe Module
+│   ├── protocols/
+│   │   ├── modbus_rtu/      Modbus RTU Reader
+│   │   ├── cam_http/        ESP32-CAM Reader
+│   │   └── iec62056_21/     IEC 62056-21 optical protocol
+│   ├── links/
+│   │   ├── esp_now_uplink/  ESP-NOW Transmitter
+│   │   ├── lora_link/       LoRa Transmitter with ACKs
+│   │   └── wifi_radio/      Radio mode, channel and softAP
+│   └── state/
+│       ├── seq_counter/     Persistent reading sequence number
+│       └── reading_buffer/  Substation store and forward buffer
 ├── src/
 │   ├── main.cpp                       role dispatch
-│   ├── nodes/
-│   │   ├── nodes.h
-│   │   ├── rs485_node.cpp
-│   │   ├── substation.cpp
-│   │   ├── gateway.cpp
-│   │   ├── ir_node.cpp
-│   │   └── cv_node.cpp
-│   ├── main-esp-now-supermini.cpp     legacy
-│   ├── main-esp-now-lilyGo.cpp        legacy
-│   ├── main-esp-now-gateway.cpp       legacy
-│   └── secrets.h
+│   └── nodes/
+│       ├── nodes.h
+│       ├── rs485_node.cpp
+│       ├── substation.cpp
+│       ├── gateway.cpp
+│       ├── ir_node.cpp
+│       └── cv_node.cpp
 ├── ModbusSim/
 │   ├── ModbusSimSerial.py
 │   ├── ModbusSimTCP.py
@@ -177,18 +173,19 @@ five roles exist.
 `Module`, a `Reader`, and a `Transmitter` get picked, constructed from a config,
 and wired together. Nothing in `lib/` knows which node uses it.
 
-`secrets.h` holds credentials and the substation MAC. The three
-`main-esp-now-*.cpp` files are the original single-file sketches, kept as
-reference for what the ported nodes were derived from.
+`lib/config/secrets/secrets.h` holds credentials and the substation MAC. It sits outside
+`src/` so the NVS loaders in `lib/config/nvs_config/` can include it.
 
 ### `lib/`
 
 Every reusable piece of the firmware, one subdirectory per library, compiled by
-PlatformIO into separate static libraries. It splits into the three abstract base
-classes (`module/`, `reader/`, `transmitter/`), the configuration structs
-(`node_config/`, `shared/`), and the concrete implementations (`sp3485/`,
-`modbus_rtu/`, `wifi/`, and the unfinished `substation/`, `ir_head/`,
-`esp32cam/`).
+PlatformIO into separate static libraries. Libraries are grouped one level down:
+`interfaces/` holds the three abstract base classes and the shared payload,
+`config/` the config structs and their NVS loaders, `buses/` the `Module`
+implementations, `protocols/` the `Reader` implementations, `links/` the
+`Transmitter` implementations and the radio they share, and `state/` the
+persistent counters and buffers. `lib_extra_dirs` in `platformio.ini` lists each
+group so PlatformIO still finds every library inside it.
 
 PlatformIO only compiles a library that something includes, which is why the
 unfinished ones do not break the build. **See `lib/README` for a description of
@@ -208,21 +205,17 @@ No tests exist yet.
 
 ## PlatformIO Environments
 
-Every environment targets `board = esp32-c3-devkitm-1`. There is no LilyGo board
-id in `platformio.ini`, so the `lilygo` and `gateway` names describe the role and
-the physical board the code was written against, not the build target.
+Both environments build the same sources, `main.cpp` and `nodes/`. They differ
+only in the board they target.
 
-| Environment | Builds | Status |
+| Environment | Board | Use |
 |---|---|---|
-| `unified` | `main.cpp`, `nodes/` | **Builds.** The current architecture. Role is hardcoded to `Rs485Node`. |
-| `supermini` (default) | `main-esp-now-supermini.cpp` | Builds. Legacy skeleton, transmits nothing. |
-| `lilygo` | `main-esp-now-lilyGo.cpp` | Builds. Legacy, superseded by the `substation` node. |
-| `gateway` | `main-esp-now-gateway.cpp` | Builds, with the serial caveat below. Legacy, superseded by the `gateway` node. |
+| `unified` (default) | `esp32-c3-devkitm-1` | **Builds.** The current architecture, for every node type. Role is hardcoded to `Rs485Node`. |
+| `lilygo_lora` | `ttgo-lora32-v21` | **Builds.** The LilyGo LoRa board, for testing the substation and gateway roles. |
 
-The `gateway` environment sets no `build_flags`, so unlike the others it is built
-without `ARDUINO_USB_MODE` and `ARDUINO_USB_CDC_ON_BOOT`. Serial output will not
-appear over native USB on that board. Expect a silent monitor. `unified` sets
-both flags, so the ported gateway node does not have this problem.
+`unified` sets `ARDUINO_USB_MODE` and `ARDUINO_USB_CDC_ON_BOOT` so serial output
+appears over the C3's native USB. `lilygo_lora` does not need them, because that
+board talks to the computer through a USB to UART bridge chip.
 
 ## Hardware
 
@@ -242,7 +235,7 @@ separately in each file rather than shared: `SCK 4`, `MISO 5`, `MOSI 6`, `SS 7`,
 
 ## `secrets.h` Configuration
 
-The firmware expects `src/secrets.h`:
+The firmware expects `lib/config/secrets/secrets.h`:
 
 ```cpp
 #define SECRET_WIFI_SSID "Damian7777"
@@ -267,7 +260,7 @@ The firmware expects `src/secrets.h`:
 
 ## Payload Format
 
-Defined in `lib/shared/shared_payload.h`, packed to 26 bytes:
+Defined in `lib/interfaces/shared/shared_payload.h`, packed to 26 bytes:
 
 ```cpp
 #pragma pack(push, 1)
@@ -303,7 +296,7 @@ values that change on every poll. These addresses match the
 `node_config.cpp`.
 
 - `ModbusSimTCP.py` serves RTU-over-TCP on `0.0.0.0:5020`. This is what
-  `lib/tcp_bus/` talks to.
+  `lib/buses/tcp_bus/` talks to.
 - `ModbusSimSerial.py` serves RTU on a serial port, hardcoded to `/dev/ttyUSB0`.
 - `poll_test.py` is a minimal RTU-over-TCP client that reads all three registers
   and decodes them, useful for confirming the server before pointing firmware at

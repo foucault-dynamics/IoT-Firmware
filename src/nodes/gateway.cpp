@@ -7,7 +7,7 @@
 #include "loramodule.h"
 #include "lora_link.h"
 #include "nodes.h"
-#include "node_config.h"
+#include "gateway_config.h"
 #include "nvs_config.h"
 #include "shared_payload.h"
 

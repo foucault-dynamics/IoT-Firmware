@@ -6,7 +6,7 @@
 
 #include "cam_http.h"
 #include "http_bus.h"
-#include "node_config.h"
+#include "cv_config.h"
 #include "nvs_config.h"
 #include "nodes.h"
 #include "reader.h"

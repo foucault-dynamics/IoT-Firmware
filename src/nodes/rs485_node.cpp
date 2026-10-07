@@ -6,7 +6,7 @@
 #include "sp3485.h"
 #include "tcp_bus.h"
 #include "module.h"
-#include "node_config.h"
+#include "rs485_config.h"
 #include "nvs_config.h"
 #include "nodes.h"
 #include "reader.h"

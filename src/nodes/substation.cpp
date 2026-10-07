@@ -8,7 +8,7 @@
 #include "loramodule.h"
 #include "lora_link.h"
 #include "nodes.h"
-#include "node_config.h"
+#include "substation_config.h"
 #include "nvs_config.h"
 #include "reading_buffer.h"
 #include "shared_payload.h"
