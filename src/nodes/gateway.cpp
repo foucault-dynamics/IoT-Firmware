@@ -97,7 +97,6 @@ static size_t buildPayloadJson(const Payload &p, int rssi, float snr, char *out,
   doc["kwh_import"] = p.kwh_import;
   doc["kwh_export"] = p.kwh_export;
   doc["voltage"] = p.voltage;
-  doc["battery_v"] = p.battery_v;
   doc["community_id"] = p.community_id;
   doc["unit_id"] = p.unit_id;
   doc["rssi"] = rssi;
