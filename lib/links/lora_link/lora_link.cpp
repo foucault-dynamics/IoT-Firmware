@@ -1,3 +1,8 @@
+/**
+ * @file
+ * LoRaLink implementation.
+ */
+
 #include "lora_link.h"
 
 #include <Arduino.h>
@@ -120,6 +125,7 @@ int LoRaLink::receivePacket(void *address, uint8_t *buf, size_t bufLen) {
   memcpy(ack.uid, received.uid, sizeof(ack.uid));
   ack.seq = received.seq;
 
+  // Give the sender time to switch its radio to receive before the ACK goes out
   delay(10);
   radio.send(reinterpret_cast<const uint8_t *>(&ack), sizeof(AckPayload));
 

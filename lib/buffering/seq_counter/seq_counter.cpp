@@ -1,3 +1,8 @@
+/**
+ * @file
+ * Sequence counter implementation.
+ */
+
 #include "seq_counter.h"
 
 #include <Arduino.h>
@@ -5,11 +10,11 @@
 
 namespace {
 
-const char *NVS_NAMESPACE = "runtime";
-const char *SEQ_KEY = "seq";
+const char *NVS_NAMESPACE = "runtime";  ///< NVS namespace, separate from "config".
+const char *SEQ_KEY = "seq";            ///< NVS key holding the counter.
 
-Preferences prefs;
-uint32_t seq = 0;
+Preferences prefs;  ///< Left open for the life of the firmware.
+uint32_t seq = 0;   ///< Last sequence number handed out.
 
 }  // namespace
 

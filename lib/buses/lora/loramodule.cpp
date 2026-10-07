@@ -1,3 +1,8 @@
+/**
+ * @file
+ * LoRaModule implementation.
+ */
+
 #include "loramodule.h"
 
 #include <Arduino.h>

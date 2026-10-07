@@ -16,7 +16,7 @@ lib/
   buses/       sp3485, http_bus, tcp_bus, lora, ir_head
   protocols/   modbus_rtu, cam_http, iec62056_21
   links/       esp_now_uplink, lora_link, wifi_radio
-  state/       seq_counter, reading_buffer
+  buffering/   seq_counter, reading_buffer
 ```
 
 PlatformIO only looks one level deep, so on its own it would see each group

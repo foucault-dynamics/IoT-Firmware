@@ -1,7 +1,11 @@
+/**
+ * @file
+ * Config loader for the substation node: its NVS keys and defaults.
+ */
+
 #include "nvs_config.h"
 #include "nvs_read.h"
 
-// Load config for a substation (LoRa endpoint) node
 SubstationConfig loadSubstationConfig() {
   prefs.begin(NVS_NAMESPACE, true);
 

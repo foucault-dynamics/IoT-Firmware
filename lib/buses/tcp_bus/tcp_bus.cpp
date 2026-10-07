@@ -1,3 +1,8 @@
+/**
+ * @file
+ * TcpBus implementation.
+ */
+
 #include "tcp_bus.h"
 #include <Arduino.h>
 #include <cstdlib>
@@ -17,7 +22,7 @@ int TcpBus::init() {
 }
 
 bool TcpBus::ensureConnected() {
-  if (client.connected()) {    
+  if (client.connected()) {
     return true;
   }
   client.stop();
@@ -25,13 +30,14 @@ bool TcpBus::ensureConnected() {
     Serial.println("[TcpBus] connect failed");
     return false;
   }
+  // Modbus frames are tiny, so send each one immediately instead of batching.
   client.setNoDelay(true);
   return true;
 }
 
 
 int TcpBus::send(const uint8_t *data, size_t len) {
-  // Discard any stale RX bytes so a late response from a timed-out poll
+  // Discard any stale RX bytes so a late response from a timed out poll
   // doesn't desync the next frame.
   while (client.available()) {
     client.read();

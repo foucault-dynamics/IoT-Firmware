@@ -9,3 +9,6 @@ compile_commands.json
 .pio
 ModBusSim/__pycache__
 ModBusSim/.venv
+
+# Doxygen output
+build/

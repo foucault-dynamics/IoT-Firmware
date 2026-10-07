@@ -1,3 +1,8 @@
+/**
+ * @file
+ * ModbusRtuReader implementation.
+ */
+
 #include "modbus_rtu.h"
 #include "esp32-hal.h"
 #include "rs485_config.h"
@@ -12,12 +17,10 @@ ModbusRtuReader::ModbusRtuReader(const ModbusRtuConfig &config): config(config){
 int ModbusRtuReader::init(Module &module){
   this->module = &module;
 
-  // Data bits
+  // Character length in bits: data, parity, stop and start bits
   float char_len = ((this->config.bus.format & DATA_BITS_MASK) >> 2) + 5;
-  // Parity bits
   if(this->config.bus.format & PARITY_MASK) char_len++;
 
-  // Stop bit len
   uint8_t stop_bits_flag = ((this->config.bus.format & STOP_MASK) >> 4);
   switch(stop_bits_flag){
   case 0b01:
@@ -33,10 +36,9 @@ int ModbusRtuReader::init(Module &module){
     Serial.println("[ModbusRtuReader] error reading stop bits from config");
     return EXIT_FAILURE;
   }
-  // Start bit
   char_len++;
 
-  //Space-between frames
+  // Above 19200 baud the spec fixes T3.5 rather than scaling it with speed
   if(this->config.bus.baudRate > 19200){
     t35_us = 1750;
   }else{
@@ -60,10 +62,9 @@ int ModbusRtuReader::get_voltage(float *val){
 
 
 int ModbusRtuReader::read_register(uint16_t data_type_address, float *val){
-  // Hold while frame pause has not elapsed
+  // The bus must stay silent for T3.5 between frames
   while((micros() - last_rx_us) < t35_us);
 
-  //Send Request
   uint8_t request[REQUEST_LEN];
   build_request(request,data_type_address);
   if(module->send(request,REQUEST_LEN) == EXIT_FAILURE){
@@ -71,12 +72,12 @@ int ModbusRtuReader::read_register(uint16_t data_type_address, float *val){
     return -1;
   }
 
-  //Capture Response
   uint8_t response[RESPONSE_LEN];
   if(read_response(response) == EXIT_FAILURE){
     return -1;
   }
 
+  // Data bytes are big endian, high register first
   uint32_t raw = (uint32_t)response[3] << 24 | (uint32_t)response[4] << 16 | (uint32_t)response[5] << 8 | (uint32_t)response[6];
   if(config.registerFormat == RegisterFormat::IEEE_754Float){
     memcpy(val,&raw,sizeof(float));
@@ -115,7 +116,7 @@ void ModbusRtuReader::build_request(uint8_t *buffer, uint16_t data_type_address)
   buffer[5] = 0x02;
   uint16_t request_crc = modbus_crc(buffer,6);
   buffer[6] = request_crc & 0x00FF;
-  buffer[7] = (request_crc & 0xFF00) >> 8;        
+  buffer[7] = (request_crc & 0xFF00) >> 8;
 }
 
 
@@ -125,10 +126,10 @@ int ModbusRtuReader::read_response(uint8_t *buffer){
   size_t index = 0;
   int capture;
 
-  // Read response
   while(millis() - startTime < TIMEOUT){
     capture = module->readByte();
     if(capture != -1){
+      // Keep counting past the buffer so an oversized frame is detected below
       if(index < RESPONSE_LEN){
 	buffer[index] = capture;
       }
@@ -143,7 +144,6 @@ int ModbusRtuReader::read_response(uint8_t *buffer){
   }
   last_rx_us = lastByteReceived;
 
-  // Error checking
   if(index < MIN_FRAME_LEN){
     Serial.println("[ModbusRTU Reader] Response incomplete");
     return EXIT_FAILURE;
@@ -165,6 +165,7 @@ int ModbusRtuReader::read_response(uint8_t *buffer){
     return EXIT_FAILURE;
   }
 
+  // The meter sets the function code's top bit to report an exception
   if(buffer[1] & 0x80){
     request_exception(buffer[2]);
     return EXIT_FAILURE;

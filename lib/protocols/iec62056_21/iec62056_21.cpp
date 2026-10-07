@@ -1,9 +1,16 @@
+/**
+ * @file
+ * Iec6205621Reader implementation.
+ */
+
 #include "iec62056_21.h"
 #include <Arduino.h>
 #include <cstdlib>
 
 namespace {
+/** How long to wait for the meter's identification message, in ms. */
 constexpr unsigned long ID_TIMEOUT_MS = 2000;
+/** How long to wait for the full data block after the ACK, in ms. */
 constexpr unsigned long DATA_TIMEOUT_MS = 3000;
 }  // namespace
 
@@ -11,7 +18,7 @@ Iec6205621Reader::Iec6205621Reader(const Iec62056Config &config) : config(config
 
 int Iec6205621Reader::init(Module &module) {
   // Safe only because every call site wires an IrHead (RealIrHead or
-  // SimulatedIrHead) here -- this reader is IEC 62056-21 specific and the
+  // SimulatedIrHead) here. This reader is IEC 62056-21 specific and the
   // optical port is the only thing it's ever attached to.
   head = static_cast<IrHead *>(&module);
   head->init();
@@ -49,17 +56,17 @@ bool Iec6205621Reader::baudRateFromId(char code, uint32_t &baudOut) {
 int Iec6205621Reader::handshake(uint32_t &negotiatedBaud) {
   // Step 1: the request message. "/" marks it as a request, "?" means
   // "send identification", "!" is a fixed terminator the spec requires,
-  // CRLF ends the line. Sent at 300 baud -- the one speed every mode C
+  // CRLF ends the line. Sent at 300 baud, the one speed every mode C
   // meter is guaranteed to be listening at when idle, regardless of what
   // higher speeds it supports for the data block.
   const uint8_t request[] = {'/', '?', '!', '\r', '\n'};
   head->send(request, sizeof(request));
 
   // Step 2: the identification response. Shape per IEC 62056-21:
-  //   "/" + 3-char manufacturer ID + 1-char baud-rate ID + identification
+  //   "/" + 3 char manufacturer ID + 1 char baud rate ID + identification
   //   text + CR LF
-  // We only need bytes 0-4 (the "/", the 3 manufacturer chars, and the
-  // baud-rate ID) -- the identification text past that is metadata we
+  // We only need bytes 0 to 4 (the "/", the 3 manufacturer chars, and the
+  // baud rate ID). The identification text past that is metadata we
   // don't need for the handshake itself.
   String identification = readUntil("\r\n", ID_TIMEOUT_MS);
   if (identification.length() == 0) {
@@ -78,13 +85,13 @@ int Iec6205621Reader::handshake(uint32_t &negotiatedBaud) {
   char baudId = identification[4];
   if (!baudRateFromId(baudId, negotiatedBaud)) {
     Serial.println("[IEC62056-21] unrecognised baud-rate ID in identification message");
-    return -3;  // baud-rate ID isn't one we have a mapping for
+    return -3;  // baud rate ID isn't one we have a mapping for
   }
 
   // Step 3: acknowledge and select that baud rate. The ACK is fixed except
   // for the baud digit, which we echo straight back from what the meter
-  // just told us -- we're confirming "yes, switch to the rate you offered,"
-  // not picking one ourselves. '0' (3rd byte) is the fixed protocol-mode
+  // just told us. We're confirming "yes, switch to the rate you offered,"
+  // not picking one ourselves. '0' (3rd byte) is the fixed protocol mode
   // control character for normal mode C.
   const uint8_t ack[] = {0x06, '0', (uint8_t)baudId, '0', '\r', '\n'};
   head->send(ack, sizeof(ack));
@@ -102,8 +109,7 @@ bool Iec6205621Reader::parseObisFloat(const String &block,
   int idx = block.indexOf(obisCode);
   if (idx < 0) return false;
 
-  // OBIS values look like "1-0:1.8.0(001234.567*kWh)" -- skip past the
-  // opening bracket and read the number.
+  // Skip past the opening bracket and read the number.
   int openParen = block.indexOf('(', idx);
   if (openParen < 0) return false;
 
@@ -151,7 +157,5 @@ int Iec6205621Reader::get_export(float *val) {
 
 int Iec6205621Reader::get_voltage(float *val) {
   (void)val;
-  // The OBIS codes this reader parses (1.8.0 import, 2.8.0 export) don't
-  // include a voltage reading -- nothing to answer with.
   return EXIT_FAILURE;
 }

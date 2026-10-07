@@ -1,3 +1,8 @@
+/**
+ * @file
+ * HttpBus implementation.
+ */
+
 #include "http_bus.h"
 
 #include <HTTPClient.h>

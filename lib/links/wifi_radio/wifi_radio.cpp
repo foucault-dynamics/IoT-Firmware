@@ -1,15 +1,27 @@
+/**
+ * @file
+ * Radio ownership implementation.
+ */
+
 #include "wifi_radio.h"
 
 #include <WiFi.h>
 #include <esp_wifi.h>
 
-// Reduced transmit power - needed for this C3 Super Mini.
+/** Reduced transmit power, needed for the C3 SuperMini. */
 static const wifi_power_t TX_POWER = WIFI_POWER_8_5dBm;
 
-static bool apUp = false;
-static bool stationUp = false;
-static uint8_t radioChannel = 0;
+static bool apUp = false;         ///< True once the softAP has started.
+static bool stationUp = false;    ///< True once the station has started.
+static uint8_t radioChannel = 0;  ///< Channel the radio is on, 0 until the first start.
 
+/**
+ * Checks a start request against the channel the radio is already on.
+ *
+ * @param[in] channel  Requested channel.
+ * @retval true   The radio is unused or already on @p channel.
+ * @retval false  The radio is on a different channel. Logs the clash.
+ */
 static bool channelAvailable(uint8_t channel) {
   if (radioChannel != 0 && radioChannel != channel) {
     Serial.printf("[WifiRadio] Channel %u requested, radio already on %u\n",

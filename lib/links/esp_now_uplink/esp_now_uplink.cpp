@@ -1,3 +1,8 @@
+/**
+ * @file
+ * EspNowUplink implementation.
+ */
+
 #include "esp_now_uplink.h"
 #include "esp32-hal.h"
 #include "esp_now.h"
@@ -12,15 +17,12 @@
 #include <cstring>
 #include <cstdlib>
 
-// EspNowUplink.h instance
 EspNowUplink *EspNowUplink::instance = nullptr;
 
-// Constructor
 EspNowUplink::EspNowUplink(EspNowConfig config){
   this->config = config;
 }
 
-// Automatically Run after send is called for ESP NOW
 void EspNowUplink::onSent(const uint8_t *mac, esp_now_send_status_t status){
   if(instance == nullptr){
     return;
@@ -32,7 +34,6 @@ void EspNowUplink::onSent(const uint8_t *mac, esp_now_send_status_t status){
   xSemaphoreGive(instance->sendDone);
 }
 
-// When packet received
 void EspNowUplink::onReceived(const uint8_t *mac, const uint8_t *data, int len){
   // Not initialised
   if(instance == nullptr){
@@ -46,41 +47,38 @@ void EspNowUplink::onReceived(const uint8_t *mac, const uint8_t *data, int len){
     static_cast<size_t>(len);
   memcpy(frame.data,data,copyLen);
   frame.len = copyLen;
+  // Zero wait: blocking inside the Wi-Fi task would stall the radio
   xQueueSend(instance->rxQueue,&frame,0);
 }
 
-// Initialisation of ESP-NOW transmission
 int EspNowUplink::init(){
 
-  // ESP-NOW rides the radio's station interface (lib/wifi_radio).
+  // ESP-NOW rides the radio's station interface (wifi_radio.h).
   if(!wifiRadioStartStation(config.channel)){
     Serial.println("[EspNowUplink] Radio station failed to start");
     return EXIT_FAILURE;
   }
 
-  // Create Receive Queue
   rxQueue = xQueueCreate(ESPNOW_RX_QUEUE_DEPTH,sizeof(RxFrame));
   if(rxQueue == nullptr){
     Serial.println("[EspNowUplink] Failed to create RX queue");
     return EXIT_FAILURE;
   }
 
-  // Create send Semaphore
   sendDone = xSemaphoreCreateBinary();
   if(sendDone == nullptr){
     Serial.println("[EspNowUplink] Failed to create send semaphore");
     return EXIT_FAILURE;
   }
 
-  // Initialise ESP_NOW
   if(esp_now_init() != ESP_OK){
     Serial.println("[EspNowUplink] Failed to init ESP-NOW");
     return EXIT_FAILURE;
   }
 
+  // Set before registering so the callbacks never see a null instance
   instance = this;
 
-  // Register Send and Receive callbacks
   esp_now_register_send_cb(onSent);
   esp_now_register_recv_cb(onReceived);
 
@@ -88,11 +86,9 @@ int EspNowUplink::init(){
 }
 
 
-// Add to list of registered Peers
 int EspNowUplink::addPeer(EspNowPeerConfig peer){
 
   esp_now_peer_info_t info{};
-  // Mac address of peer
   memcpy(info.peer_addr,peer.mac,ESP_NOW_ADDRESS_LEN);
   // 0 means the peer follows the radio's current channel.
   info.channel = 0;
@@ -109,19 +105,16 @@ int EspNowUplink::addPeer(EspNowPeerConfig peer){
 
 }
 
-// Trigger send of packet
 int EspNowUplink::sendPacket(const void *address, const uint8_t *buf, size_t len){
-  // Validate passed len
   if(len == 0 || len > ESP_NOW_MAX_DATA_LEN){
     Serial.println("[EspNowUplink] Invalid packet length");
     return EXIT_FAILURE;
   }
 
-  // Clear for any hanging sends
+  // Clear a give left over from an earlier send that timed out
   xSemaphoreTake(sendDone,0);
 
   const uint8_t *mac = static_cast<const uint8_t *>(address);
-  // Send packet
   esp_err_t err = esp_now_send(mac, buf, len);
   if(err != ESP_OK){
     Serial.printf("[EspNowUplink] esp_now_send failed: %s (0x%X)\n",
@@ -129,13 +122,12 @@ int EspNowUplink::sendPacket(const void *address, const uint8_t *buf, size_t len
     return EXIT_FAILURE;
   }
 
-  // Hangs until successfull send
+  // Blocks until onSent() reports a result or the timeout expires
   if(xSemaphoreTake(sendDone,pdMS_TO_TICKS(config.sendTimeoutMs)) != pdTRUE){
     Serial.println("[EspNowUplink] Send timeout waiting for delivery ACK");
     return EXIT_FAILURE;
   }
 
-  // If delivery was not successfull
   if(!deliverySuccess){
     Serial.println("[EspNowUplink] Delivery failed");
     return EXIT_FAILURE;
@@ -145,22 +137,19 @@ int EspNowUplink::sendPacket(const void *address, const uint8_t *buf, size_t len
 
 }
 
-// Receive a packet from queue (returns len received)
 int EspNowUplink::receivePacket(void *address, uint8_t *buf, size_t bufLen){
 
-  // Take out of queue
   RxFrame frame;
   if(xQueueReceive(rxQueue,&frame,0) != pdTRUE){
     return -1;
   }
 
-  // Frame can't be transferred to buffer due to length
   if(frame.len > bufLen){
     Serial.println("[EspNowUplink] Receive buffer too small, frame dropped");
     return -2;
   }
 
-  // If address not specified
+  // The caller passes nullptr when it does not need the sender's MAC
   if(address != nullptr){
     memcpy(address,frame.mac,ESP_NOW_ADDRESS_LEN);
   }

@@ -1,3 +1,8 @@
+/**
+ * @file
+ * Config loader for the RS485 node: its NVS keys, defaults and meter models.
+ */
+
 #include "nvs_config.h"
 #include "nvs_read.h"
 
@@ -7,25 +12,37 @@
 
 namespace {
 
-// RS485 bus pins. Board wiring, never NVS
+/** UART RX GPIO for the SP3485. Board wiring, never an NVS key. */
 const uint8_t RS485_RX_PIN = 8;
+/** UART TX GPIO for the SP3485. Board wiring, never an NVS key. */
 const uint8_t RS485_TX_PIN = 9;
+/** GPIO driving the SP3485's DE/RE pins. Board wiring, never an NVS key. */
 const uint8_t RS485_DERE_PIN = 10;
 
+/** Register map of one supported meter model. */
 struct MeterModelEntry {
-  MeterModel model;
-  uint16_t voltage;
-  uint16_t import_energy;
-  uint16_t export_energy;
+  MeterModel model;        ///< Model this row describes.
+  uint16_t voltage;        ///< Start address of the voltage register pair.
+  uint16_t import_energy;  ///< Start address of the import energy register pair.
+  uint16_t export_energy;  ///< Start address of the export energy register pair.
 };
 
-// Known meter models (better approach necessary in future)
+/**
+ * Register maps for every MeterModel, picked by the `meter_model` NVS key.
+ *
+ * @todo Find a better way to describe meter models than a hardcoded table.
+ */
 const MeterModelEntry METER_MODELS[] = {
     {MeterModel::Simulated_Serial, /*voltage*/ 0, /*import*/ 4, /*export*/ 2},
     {MeterModel::Simulated_Tcp, 0, 4, 2},
 };
 
-// Get the model of a given meter (for registers and other meter specific settings)
+/**
+ * Finds the register map for a meter model.
+ *
+ * @param[in] model  Model to look up.
+ * @return Its row in METER_MODELS, or the first row if the model is unknown.
+ */
 const MeterModelEntry &lookupMeterModel(MeterModel model) {
   for (const auto &entry : METER_MODELS) {
     if (entry.model == model) {
@@ -37,13 +54,12 @@ const MeterModelEntry &lookupMeterModel(MeterModel model) {
 
 }  // namespace
 
-// Load config for an RS485/Modbus meter node
 Rs485NodeConfig loadRs485NodeConfig() {
   prefs.begin(NVS_NAMESPACE, true);
 
   Rs485NodeConfig cfg{};
 
-  // Set unique ID for board
+  // The UID is burned into eFuse at the factory, so it never comes from NVS.
 #if CONFIG_IDF_TARGET_ESP32C3
   esp_efuse_read_field_blob(ESP_EFUSE_OPTIONAL_UNIQUE_ID,cfg.uid,sizeof(cfg.uid) * 8);
 #endif

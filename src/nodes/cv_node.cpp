@@ -1,3 +1,19 @@
+/**
+ * @file
+ * CV (camera) meter node: reads the meter's display with an ESP32-CAM.
+ *
+ * Hosts its own Wi-Fi AP so the ESP32-CAM (AI-on-the-edge-device) can join it
+ * directly, with no router or internet needed at the meter site. That matches
+ * why the rest of this network uses ESP-NOW and LoRa instead of relying on
+ * Wi-Fi. wifi_radio.h owns the AP, HttpBus is the Module on top of it, and
+ * CamHttpReader reads the cam's "/json" API on top of that. Readings go to the
+ * substation over ESP-NOW on the same radio, through its station interface
+ * beside the AP.
+ *
+ * @todo Replace HttpBus with a wired UART link once the boards are physically
+ *       connected. The reader above it stays unchanged.
+ */
+
 #include <Arduino.h>
 
 #include <cstdint>
@@ -15,31 +31,16 @@
 #include "wifi_radio.h"
 #include "esp_now_uplink.h"
 
-// CV module node. Hosts its own WiFi access point so the ESP32-CAM
-// (AI-on-the-edge-device) can join it directly with no router or internet
-// needed at the meter site, matching why the rest of this network uses
-// ESP-NOW/LoRa instead of relying on WiFi. The radio (lib/wifi_radio) owns
-// the AP; the HTTP client on top of it is a Module (lib/http_bus); the cam's
-// "/json" API and its reading are a Reader on top of that (lib/cam_http).
-// Readings are forwarded to the substation over ESP-NOW on the same radio,
-// via its station interface beside the AP. A wired UART link (lib/esp32cam) is the planned replacement Module
-// once the boards are physically connected; the reader above it stays
-// unchanged.
+static EspNowUplink *uplink = nullptr;  ///< Link to the substation.
 
-// Substation details
-static EspNowUplink *uplink = nullptr;
+static HttpBus *bus = nullptr;      ///< HTTP client the cam is reached through.
+static Reader *reader = nullptr;    ///< CamHttpReader on top of #bus.
 
-// Cam objects
-static HttpBus *bus = nullptr;
-static Reader *reader = nullptr;
+static CvNodeConfig cfg;  ///< Config loaded at setup.
 
-// Runtime configuration
-static CvNodeConfig cfg;
-
-// State variables
-static Payload payload;
-static unsigned long lastPoll = 0;
-static bool readerReady = false;
+static Payload payload;             ///< Reading sent each cycle. Identity fields are set once.
+static unsigned long lastPoll = 0;  ///< millis() of the last reading attempt.
+static bool readerReady = false;    ///< True once setup fully succeeded.
 
 void cvNodeSetup() {
   cfg = loadCvNodeConfig();
@@ -50,14 +51,12 @@ void cvNodeSetup() {
     return;
   }
 
-  // Setup the cam's HTTP client
   bus = new HttpBus(cfg.cam.bus);
   if (bus->init() != EXIT_SUCCESS) {
     Serial.println("[CV] HTTP bus init failed.");
     return;
   }
 
-  // Setup the cam's HTTP API
   reader = new CamHttpReader(cfg.cam);
   if (reader->init(*bus) != EXIT_SUCCESS) {
     Serial.println("[CV] Cam HTTP reader init failed.");
@@ -66,7 +65,7 @@ void cvNodeSetup() {
     return;
   }
 
-  // Setup ESP-NOW on the same radio
+  // ESP-NOW runs on the station interface beside the AP, on the same channel
   uplink = new EspNowUplink(cfg.espNow);
   if (uplink->init() != EXIT_SUCCESS) {
     Serial.println("[CV] ESP-NOW init failed.");

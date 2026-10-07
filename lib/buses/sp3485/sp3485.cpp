@@ -1,3 +1,8 @@
+/**
+ * @file
+ * Sp3485 implementation.
+ */
+
 #include "sp3485.h"
 #include "HardwareSerial.h"
 #include "esp32-hal-gpio.h"
@@ -16,7 +21,6 @@ Sp3485::Sp3485(Rs485Config config, HardwareSerial &serial){
   this->serial = &serial;
 }
 
-// Deferred initialization
 int Sp3485::init(){
   serial->begin(baudRate,serialConfig,RX,TX);
   pinMode(derePin,OUTPUT);
@@ -41,12 +45,12 @@ int Sp3485::readByte(){
 
 int Sp3485::send(const uint8_t *data, size_t len){
   drainRX();
-  digitalWrite(derePin,HIGH);  
-  size_t sent = serial->write(data,len); 
+  digitalWrite(derePin,HIGH);
+  size_t sent = serial->write(data,len);
   flush();
-  digitalWrite(derePin,LOW);  
+  digitalWrite(derePin,LOW);
   if(sent != len){
-    Serial.println("[SP3485] error sending data through UART bus");    
+    Serial.println("[SP3485] error sending data through UART bus");
     return EXIT_FAILURE;
   }
   return EXIT_SUCCESS;

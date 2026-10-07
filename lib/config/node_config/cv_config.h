@@ -1,37 +1,41 @@
+/**
+ * @file
+ * Config structs for the CV (camera) node.
+ */
+
 #ifndef CV_CONFIG_H
 #define CV_CONFIG_H
 
 #include <cstdint>
 #include "networking_config.h"
 
-// HTTP credentials and timeout used over the AP.
+/** HTTP credentials and timeout HttpBus uses to reach the cam over the AP. */
 struct HttpBusConfig {
-  uint32_t requestTimeoutMs;
-  // Empty user disables HTTP basic auth.
-  char httpUser[32];
-  char httpPass[64];
+  uint32_t requestTimeoutMs;  ///< Timeout for one GET, in ms.
+  char httpUser[32];          ///< Basic auth user. Empty disables auth.
+  char httpPass[64];          ///< Basic auth password.
 };
 
+/** Where and how often CamHttpReader asks the cam for a reading. */
 struct CamHttpConfig {
-  uint32_t pollIntervalMs;
+  uint32_t pollIntervalMs;  ///< Time between readings, in ms.
 
-  HttpBusConfig bus;
+  HttpBusConfig bus;  ///< HTTP client settings.
 
-  // AI-on-the-edge-device endpoint and the flow/ROI to read from it.
-  char host[64];
-  char path[32];
-  char flowName[32];
+  char host[64];      ///< Cam's IP address or hostname on the AP.
+  char path[32];      ///< AI-on-the-edge-device API path, "/json".
+  char flowName[32];  ///< Flow (number) name to read, as set in the cam's config.ini.
 };
 
+/** Everything the CV node needs, filled in by loadCvNodeConfig(). */
 struct CvNodeConfig {
-  uint8_t uid[16];
-  // Where this node is installed. Set by upstream (NVS), not by hardware.
-  uint8_t communityId;
-  uint8_t unitId;
-  SoftApConfig ap;
-  EspNowConfig espNow;
-  EspNowPeerConfig substation;
-  CamHttpConfig cam;
+  uint8_t uid[16];               ///< This board's eFuse UID.
+  uint8_t communityId;           ///< Where the node is installed. Set from NVS, not hardware.
+  uint8_t unitId;                ///< Unit within the community. Set from NVS, not hardware.
+  SoftApConfig ap;               ///< AP the cam joins.
+  EspNowConfig espNow;           ///< Uplink to the substation.
+  EspNowPeerConfig substation;   ///< Substation to send readings to.
+  CamHttpConfig cam;             ///< Cam reader settings.
 };
 
 #endif

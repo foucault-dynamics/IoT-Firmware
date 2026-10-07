@@ -1,3 +1,14 @@
+/**
+ * @file
+ * Substation node: relays meter readings from ESP-NOW to LoRa.
+ *
+ * Readings arriving over ESP-NOW go into the reading buffer straight away.
+ * One buffered reading at a time is then relayed over LoRa, whose ACK and
+ * retry scheme lives in LoRaLink. A reading only leaves the buffer once the
+ * gateway acknowledges it. After a failed relay the substation waits
+ * RETRY_BACKOFF_MS before trying again, while still buffering new readings.
+ */
+
 #include <Arduino.h>
 #include <WiFi.h>
 
@@ -13,19 +24,17 @@
 #include "reading_buffer.h"
 #include "shared_payload.h"
 
-// Substation node: receives Payloads from meter nodes over ESP-NOW and
-// relays them over LoRa with an ACK/retry scheme, both owned by LoRaLink.
+static LoRaModule *radio = nullptr;     ///< LoRa radio.
+static LoRaLink *loraLink = nullptr;    ///< ACK layer on top of #radio, toward the gateway.
+static EspNowUplink *uplink = nullptr;  ///< ESP-NOW receiver for the meter nodes.
 
-static LoRaModule *radio = nullptr;
-static LoRaLink *loraLink = nullptr;
-static EspNowUplink *uplink = nullptr;
+static SubstationConfig cfg;  ///< Config loaded at setup.
 
-static SubstationConfig cfg;
-
+/** Wait after a failed relay before trying again, in ms. */
 static constexpr unsigned long RETRY_BACKOFF_MS = 30UL * 1000UL;
 
-static unsigned long nextSendAt = 0;
-static bool ready = false;
+static unsigned long nextSendAt = 0;  ///< millis() before which no relay is attempted.
+static bool ready = false;            ///< True once setup fully succeeded.
 
 void substationSetup() {
   cfg = loadSubstationConfig();
@@ -38,18 +47,21 @@ void substationSetup() {
     return;
   }
 
+  // Receive only, so the send timeout is never used
   uplink = new EspNowUplink(EspNowConfig{cfg.espNowChannel, 0});
   if (uplink->init() != EXIT_SUCCESS) {
     Serial.println("[Substation] ESP-NOW init failed, idling");
     return;
   }
 
+  // Meter nodes need this MAC as their sub_mac setting
   Serial.println(">>> MAC Address: " + WiFi.macAddress() + " <<<");
   Serial.println("SUBSTATION: Ready to Relay");
 
   ready = true;
 }
 
+/** Moves every reading waiting in the ESP-NOW queue into the reading buffer. */
 static void bufferIncoming() {
   Payload incoming;
   int len;
@@ -71,6 +83,7 @@ void substationLoop() {
 
   bufferIncoming();
 
+  // Signed difference so the check still works when millis() wraps
   if (static_cast<long>(millis() - nextSendAt) < 0) {
     return;
   }

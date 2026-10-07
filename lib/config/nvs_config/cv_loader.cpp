@@ -1,3 +1,8 @@
+/**
+ * @file
+ * Config loader for the CV (camera) node: its NVS keys and defaults.
+ */
+
 #include "nvs_config.h"
 #include "nvs_read.h"
 
@@ -7,13 +12,12 @@
 #include "esp_efuse.h"
 #include "esp_efuse_table.h"
 
-// Load config for a CV (camera) node
 CvNodeConfig loadCvNodeConfig() {
   prefs.begin(NVS_NAMESPACE, true);
 
   CvNodeConfig cfg{};
 
-  // Set unique ID for board
+  // The UID is burned into eFuse at the factory, so it never comes from NVS.
 #if CONFIG_IDF_TARGET_ESP32C3
   esp_efuse_read_field_blob(ESP_EFUSE_OPTIONAL_UNIQUE_ID, cfg.uid, sizeof(cfg.uid) * 8);
 #endif

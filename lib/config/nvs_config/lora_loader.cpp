@@ -1,23 +1,23 @@
+/**
+ * @file
+ * LoRa radio and link loaders, shared by the substation and gateway loaders.
+ */
+
 #include "nvs_read.h"
 
 #include "secrets.h"
 
 namespace {
 
-// LoRa SPI pins for the LilyGo TTGO LoRa32 v2.1 (classic ESP32). Board
-// wiring, never an NVS key.
+/**
+ * LoRa SPI pins for the LilyGo TTGO LoRa32 v2.1 (classic ESP32).
+ *
+ * Board wiring, never an NVS key.
+ */
 const LoRaPins LORA_PINS = {/*sck*/ 5, /*miso*/ 19, /*mosi*/ 27, /*ss*/ 18, /*rst*/ 23, /*dio0*/ 26};
 
 }  // namespace
 
-// ---------------------------------------------------------------------------
-// LoRa config loaders
-//
-// Shared between the substation and gateway configs, which both sit on
-// the LoRa link.
-// ---------------------------------------------------------------------------
-
-// Load LoRa radio settings (band, spreading factor, sync word, etc.)
 LoRaConfig loadLoRaConfig() {
   LoRaConfig cfg{};
   cfg.band = readU32("lora_band", static_cast<uint32_t>(SECRET_LORA_BAND));
@@ -29,7 +29,6 @@ LoRaConfig loadLoRaConfig() {
   return cfg;
 }
 
-// Load LoRa link settings (retries, ack timeout)
 LoRaLinkConfig loadLoRaLinkConfig() {
   LoRaLinkConfig cfg{};
   cfg.maxRetries = static_cast<uint8_t>(readU32("lora_retries", 3));

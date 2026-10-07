@@ -1,3 +1,8 @@
+/**
+ * @file
+ * Config loader for the IR (optical port) node: its NVS keys and defaults.
+ */
+
 #include "nvs_config.h"
 #include "nvs_read.h"
 
@@ -7,20 +12,23 @@
 
 namespace {
 
-// IR optical-port pins. Board wiring, never NVS keys.
-// TODO: real pins once the EE team's UART-to-IR circuit is wired up.
+/**
+ * UART RX GPIO for the IR head. Board wiring, never an NVS key.
+ *
+ * @todo Set the real pins once the EE team's UART to IR circuit is wired up.
+ */
 const uint8_t IR_RX_PIN = 4;
+/** UART TX GPIO for the IR head. Board wiring, never an NVS key. */
 const uint8_t IR_TX_PIN = 5;
 
 }  // namespace
 
-// Load config for an IR (optical port) meter node
 IrNodeConfig loadIrNodeConfig() {
   prefs.begin(NVS_NAMESPACE, true);
 
   IrNodeConfig cfg{};
 
-  // Set unique ID for board
+  // The UID is burned into eFuse at the factory, so it never comes from NVS.
 #if CONFIG_IDF_TARGET_ESP32C3
   esp_efuse_read_field_blob(ESP_EFUSE_OPTIONAL_UNIQUE_ID, cfg.uid, sizeof(cfg.uid) * 8);
 #endif
@@ -38,7 +46,7 @@ IrNodeConfig loadIrNodeConfig() {
   cfg.iec.pollIntervalMs = readU32("poll_ms", 60000);
   cfg.iec.bus.rx = IR_RX_PIN;
   cfg.iec.bus.tx = IR_TX_PIN;
-  cfg.iec.bus.baudRate = 300;       // IEC 62056-21 always starts at 300 baud -- not NVS-tunable
+  cfg.iec.bus.baudRate = 300;       // IEC 62056-21 always starts at 300 baud, not NVS tunable
   cfg.iec.bus.format = SERIAL_7E1;  // fixed by the standard
 
   prefs.end();

@@ -1,3 +1,13 @@
+/**
+ * @file
+ * IR meter node: reads the meter's optical port with IEC 62056-21 mode C.
+ *
+ * An IrHead (RealIrHead or SimulatedIrHead) is the Module, and
+ * Iec6205621Reader is the Reader on top of it. One handshake and data block
+ * read yields a complete reading, so this follows cv_node.cpp's single poll per
+ * cycle shape rather than rs485_node.cpp's state machine.
+ */
+
 #include <Arduino.h>
 #include <cstdint>
 #include <cstdlib>
@@ -14,26 +24,16 @@
 #include "iec62056_21.h"
 #include "esp_now_uplink.h"
 
-// IR reader node. IEC 62056-21 mode C over the meter's optical port: an
-// IrHead (RealIrHead or SimulatedIrHead) is the Module, Iec6205621Reader is
-// the Reader on top of it. One handshake + data-block read yields a
-// complete reading, so this follows cv_node.cpp's single-poll-per-cycle
-// shape rather than rs485_node.cpp's multi-state enum.
+static EspNowUplink *uplink = nullptr;  ///< Link to the substation.
 
-// Substation details
-static EspNowUplink *uplink = nullptr;
+static Module *bus = nullptr;     ///< IR head, real or simulated.
+static Reader *reader = nullptr;  ///< Iec6205621Reader on top of #bus.
 
-// Meter objects
-static Module *bus = nullptr;
-static Reader *reader = nullptr;
+static IrNodeConfig cfg;  ///< Config loaded at setup.
 
-// Runtime configuration
-static IrNodeConfig cfg;
-
-// State variables
-static Payload payload;
-static unsigned long lastPoll = 0;
-static bool readerReady = false;
+static Payload payload;             ///< Reading sent each cycle. Identity fields are set once.
+static unsigned long lastPoll = 0;  ///< millis() of the last reading attempt.
+static bool readerReady = false;    ///< True once setup fully succeeded.
 
 void irNodeSetup() {
   cfg = loadIrNodeConfig();
@@ -47,15 +47,14 @@ void irNodeSetup() {
     return;
   }
 
-  // Store identity on payload
   memcpy(payload.uid, cfg.uid, sizeof(payload.uid));
   payload.community_id = cfg.communityId;
   payload.unit_id = cfg.unitId;
 
   seqCounterBegin();
 
-  // Real hardware doesn't exist yet (EE team's UART-to-IR circuit), so
-  // this defaults to simulated -- see loadIrNodeConfig()'s "simulate" key.
+  // Real hardware doesn't exist yet (EE team's UART to IR circuit), so
+  // this defaults to simulated. See loadIrNodeConfig()'s "simulate" key.
   bus = cfg.simulate
       ? static_cast<Module *>(new SimulatedIrHead())
       : static_cast<Module *>(new RealIrHead(cfg.iec.bus, Serial1));
@@ -90,16 +89,16 @@ void irNodeLoop() {
   }
   payload.kwh_import = importVal;
 
-  // Best-effort: get_import() just read the whole data block, which
-  // contains both OBIS codes, so this is free -- unlike CamHttpReader,
+  // Best effort: get_import() just read the whole data block, which
+  // contains both OBIS codes, so this is free. Unlike CamHttpReader,
   // which genuinely has nothing to answer with for get_export().
   float exportVal = 0.0f;
   if (reader->get_export(&exportVal) == EXIT_SUCCESS) {
     payload.kwh_export = exportVal;
   }
 
-  // get_voltage() always fails for this reader (no OBIS code for it) --
-  // not called here, same as cv_node.cpp skips it for CamHttpReader.
+  // get_voltage() always fails for this reader (no OBIS code for it), so
+  // it is not called here, same as cv_node.cpp skips it for CamHttpReader.
 
   payload.seq = seqNext();
 

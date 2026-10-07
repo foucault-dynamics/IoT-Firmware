@@ -1,3 +1,8 @@
+/**
+ * @file
+ * NVS read helpers and the serial config command handler.
+ */
+
 #include "nvs_config.h"
 #include "nvs_read.h"
 
@@ -7,14 +12,20 @@
 #include <cstdio>
 #include <cstring>
 
-// Config nvs namespace
 const char *NVS_NAMESPACE = "config";
 
 Preferences prefs;
 
 namespace {
 
-// Parse mac address from nvs
+/**
+ * Parses a MAC address written as "aa:bb:cc:dd:ee:ff".
+ *
+ * @param[in]  text  Text to parse.
+ * @param[out] out   Destination for the 6 bytes. Partially written on failure.
+ * @retval true   Parsed all 6 bytes.
+ * @retval false  Text was not a MAC address.
+ */
 bool parseMac(const String &text, uint8_t out[6]) {
   unsigned int bytes[6];
   if (sscanf(text.c_str(), "%x:%x:%x:%x:%x:%x", &bytes[0], &bytes[1], &bytes[2], &bytes[3], &bytes[4], &bytes[5]) != 6) {
@@ -26,16 +37,14 @@ bool parseMac(const String &text, uint8_t out[6]) {
   return true;
 }
 
-// ---------------------------------------------------------------------------
-// Serial config command handling
-//
-// Lets a dev poke NVS values over the serial monitor without reflashing,
-// e.g. `set wifi_ssid "myssid"`, `clear`, `reboot`.
-// ---------------------------------------------------------------------------
-
+/** Longest key NVS accepts. */
 const size_t NVS_MAX_KEY_LEN = 15;
 
-// Parse and execute one line of serial input (reboot / clear / set <key> <value>)
+/**
+ * Runs one serial command line: `reboot`, `clear` or `set <key> <value>`.
+ *
+ * @param[in,out] line  Null terminated command. Modified in place by strtok().
+ */
 void processLine(char *line) {
   char *cmd = strtok(line, " ");
   if (cmd == nullptr) {
@@ -68,6 +77,7 @@ void processLine(char *line) {
     }
 
     prefs.begin(NVS_NAMESPACE, false);
+    // A quoted value is stored as a string, anything else as a number.
     if (rest[0] == '"') {
       char *end = strrchr(rest, '"');
       if (end == nullptr || end == rest) {
@@ -90,14 +100,6 @@ void processLine(char *line) {
 
 }  // namespace
 
-// ---------------------------------------------------------------------------
-// NVS read helpers
-//
-// Small wrappers around Preferences that fall back to a default value
-// when the key isn't set yet, and log where the value came from.
-// ---------------------------------------------------------------------------
-
-// Read ints from NVS key
 uint32_t readU32(const char *key, uint32_t fallback) {
   if (prefs.isKey(key)) {
     uint32_t value = prefs.getUInt(key, fallback);
@@ -107,7 +109,6 @@ uint32_t readU32(const char *key, uint32_t fallback) {
   return fallback;
 }
 
-// Read strs from NVS key
 void readStr(const char *key, const char *fallback, char *out, size_t outLen) {
   if (prefs.isKey(key)) {
     String value = prefs.getString(key, fallback);
@@ -120,7 +121,6 @@ void readStr(const char *key, const char *fallback, char *out, size_t outLen) {
   out[outLen - 1] = '\0';
 }
 
-// Read a mac address from NVS, falling back to the default if missing or malformed
 void readMac(const char *key, const uint8_t fallback[6], uint8_t out[6]) {
   if (prefs.isKey(key)) {
     String value = prefs.getString(key, "");
@@ -133,11 +133,8 @@ void readMac(const char *key, const uint8_t fallback[6], uint8_t out[6]) {
   memcpy(out, fallback, 6);
 }
 
-// ---------------------------------------------------------------------------
-// Serial polling entry point (call each loop() to feed processLine())
-// ---------------------------------------------------------------------------
-
 void nvsConfigPollSerial() {
+  // Static so a line typed across several loop() calls is assembled in one place.
   static char line[64];
   static size_t len = 0;
 
@@ -151,6 +148,7 @@ void nvsConfigPollSerial() {
       }
       continue;
     }
+    // Characters past the buffer are dropped rather than overflowing it.
     if (len < sizeof(line) - 1) {
       line[len++] = c;
     }

@@ -5,6 +5,19 @@ The repository began as a fork of [NEXTGEN_IEMS](https://github.com/kahoQUT/NEXT
 ESP32-C3 SuperMini and give each one a swappable meter-reading module (RS485,
 IR optical head, or camera) chosen by its role in the network.
 
+## Documentation
+
+API docs for every class, function and config struct are published at
+**https://foucault-dynamics.github.io/IoT-Firmware/**, rebuilt from the code on
+every push to `main`. The commenting rules the site is built from are in
+[`docs/COMMENTING.md`](docs/COMMENTING.md). To build it locally:
+
+```sh
+brew install doxygen graphviz
+doxygen
+open build/docs/index.html
+```
+
 ## System Overview
 
 ```mermaid
@@ -134,7 +147,7 @@ Project_Kaizen/
 │   │   ├── esp_now_uplink/  ESP-NOW Transmitter
 │   │   ├── lora_link/       LoRa Transmitter with ACKs
 │   │   └── wifi_radio/      Radio mode, channel and softAP
-│   └── state/
+│   └── buffering/
 │       ├── seq_counter/     Persistent reading sequence number
 │       └── reading_buffer/  Substation store and forward buffer
 ├── src/

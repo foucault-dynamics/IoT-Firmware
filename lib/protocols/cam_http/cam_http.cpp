@@ -1,3 +1,8 @@
+/**
+ * @file
+ * CamHttpReader implementation.
+ */
+
 #include "cam_http.h"
 
 #include <ArduinoJson.h>
@@ -5,8 +10,12 @@
 #include <cstdlib>
 #include <cstring>
 
-// Response bodies from the cam are a few hundred bytes; reserve up front so
-// draining byte by byte does not realloc on every append.
+/**
+ * Bytes reserved for a response body up front.
+ *
+ * Response bodies from the cam are a few hundred bytes. Reserving up front
+ * means draining byte by byte does not reallocate on every append.
+ */
 #define RESPONSE_RESERVE 512
 
 CamHttpReader::CamHttpReader(const CamHttpConfig &config): config(config) {
@@ -38,13 +47,11 @@ int CamHttpReader::get_voltage(float *val) {
 }
 
 int CamHttpReader::read_flow(const char *flow, float *val) {
-  // Send request
   String url = String("http://") + config.host + config.path;
   if (module->send(reinterpret_cast<const uint8_t *>(url.c_str()), url.length()) == EXIT_FAILURE) {
     return EXIT_FAILURE;
   }
 
-  // Capture response
   String body;
   if (read_response(body) == EXIT_FAILURE) {
     return EXIT_FAILURE;

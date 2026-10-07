@@ -1,9 +1,13 @@
+/**
+ * @file
+ * Config loader for the gateway node: its NVS keys and defaults.
+ */
+
 #include "nvs_config.h"
 #include "nvs_read.h"
 
 #include "secrets.h"
 
-// Load config for a gateway node (LoRa + WiFi + MQTT)
 GatewayConfig loadGatewayConfig() {
   prefs.begin(NVS_NAMESPACE, true);
 
