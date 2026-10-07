@@ -46,66 +46,64 @@ flowchart TD
 
 ## Architecture
 
-Three abstractions stack on top of each other. Each layer knows only about the
-one below it, so a node is assembled by picking one of each.
+All reusable code lives in `lib/`, split into six groups. `src/` holds the firmware itself: `main.cpp`
+picks a node role, and `src/nodes/` assembles that node from the libraries.
 
-| Layer | Header | Responsibility |
+### Lib directory
+
+The lib directory contains all code for which the main loop and setup depends inside of `src`
+
+| Folder | Role | Terminology |
 |---|---|---|
-| `Module` | `lib/interfaces/module/module.h` | Moves raw bytes over one physical bus. Knows its pins and its peripheral, knows nothing about meaning. `init()`, `send()`, `readByte()`, `available()`. |
-| `Reader` | `lib/interfaces/reader/reader.h` | Speaks a meter protocol on top of a `Module&`. Turns registers into values. `init(Module&, const void *config)`, `get_import()`, `get_export()`, `get_voltage()`. |
-| `Transmitter` | `lib/interfaces/transmitter/transmitter.h` | Moves whole packets to a peer address. `init()`, `sendPacket()`, `receivePacket()`. |
+| `lib/interfaces/` | Abstract base classes and the shared packet format | |
+| `lib/config/` | Shape of each node's settings, how they are loaded, and NVS configuration | |
+| `lib/buses/` | Physical hardware that moves raw bytes | **Modules** |
+| `lib/protocols/` | Meter protocols that turn bytes into values | **Readers** |
+| `lib/links/` | The radio, and what sits on top of it | **Transmitters** |
+| `lib/buffering/` | Buffering of the substation | |
 
-Configuration is a plain struct per protocol, defined in
-`lib/node_config/node_config.h`. `Reader::init()` takes it as `const void *` and
-each reader casts to the struct it expects, which keeps the base interface free
-of every protocol's fields. The `load*Config()` functions in `node_config.cpp`
-are hardcoded seams; upstream configuration selection replaces their bodies
-later without touching any call site (FUTURE IMPLEMENTATION).
+Three abstractions sit at the centre. A node is assembled by picking one of
+each. The definitions live in `lib/interfaces/`, and every implementation in the
+other groups derives from one of them.
 
-Role dispatch lives in `src/main.cpp`. `readModuleType()` is currently hardcoded
-to `Rs485Node` and is meant to read a hardware ID pin, which the hardware team
-owns. (in `node_config.cpp`)
+| Layer | Folder | Header | Responsibility |
+|---|---|---|---|
+| `Module` | `lib/interfaces/module/` | `module.h` | Moves raw bytes over one physical bus. Knows its pins and its peripheral, knows nothing about meaning. `init()`, `send()`, `readByte()`, `available()`. |
+| `Reader` | `lib/interfaces/reader/` | `reader.h` | Speaks a meter protocol on top of a `Module&`. Turns registers into values. `init(Module&)`, `get_import()`, `get_export()`, `get_voltage()`. |
+| `Transmitter` | `lib/interfaces/transmitter/` | `transmitter.h` | Moves whole packets to a peer address. `init()`, `sendPacket()`, `receivePacket()`. |
 
-## What Works Today
+A `Reader` holds a `Module&` and is stacked on top of it. `Module` and
+`Transmitter` are siblings: a meter node holds a `Module` facing the meter and a
+`Transmitter` facing the substation.
 
-### Unified firmware, `unified` env, `src/main.cpp` + `src/nodes/`
+### Configuration
 
-`setup()` reads the module type, prints it, and calls the matching
-`*NodeSetup()`. `loop()` calls the matching `*Loop()`. An unknown type idles and
-reminds on serial every 5 seconds.
+Configuration is a plain struct per node role, defined in `lib/config/node_config/`
+(for example `rs485_config.h`, `gateway_config.h`). The structs hold shapes only.
+Firmware defaults for every field live in `lib/config/secrets/`. Each concrete
+reader, module or Transmitter takes its config in its own constructor, which keeps every protocol's
+fields out of the shared base interface.
 
-| Node | File | State |
-|---|---|---|
-| `rs485_node` | `src/nodes/rs485_node.cpp` | Reads import, export, voltage over Modbus RTU every 10 s and prints them. Does not transmit. |
-| `substation` | `src/nodes/substation.cpp` | Working. Verbatim port of the LilyGo sketch. |
-| `gateway` | `src/nodes/gateway.cpp` | Working. Verbatim port of the gateway sketch. |
-| `ir_node` | `src/nodes/ir_node.cpp` | Prints a not-implemented notice. Stack lives on `ir-module`. |
-| `cv_node` | `src/nodes/cv_node.cpp` | Prints a not-implemented notice. |
+### NVS
 
-### `Sp3485`, `lib/buses/sp3485/`
+`lib/config/nvs_config/` has one loader per node, which fills that node's config
+struct. Each field is read from NVS if it was ever set, and otherwise falls back
+to the firmware default from `lib/config/secrets/`. The loaders are the seam
+where upstream configuration selection will replace the defaults later without
+touching any call site (FUTURE IMPLEMENTATION).
 
-RS485 transceiver as a `Module`.
+### Role dispatch
 
-### `ModbusRtuReader`, `lib/protocols/modbus_rtu/`
+Role dispatch lives in `src/main.cpp`. `readModuleType()` currently asks for the
+role over serial, and is meant to be replaced by driving current to `GPIO3` and reading the
+voltage difference over `GPIO4` (FUTURE IMPLEMENTATION WHEN FINAL PCB AVAILABLE)
 
-ModbusRTU protocol `Reader`
+### Basic flow
 
-### `Wifi`, `lib/wifi/`
-
-ESP-NOW based `Transmitter`
-
-### `TCPBus`, `lib/tcpBus`
-
-TCP `Module` created for ModbusRTU over TCP testing 
-
-## In Progress
-
-### Meter-reading modules not yet started
-
-| Module | State | Missing include |
-|---|---|---|
-| `lib/esp32cam/` | Empty. The `.cpp` is two includes and a TODO, with no method bodies | `cam_link_protocol.h` |
-| `lib/buses/ir_head/` | Header only, and it declares nothing. Comment block ends "decide the modulation scheme and fill in the class" | `pin_config.h` |
+Flow begins in `src/main.cpp` where the serial monitor is prompted to choose a given module
+(Replaced with the Role Dispatch in the future). Based on the module type the given setup is called in `src/nodes`,
+and subsequently its respective loop. At the beginning of each loop, the serial buffer is parsed for any NVS configuration
+to be set (more information in the NVS subfolder README).
 
 
 ## Repository Layout
@@ -158,51 +156,6 @@ Project_Kaizen/
 └── README.md
 ```
 
-## Directory Guide
-
-What each directory is for, and where to look when you need to change something.
-
-### `src/`
-
-The firmware entry points. `main.cpp` holds `readModuleType()` and the two
-`switch` statements that dispatch into a role; it is the only file that knows all
-five roles exist.
-
-`src/nodes/` holds one `.cpp` per role, each exposing just a `*Setup()` and a
-`*Loop()` through `nodes.h`. This is the assembly layer: a node file is where a
-`Module`, a `Reader`, and a `Transmitter` get picked, constructed from a config,
-and wired together. Nothing in `lib/` knows which node uses it.
-
-`lib/config/secrets/secrets.h` holds credentials and the substation MAC. It sits outside
-`src/` so the NVS loaders in `lib/config/nvs_config/` can include it.
-
-### `lib/`
-
-Every reusable piece of the firmware, one subdirectory per library, compiled by
-PlatformIO into separate static libraries. Libraries are grouped one level down:
-`interfaces/` holds the three abstract base classes and the shared payload,
-`config/` the config structs and their NVS loaders, `buses/` the `Module`
-implementations, `protocols/` the `Reader` implementations, `links/` the
-`Transmitter` implementations and the radio they share, and `state/` the
-persistent counters and buffers. `lib_extra_dirs` in `platformio.ini` lists each
-group so PlatformIO still finds every library inside it.
-
-PlatformIO only compiles a library that something includes, which is why the
-unfinished ones do not break the build. **See `lib/README` for a description of
-each subdirectory** and how the layers fit together.
-
-### `ModbusSim/`
-
-Python `pymodbus` servers that impersonate a meter, plus a client to poll them.
-This is how the Modbus reader is developed without hardware. See
-`ModbusSim/README.md` for the register map and setup
-
-### `test/`
-
-PlatformIO Test Runner directory. Empty apart from the stock placeholder README.
-No tests exist yet.
-
-
 ## PlatformIO Environments
 
 Both environments build the same sources, `main.cpp` and `nodes/`. They differ
@@ -213,7 +166,7 @@ only in the board they target.
 | `unified` (default) | `esp32-c3-devkitm-1` | **Builds.** The current architecture, for every node type. Role is hardcoded to `Rs485Node`. |
 | `lilygo_lora` | `ttgo-lora32-v21` | **Builds.** The LilyGo LoRa board, for testing the substation and gateway roles. |
 
-`unified` sets `ARDUINO_USB_MODE` and `ARDUINO_USB_CDC_ON_BOOT` so serial output
+**Note**:` unified` sets `ARDUINO_USB_MODE` and `ARDUINO_USB_CDC_ON_BOOT` so serial output
 appears over the C3's native USB. `lilygo_lora` does not need them, because that
 board talks to the computer through a USB to UART bridge chip.
 
@@ -225,38 +178,6 @@ board talks to the computer through a USB to UART bridge chip.
 - SX1276 LoRa module and antennas
 - SP3485 RS485 transceiver on the meter node
 - An MQTT broker
-
-RS485 pins come from `loadModbusRtuConfig()` in `lib/node_config/node_config.cpp`:
-`RX 8`, `TX 9`, `DE/RE 10`, at 9600 baud `SERIAL_8N1`.
-
-LoRa pins are identical in the substation and gateway and are still `#define`d
-separately in each file rather than shared: `SCK 4`, `MISO 5`, `MOSI 6`, `SS 7`,
-`RST 3`, `DIO0 1`.
-
-## `secrets.h` Configuration
-
-The firmware expects `lib/config/secrets/secrets.h`:
-
-```cpp
-#define SECRET_WIFI_SSID "Damian7777"
-#define SECRET_WIFI_PASS "87654321"
-
-#define SECRET_MQTT_SERVER "broker.hivemq.com"
-#define SECRET_MQTT_PORT 1883
-#define SECRET_MQTT_TOPIC "qut_ems_project_888/ems/ZoneA/meters"
-#define SECRET_MAC {0xF0, 0x24, 0xF9, 0x93, 0x04, 0x5C}
-#define SECRET_LORA_BAND 433E6 // 915E6
-
-#define SECRET_AP_SSID "kaizen-rs485"
-#define SECRET_AP_PASS "kaizen123"      // WPA2 minimum is 8 chars
-#define SECRET_MODBUS_SIM_HOST "192.168.4.2"   // was 192.168.1.100
-#define SECRET_MODBUS_SIM_PORT 5020
-
-```
-
-- Contains WIFI configurations for a substation
-- Contains configurations for LoRa and MQTT
-- Contains configurations for Modbus over TCP
 
 ## Payload Format
 
@@ -305,35 +226,3 @@ values that change on every poll. These addresses match the
 See `ModbusSim/README.md` for venv setup, how to poll with
 `python3 -m pymodbus.console`, and the `socat` null-modem recipe for the serial
 variant.
-
-## Troubleshooting
-
-**ESP-NOW send fails.** Check `SECRET_MAC` is the substation's MAC. Confirm both
-devices are powered and on the same channel. `EspNowConfig::channel` of 0 means
-"use whatever the interface is already on", so if one side pins a channel and the
-other does not, delivery fails silently until the send timeout.
-
-**Modbus response incomplete or CRC mismatch.** Confirm baud rate and
-`SerialConfig` match the meter, since T3.5 is derived from them. Check the DE/RE
-pin is wired to `cfg.bus.dere` (GPIO 10 by default). Point the node at
-`ModbusSim` first to separate a protocol problem from a wiring problem.
-
-**Readings are 1000x off.** `RegisterFormat` in `loadModbusRtuConfig()` is set to
-`ScaledInt`, which divides the raw 32-bit value by 1000. Meters that publish IEEE
-754 floats need `IEEE_754Float`.
-
-**LoRa receive size mismatch.** Confirm every device was built from the same
-`shared_payload.h`, and that both LoRa devices use the same `SECRET_LORA_BAND`.
-Rebuild and reflash all environments after any payload change.
-
-**MQTT does not connect.** Check the server and port, confirm the broker accepts
-anonymous connections, and avoid wildcard characters such as `+` in the publish
-topic.
-
-**No serial output from the gateway.** Expected on native USB with the legacy
-`gateway` environment, which is built without USB CDC. Use `unified` instead, or
-an external USB-to-serial adapter, or add the two `ARDUINO_USB_*` build flags.
-
-**Nothing on serial right after boot.** The `unified` build prints its banner
-immediately, before USB CDC has enumerated, so the first lines are easy to miss.
-Attach the monitor before resetting the board.
