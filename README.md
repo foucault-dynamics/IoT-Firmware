@@ -39,8 +39,6 @@ flowchart TD
         E["http_bus (Module)"] --> R3["http_reader"]
     end
 
-    W["Wifi (Transmitter)"]
-
     rs485 -->|"ESP-NOW"| S["Substation / relay"]
     ir -->|"ESP-NOW"| S
     cv -->|"ESP-NOW"| S
@@ -49,18 +47,15 @@ flowchart TD
 
     classDef working fill:#d4edda,stroke:#28a745,color:#000
     classDef untested fill:#fff3cd,stroke:#e0a800,color:#000
-    classDef pending fill:#e2e3e5,stroke:#6c757d,color:#000
 
     class A,B,R1,E,R3,S,G,M working
     class C,D,R2 untested
-    class W pending
 ```
 
 | Colour | Meaning |
 |---|---|
 | Green | Works (RS485 and CV paths tested, ESP-NOW, LoRa and MQTT working) |
 | Yellow | Untested (IR path) |
-| Grey | Implemented, not yet called (Wifi transmitter) |
 
 ## Architecture
 
