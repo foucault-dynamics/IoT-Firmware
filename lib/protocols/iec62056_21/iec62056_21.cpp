@@ -12,9 +12,12 @@ namespace {
 constexpr unsigned long ID_TIMEOUT_MS = 2000;
 /** How long to wait for the full data block after the ACK, in ms. */
 constexpr unsigned long DATA_TIMEOUT_MS = 3000;
+/** How long to wait for the ETX and BCC after the data block's "!\r\n", in ms. */
 constexpr unsigned long BCC_TIMEOUT_MS = 500;
 
+/** Start of text, the first byte of a framed data block. */
 constexpr char STX = 0x02;
+/** End of text, sent after the data block's "!\r\n" and before the BCC. */
 constexpr char ETX = 0x03;
 }  // namespace
 
