@@ -20,7 +20,7 @@
  * uses.
  *
  * @todo Not usable until the EE team's circuit exists. Until then the IR node
- *       uses SimulatedIrHead, see IrNodeConfig::simulate.
+ *       uses SimulatedIrHead or TcpIrHead, see IrNodeConfig::headMode.
  */
 class RealIrHead : public IrHead {
  private:
@@ -28,13 +28,14 @@ class RealIrHead : public IrHead {
   uint8_t TX;                 ///< UART TX GPIO.
   uint32_t baudRate;          ///< Current rate in baud, changed by setBaudRate().
   SerialConfig serialConfig;  ///< Frame format, 7E1 for IEC 62056-21.
+  bool invert;                ///< Flip RX and TX polarity, see IrConfig::invert.
   HardwareSerial *serial;     ///< UART the converter is wired to.
 
  public:
   /**
    * Stores the pins and UART. The UART is not started until init().
    *
-   * @param[in] config  Pins, starting baud rate and frame format.
+   * @param[in] config  Pins, starting baud rate, frame format and polarity.
    * @param[in] serial  Hardware UART the converter is wired to. Must outlive
    *                    this object.
    */

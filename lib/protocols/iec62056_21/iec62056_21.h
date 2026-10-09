@@ -34,6 +34,15 @@ class Iec6205621Reader : public Reader {
    */
   Iec62056Config config;
 
+  /**
+   * Rate #head is at right now.
+   *
+   * A session ends at the negotiated rate, but the meter drops back to 300, so
+   * the next handshake switches back first. Tracked so a head already at 300
+   * is not retuned for nothing.
+   */
+  uint32_t currentBaud = 0;
+
   float cachedExport = 0.0f;  ///< Export reading from the last get_import().
   bool exportValid = false;   ///< True once get_import() has filled #cachedExport this cycle.
 
@@ -47,15 +56,42 @@ class Iec6205621Reader : public Reader {
   String readUntil(const char *terminator, unsigned long timeoutMs);
 
   /**
+   * Reads an exact number of bytes from #head, or fewer if time runs out.
+   *
+   * @param[out] out        Buffer for at least @p count bytes.
+   * @param[in]  count      Bytes wanted.
+   * @param[in]  timeoutMs  Longest time to keep reading, in ms.
+   * @return How many bytes were read.
+   */
+  size_t readBytes(uint8_t *out, size_t count, unsigned long timeoutMs);
+
+  /**
+   * Reads and checks the ETX and BCC that close a framed data block.
+   *
+   * readUntil() stops at "!\r\n", which leaves ETX and BCC waiting. Reading
+   * them here stops them turning up at the start of the next identification
+   * message. Unframed blocks (no STX, as SimulatedIrHead sends) pass with
+   * nothing to check.
+   *
+   * @param[in] block  Data block as returned by readUntil().
+   * @retval true   Unframed, or framed with a matching BCC.
+   * @retval false  ETX missing or the BCC does not match.
+   */
+  bool checkFrame(const String &block);
+
+  /**
    * Finds an OBIS code in a data block and parses the number after it.
    *
-   * OBIS lines look like "1-0:1.8.0(001234.567*kWh)".
+   * OBIS lines look like "1-0:1.8.0(001234.567*kWh)". The bracket must follow
+   * the code directly, and the number must run up to the '*' before the unit
+   * or the closing bracket.
    *
    * @param[in]  block     Data block from the meter.
    * @param[in]  obisCode  Code to look for, e.g. "1-0:1.8.0".
-   * @param[out] out       Parsed value. Untouched if the code is missing.
+   * @param[out] out       Parsed value. Untouched on failure.
    * @retval true   Found and parsed.
-   * @retval false  The code or its opening bracket was not in the block.
+   * @retval false  The code is missing, has no bracket straight after it, or
+   *                its value is not a number.
    */
   static bool parseObisFloat(const String &block, const char *obisCode,
                               float &out);
@@ -76,8 +112,10 @@ class Iec6205621Reader : public Reader {
   /**
    * Runs the wake up handshake and switches to the meter's offered baud rate.
    *
-   * Sends the request message, reads the meter's identification message, ACKs
-   * the baud rate it offered, then retunes #head to that rate.
+   * Drops #head back to the starting rate and clears anything left over, sends
+   * the request message, reads the meter's identification message (skipping
+   * an echo of the request), ACKs the baud rate it offered, then retunes #head
+   * to that rate.
    *
    * @param[out] negotiatedBaud  Rate both sides switched to. Untouched on
    *                             failure.
@@ -99,7 +137,8 @@ class Iec6205621Reader : public Reader {
   /**
    * Attaches the IR head and initialises it.
    *
-   * @param[in] module  Must be an IrHead (RealIrHead or SimulatedIrHead),
+   * @param[in] module  Must be an IrHead (RealIrHead, SimulatedIrHead or
+   *                    TcpIrHead),
    *                    because the protocol changes the baud rate mid session.
    * @retval EXIT_SUCCESS  Always.
    */
@@ -113,8 +152,8 @@ class Iec6205621Reader : public Reader {
    *
    * @param[out] val  Imported energy in kWh. Untouched on failure.
    * @retval EXIT_SUCCESS  @p val holds a fresh reading.
-   * @retval EXIT_FAILURE  Handshake failed, no data block, or an OBIS code
-   *                       was missing.
+   * @retval EXIT_FAILURE  Handshake failed, no data block, a bad ETX or BCC,
+   *                       or an OBIS code was missing.
    */
   int get_import(float *val) override;
 

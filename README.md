@@ -172,6 +172,12 @@ Project_Kaizen/
 │   ├── ModbusSimTCP.py
 │   ├── poll_test.py
 │   └── README.md
+├── IrSim/
+│   ├── IrSimSerial.py
+│   ├── IrSimTCP.py
+│   ├── ir_poll_test.py
+│   ├── native/
+│   └── README.md
 ├── test/
 │   ├── support/             FakeBus, shared by the driver tests
 │   ├── test_qemu_*/         unit tests run in QEMU
@@ -259,3 +265,19 @@ values that change on every poll. These addresses match the
 See `ModbusSim/README.md` for venv setup, how to poll with
 `python3 -m pymodbus.console`, and the `socat` null-modem recipe for the serial
 variant.
+
+## IR Simulator
+
+`IrSim/` is the IR counterpart: a fake IEC 62056-21 mode C meter in plain
+Python, with import and export kWh that go up on every read.
+
+- `IrSimTCP.py` serves the optical port's bytes over TCP on `0.0.0.0:5021`. The
+  IR node reaches it through `TcpIrHead` with `set simulate 2`.
+- `IrSimSerial.py` serves them on a serial port at 300 baud 7E1, switching baud
+  rate like a real meter, for testing `RealIrHead` through a USB to serial
+  adapter.
+- `ir_poll_test.py` reads either one the way the firmware does.
+- `native/run.sh` builds the firmware's real `Iec6205621Reader` for the laptop
+  and runs it against fake meters, no board needed.
+
+See `IrSim/README.md` for each way of testing, from laptop only up to the PCB.

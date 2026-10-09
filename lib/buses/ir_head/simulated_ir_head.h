@@ -25,7 +25,7 @@ class SimulatedIrHead : public IrHead {
     SENDING_ID,        ///< Playing back the identification message.
     AWAITING_ACK,      ///< Waiting for the ACK that selects the baud rate.
     SENDING_DATA,      ///< Playing back the data block.
-    DONE               ///< Session finished. Needs init() to start again.
+    DONE               ///< Session finished. The next request starts over.
   };
   State state = AWAITING_REQUEST;  ///< Current session step.
 
@@ -51,8 +51,9 @@ class SimulatedIrHead : public IrHead {
   /**
    * Inspects what the reader sent and queues the meter's reply.
    *
-   * The request message queues the identification message, and an ACK queues
-   * the data block. Anything else is ignored.
+   * The request message queues the identification message from any state, as
+   * on a real meter, and an ACK queues the data block. Anything else is
+   * ignored.
    *
    * @param[in] data  Bytes the reader sent.
    * @param[in] len   Number of bytes in @p data.

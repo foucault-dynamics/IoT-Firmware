@@ -76,11 +76,16 @@ node type's firmware image against its NVS namespace.
 |---|---|---|---|
 | `comm_id` | uint | `0` | Community code (goes out in the payload) |
 | `unit_id` | uint | `0` | Unit code (goes out in the payload) |
-| `simulate` | uint (bool) | `1` | Use `SimulatedIrHead` instead of `RealIrHead` (real circuit doesn't exist yet) |
+| `simulate` | uint | `1` | `IrHeadMode`: `0` = `RealIrHead` (UART pins), `1` = `SimulatedIrHead` (canned replies), `2` = `TcpIrHead` (`IrSim/IrSimTCP.py` over WiFi) |
+| `ap_ssid` | string | `SECRET_AP_SSID` | SoftAP SSID (`simulate 2` only) |
+| `ap_pass` | string | `SECRET_AP_PASS` | SoftAP password (`simulate 2` only) |
 | `espnow_chan` | uint | `6` | ESP-NOW channel |
 | `espnow_to_ms` | uint | `100` | ESP-NOW send timeout (ms) |
 | `sub_mac` | string (MAC) | `SECRET_MAC` | Substation MAC |
 | `poll_ms` | uint | `60000` | Meter poll interval (ms) |
+| `tcp_host` | string | `SECRET_MODBUS_SIM_HOST` | IR simulator host (`simulate 2` only) |
+| `tcp_port` | uint | `5021` | IR simulator port (`simulate 2` only) |
+| `ir_invert` | uint (bool) | `1` | Invert the IR UART's RX/TX. `1` for the IR circuit (light ON reads HIGH), `0` for a USB-serial adapter wired straight to the pins |
 
 Note: the optical port's bus pins, baud rate (300) and framing (7E1) are
 hardcoded in `loadIrNodeConfig()`, not NVS keys -- the starting baud and

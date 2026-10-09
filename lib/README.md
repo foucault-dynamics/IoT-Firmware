@@ -219,6 +219,32 @@ node, keyed by UID, so readings are held until the gateway acknowledges them.
 `readingBufferPush()`, `readingBufferPeek()`, `readingBufferPop()`,
 `readingBufferCount()`.
 
+### `ir_head/`
+
+`IrHead : Module`, plus `setBaudRate()`, because IEC 62056-21 opens at 300 baud
+and switches to the meter's offered rate for the data block. Three heads:
+
+- `RealIrHead` is the EE team's UART to IR circuit on `Serial1`, 7E1, with
+  RX/TX optionally inverted (`ir_invert`) since the circuit reads light ON as
+  HIGH. Pins come from the `IR_probe_signal_testing` rig and still need
+  checking against the PCB.
+- `SimulatedIrHead` plays back a canned EM211 session with no wires at all.
+- `TcpIrHead` carries the same bytes over `TcpBus` to `IrSim/IrSimTCP.py`, the
+  IR counterpart of `ModbusSim/ModbusSimTCP.py`.
+
+The IR node picks one with the `simulate` NVS key (0, 1, 2).
+
+### `iec62056_21/`
+
+`Iec6205621Reader : Reader`. IEC 62056-21 mode C: drops the head back to 300
+baud, sends `/?!`, reads the identification message, ACKs the offered baud rate,
+switches, then reads the data block and checks its ETX and BCC. Import (1.8.0)
+and export (2.8.0) come from one session, so `get_import()` reads the block and
+caches the export for `get_export()`. `get_voltage()` always fails for now.
+
+Developed against `IrSim/` and `SimulatedIrHead`. Not yet tested against real
+hardware.
+
 ## Work in progress
 
 Neither of these is included by any built source, so neither is compiled.
@@ -234,15 +260,6 @@ The logic is written, but it needs `TcpBusConfig`, which exists on the `RS485`
 branch and not on `main`. It will not compile until that struct is merged.
 
 ## Not started
-
-### `ir_head/`
-
-Header only, and it declares nothing. Intended to be an `IrHead : Module` for the
-optical probe on the meter's front panel. Many meters expose the same register
-map over the optical port as over RS485, so `ModbusRtuReader` should run on it
-unchanged once it exists. Needs `pin_config.h`, which is on the `ir-module`
-branch, along with a working IR stack (`lib/iec62056_21/`, real and simulated
-heads) that should be ported here.
 
 ### `esp32cam/`
 

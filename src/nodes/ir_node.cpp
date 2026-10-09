@@ -2,7 +2,7 @@
  * @file
  * IR meter node: reads the meter's optical port with IEC 62056-21 mode C.
  *
- * An IrHead (RealIrHead or SimulatedIrHead) is the Module, and
+ * An IrHead (RealIrHead, SimulatedIrHead or TcpIrHead) is the Module, and
  * Iec6205621Reader is the Reader on top of it. One handshake and data block
  * read yields a complete reading, so this follows cv_node.cpp's single poll per
  * cycle shape rather than rs485_node.cpp's state machine.
@@ -15,6 +15,7 @@
 #include "shared_payload.h"
 #include "real_ir_head.h"
 #include "simulated_ir_head.h"
+#include "tcp_ir_head.h"
 #include "module.h"
 #include "ir_config.h"
 #include "nvs_config.h"
@@ -23,6 +24,7 @@
 #include "seq_counter.h"
 #include "iec62056_21.h"
 #include "esp_now_uplink.h"
+#include "wifi_radio.h"
 
 static EspNowUplink *uplink = nullptr;  ///< Link to the substation.
 
@@ -37,6 +39,14 @@ static bool readerReady = false;    ///< True once setup fully succeeded.
 
 void irNodeSetup() {
   cfg = loadIrNodeConfig();
+
+  // TcpSim: the laptop running IrSimTCP.py joins this softAP, same as the
+  // RS485 node's ModbusTCP mode.
+  if (cfg.headMode == IrHeadMode::TcpSim
+      && !wifiRadioStartAp(cfg.ap, cfg.espNow.channel)) {
+    Serial.println("[IR] SoftAP bring-up failed, idling");
+    return;
+  }
 
   uplink = new EspNowUplink(cfg.espNow);
   if (uplink->init() != EXIT_SUCCESS) {
@@ -55,12 +65,26 @@ void irNodeSetup() {
 
   // Real hardware doesn't exist yet (EE team's UART to IR circuit), so
   // this defaults to simulated. See loadIrNodeConfig()'s "simulate" key.
-  bus = cfg.simulate
-      ? static_cast<Module *>(new SimulatedIrHead())
-      : static_cast<Module *>(new RealIrHead(cfg.iec.bus, Serial1));
+  switch (cfg.headMode) {
+  case IrHeadMode::Real:
+    bus = new RealIrHead(cfg.iec.bus, Serial1);
+    break;
+  case IrHeadMode::TcpSim:
+    bus = new TcpIrHead(cfg.tcp);
+    break;
+  case IrHeadMode::Simulated:
+  default:
+    bus = new SimulatedIrHead();
+    break;
+  }
   if (bus->init() != EXIT_SUCCESS) {
-    Serial.println("[IR] IR head init failed.");
-    return;
+    if (cfg.headMode != IrHeadMode::TcpSim) {
+      Serial.println("[IR] IR head init failed.");
+      return;
+    }
+    // The laptop may not have joined the softAP yet. TcpBus reconnects on
+    // every send(), so carry on and let the poll loop retry.
+    Serial.println("[IR] IR sim not reachable yet, will retry each poll.");
   }
 
   reader = new Iec6205621Reader(cfg.iec);

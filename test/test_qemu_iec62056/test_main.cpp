@@ -7,8 +7,8 @@
  * FakeBus.
  *
  * test_obis_rejects_non_numeric_value and
- * test_obis_missing_bracket_does_not_borrow_next_line assert the intended
- * behaviour of two known parser bugs and fail until those bugs are fixed.
+ * test_obis_missing_bracket_does_not_borrow_next_line guard against two fixed
+ * parser bugs.
  */
 
 #include <Arduino.h>
@@ -190,7 +190,7 @@ void test_obis_missing_unit() {
 /**
  * Non numeric content in the brackets is rejected.
  *
- * Known bug: String::toFloat() returns 0 for garbage, which is accepted.
+ * Regression: String::toFloat() returned 0 for garbage, which was accepted.
  */
 void test_obis_rejects_non_numeric_value() {
   assertObisMissing("1-0:1.8.0(abc*kWh)\r\n", "1-0:1.8.0");
@@ -199,8 +199,8 @@ void test_obis_rejects_non_numeric_value() {
 /**
  * A code with no bracket on its own line does not take the next line's value.
  *
- * Known bug: the search for '(' runs past the end of the line, so the import
- * reading below would be read as 45.123.
+ * Regression: the search for '(' ran past the end of the line, so the import
+ * reading below was read as 45.123.
  */
 void test_obis_missing_bracket_does_not_borrow_next_line() {
   assertObisMissing("1-0:1.8.0\r\n1-0:2.8.0(000045.123*kWh)\r\n", "1-0:1.8.0");
