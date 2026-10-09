@@ -51,6 +51,51 @@ class DlmsCosemReader : public Reader {
   DlmsCosemConfig config;  ///< Addresses, OBIS codes and bus settings.
   HdlcAddress client{};    ///< Encoded client SAP, set by init().
   HdlcAddress server{};    ///< Encoded server address, set by init().
+  uint8_t vs = 0;          ///< V(S), N(S) of the next I-frame sent, mod 8.
+  uint8_t vr = 0;          ///< V(R), N(S) expected in the next I-frame received, mod 8.
+
+  /**
+   * Opens the HDLC link with SNRM and resets both sequence counters.
+   *
+   * The counters are only reset once the meter answers UA, since a refused
+   * SNRM changes nothing on the meter.
+   *
+   * @retval EXIT_SUCCESS  The link is up.
+   * @retval EXIT_FAILURE  The meter answered DM, something else, or nothing.
+   */
+  int connect();
+
+  /**
+   * Closes the HDLC link with DISC.
+   *
+   * @retval EXIT_SUCCESS  The meter answered UA, or DM because it was already
+   *                       disconnected.
+   * @retval EXIT_FAILURE  The send failed, or the meter answered something
+   *                       else or nothing.
+   */
+  int disconnect();
+
+  /**
+   * Builds a frame from this client to the server and sends it.
+   *
+   * @param[in] control  Control byte.
+   * @param[in] info     Info field, nullptr when @p infoLen is 0.
+   * @param[in] infoLen  Length of @p info.
+   * @retval EXIT_SUCCESS  The frame was sent.
+   * @retval EXIT_FAILURE  The frame could not be built or sent.
+   */
+  int sendFrame(uint8_t control, const uint8_t *info, size_t infoLen);
+
+  /**
+   * Reads one frame, checks it, and checks it is from the server to this
+   * client.
+   *
+   * @param[out] buf    At least HDLC_FRAME_MAX bytes, holds the raw frame.
+   * @param[out] frame  Parsed frame, its info pointing into @p buf.
+   * @retval EXIT_SUCCESS  @p frame holds a valid frame for this client.
+   * @retval EXIT_FAILURE  Timed out, malformed, or addressed elsewhere.
+   */
+  int receive(uint8_t *buf, HdlcFrame *frame);
 
   /**
    * Reads one HDLC frame, skipping noise and idle flags before it.

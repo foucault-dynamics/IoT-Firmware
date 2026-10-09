@@ -4,7 +4,8 @@
  *
  * Covers reading HDLC frames off the bus: skipping noise and idle flags,
  * trusting the length field over flags inside the frame, replies split across
- * reads, and the 1000 ms timeout. millis() runs in real time under QEMU, so the
+ * reads, and the 1000 ms timeout. Then opening and closing the link: the exact
+ * SNRM and DISC sent, which replies are accepted, and the sequence reset. millis() runs in real time under QEMU, so the
  * timeouts are real.
  */
 
@@ -29,6 +30,50 @@ class DlmsCosemReaderTest {
    * @return What readFrame() returned.
    */
   static int readFrame(DlmsCosemReader &r, uint8_t *buf, size_t *len) { return r.readFrame(buf, len); }
+
+  /**
+   * Calls DlmsCosemReader::connect().
+   *
+   * @param[in] r  Reader to call it on.
+   * @return What connect() returned.
+   */
+  static int connect(DlmsCosemReader &r) { return r.connect(); }
+
+  /**
+   * Calls DlmsCosemReader::disconnect().
+   *
+   * @param[in] r  Reader to call it on.
+   * @return What disconnect() returned.
+   */
+  static int disconnect(DlmsCosemReader &r) { return r.disconnect(); }
+
+  /**
+   * Sets DlmsCosemReader::vs and DlmsCosemReader::vr.
+   *
+   * @param[in] r   Reader to change.
+   * @param[in] vs  New V(S).
+   * @param[in] vr  New V(R).
+   */
+  static void setSequence(DlmsCosemReader &r, uint8_t vs, uint8_t vr) {
+    r.vs = vs;
+    r.vr = vr;
+  }
+
+  /**
+   * Reads DlmsCosemReader::vs.
+   *
+   * @param[in] r  Reader to read it from.
+   * @return V(S).
+   */
+  static uint8_t vs(const DlmsCosemReader &r) { return r.vs; }
+
+  /**
+   * Reads DlmsCosemReader::vr.
+   *
+   * @param[in] r  Reader to read it from.
+   * @return V(R).
+   */
+  static uint8_t vr(const DlmsCosemReader &r) { return r.vr; }
 };
 
 namespace {
@@ -93,6 +138,55 @@ void assertReads(FakeBus &bus, const std::vector<uint8_t> &expected) {
   TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, readFrom(bus, frame));
   TEST_ASSERT_EQUAL_UINT(expected.size(), frame.size());
   TEST_ASSERT_EQUAL_HEX8_ARRAY(expected.data(), frame.data(), expected.size());
+}
+
+/** SNRM from client 16 to server 1, from the trace. */
+const std::vector<uint8_t> SNRM = {0x7E, 0xA0, 0x07, 0x03, 0x21, 0x93, 0x0F, 0x01, 0x7E};
+
+/** DISC from client 16 to server 1, from the trace. */
+const std::vector<uint8_t> DISC = {0x7E, 0xA0, 0x07, 0x03, 0x21, 0x53, 0x03, 0xC7, 0x7E};
+
+/**
+ * Builds a reply frame with no info field.
+ *
+ * @param[in] control  Control byte.
+ * @param[in] logical  Server logical address the reply comes from.
+ * @param[in] sap      Client SAP the reply is addressed to.
+ * @return The frame, FCS included.
+ */
+std::vector<uint8_t> reply(uint8_t control, uint16_t logical = 1, uint8_t sap = 16) {
+  HdlcAddress dest;
+  HdlcAddress src;
+  hdlcAddress(sap, 0, 1, &dest);
+  hdlcAddress(logical, 0, 1, &src);
+  uint8_t buf[HDLC_FRAME_MAX];
+  size_t len = 0;
+  hdlcBuildFrame(&dest, &src, control, nullptr, 0, buf, &len);
+  return std::vector<uint8_t>(buf, buf + len);
+}
+
+/**
+ * Checks that the reader sent exactly one expected frame.
+ *
+ * @param[in] bus       Bus the reader sent on.
+ * @param[in] expected  The frame.
+ */
+void assertSentOnly(const FakeBus &bus, const std::vector<uint8_t> &expected) {
+  TEST_ASSERT_EQUAL_UINT(1, bus.sent.size());
+  TEST_ASSERT_EQUAL_UINT(expected.size(), bus.sent[0].size());
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(expected.data(), bus.sent[0].data(), expected.size());
+}
+
+/**
+ * Runs connect() against one scripted reply.
+ *
+ * @param[in] bus     Bus with the reply queued.
+ * @param[in] reader  Reader to connect, init() is called on @p bus.
+ * @return What connect() returned.
+ */
+int connectWith(FakeBus &bus, DlmsCosemReader &reader) {
+  reader.init(bus);
+  return DlmsCosemReaderTest::connect(reader);
 }
 
 }  // namespace
@@ -168,6 +262,100 @@ void test_read_partial_frame_times_out() {
   TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, readFrom(bus, frame));
 }
 
+/** connect() sends exactly the SNRM from the trace. */
+void test_connect_sends_snrm() {
+  FakeBus bus;
+  bus.queueReply(reply(HDLC_UA));
+  DlmsCosemReader reader(makeConfig());
+  connectWith(bus, reader);
+  assertSentOnly(bus, SNRM);
+}
+
+/** A UA opens the link. */
+void test_connect_accepts_ua() {
+  FakeBus bus;
+  bus.queueReply(UA);
+  DlmsCosemReader reader(makeConfig());
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, connectWith(bus, reader));
+}
+
+/** A UA resets both sequence counters. */
+void test_connect_resets_sequence() {
+  FakeBus bus;
+  bus.queueReply(UA);
+  DlmsCosemReader reader(makeConfig());
+  DlmsCosemReaderTest::setSequence(reader, 3, 5);
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, connectWith(bus, reader));
+  TEST_ASSERT_EQUAL_UINT8(0, DlmsCosemReaderTest::vs(reader));
+  TEST_ASSERT_EQUAL_UINT8(0, DlmsCosemReaderTest::vr(reader));
+}
+
+/** A DM refuses the link and leaves the counters alone. */
+void test_connect_rejects_dm() {
+  FakeBus bus;
+  bus.queueReply(reply(HDLC_DM));
+  DlmsCosemReader reader(makeConfig());
+  DlmsCosemReaderTest::setSequence(reader, 3, 5);
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, connectWith(bus, reader));
+  TEST_ASSERT_EQUAL_UINT8(3, DlmsCosemReaderTest::vs(reader));
+  TEST_ASSERT_EQUAL_UINT8(5, DlmsCosemReaderTest::vr(reader));
+}
+
+/** A UA from another server is not ours. */
+void test_connect_rejects_wrong_server() {
+  FakeBus bus;
+  bus.queueReply(reply(HDLC_UA, 2));
+  DlmsCosemReader reader(makeConfig());
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, connectWith(bus, reader));
+}
+
+/** A UA addressed to another client is not ours. */
+void test_connect_rejects_wrong_client() {
+  FakeBus bus;
+  bus.queueReply(reply(HDLC_UA, 1, 17));
+  DlmsCosemReader reader(makeConfig());
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, connectWith(bus, reader));
+}
+
+/** A UA with a bad FCS is rejected. */
+void test_connect_rejects_corrupt_ua() {
+  std::vector<uint8_t> corrupt = UA;
+  corrupt[7] ^= 0xFF;
+  FakeBus bus;
+  bus.queueReply(corrupt);
+  DlmsCosemReader reader(makeConfig());
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, connectWith(bus, reader));
+}
+
+/** A meter that never answers the SNRM fails after the timeout. */
+void test_connect_rejects_silence() {
+  FakeBus bus;
+  bus.queueSilence();
+  DlmsCosemReader reader(makeConfig());
+  uint32_t start = millis();
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, connectWith(bus, reader));
+  TEST_ASSERT_GREATER_OR_EQUAL_UINT32(DLMS_TIMEOUT, millis() - start);
+}
+
+/** disconnect() sends exactly the DISC from the trace, and a UA closes the link. */
+void test_disconnect_sends_disc() {
+  FakeBus bus;
+  bus.queueReply(UA);
+  DlmsCosemReader reader(makeConfig());
+  reader.init(bus);
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, DlmsCosemReaderTest::disconnect(reader));
+  assertSentOnly(bus, DISC);
+}
+
+/** A DM to DISC means already disconnected, which is still success. */
+void test_disconnect_accepts_dm() {
+  FakeBus bus;
+  bus.queueReply(reply(HDLC_DM));
+  DlmsCosemReader reader(makeConfig());
+  reader.init(bus);
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, DlmsCosemReaderTest::disconnect(reader));
+}
+
 /** Runs every test once the serial port is up. */
 void setup() {
   delay(500);
@@ -179,6 +367,16 @@ void setup() {
   RUN_TEST(test_read_split_across_chunks);
   RUN_TEST(test_read_silence_times_out);
   RUN_TEST(test_read_partial_frame_times_out);
+  RUN_TEST(test_connect_sends_snrm);
+  RUN_TEST(test_connect_accepts_ua);
+  RUN_TEST(test_connect_resets_sequence);
+  RUN_TEST(test_connect_rejects_dm);
+  RUN_TEST(test_connect_rejects_wrong_server);
+  RUN_TEST(test_connect_rejects_wrong_client);
+  RUN_TEST(test_connect_rejects_corrupt_ua);
+  RUN_TEST(test_connect_rejects_silence);
+  RUN_TEST(test_disconnect_sends_disc);
+  RUN_TEST(test_disconnect_accepts_dm);
   UNITY_END();
 }
 

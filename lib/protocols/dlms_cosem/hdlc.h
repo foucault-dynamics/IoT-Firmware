@@ -17,6 +17,16 @@
 #define HDLC_FLAG 0x7E
 /** High byte of the format field: type A, no segmentation, before the length. */
 #define HDLC_FORMAT_TYPE_A 0xA0
+/** Poll/final bit of the control byte. */
+#define HDLC_PF 0x10
+/** Set Normal Response Mode, with the poll bit. */
+#define HDLC_SNRM 0x93
+/** Disconnect, with the poll bit. */
+#define HDLC_DISC 0x53
+/** Unnumbered Acknowledge, with the final bit. */
+#define HDLC_UA 0x73
+/** Disconnected Mode, with the final bit. */
+#define HDLC_DM 0x1F
 
 /**
  * An encoded HDLC address field, ready to copy into a frame. Every byte holds
