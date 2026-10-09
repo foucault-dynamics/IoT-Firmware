@@ -121,6 +121,28 @@ class DlmsCosemReader : public Reader {
   int exchange(const uint8_t *apdu, size_t apduLen, uint8_t *resp, size_t *respLen);
 
   /**
+   * Builds the AARQ APDU: Logical Name referencing, no ciphering, no
+   * authentication, only GET proposed, and DLMS_APDU_MAX as the largest PDU
+   * this client receives.
+   *
+   * @param[out] out  At least DLMS_APDU_MAX bytes.
+   * @return Length of the AARQ written to @p out.
+   */
+  size_t buildAarq(uint8_t *out);
+
+  /**
+   * Checks an AARE APDU. Walks its BER fields with every length bounds
+   * checked, and logs the result source diagnostic when the association was
+   * rejected.
+   *
+   * @param[in] apdu  AARE APDU, without LLC.
+   * @param[in] len   Length of @p apdu.
+   * @retval EXIT_SUCCESS  Association accepted with an xDLMS InitiateResponse.
+   * @retval EXIT_FAILURE  Malformed, rejected, or the xDLMS initiate failed.
+   */
+  int checkAare(const uint8_t *apdu, size_t len);
+
+  /**
    * Reads one HDLC frame, skipping noise and idle flags before it.
    *
    * Hunts for a flag followed by a type A format field, then reads as many

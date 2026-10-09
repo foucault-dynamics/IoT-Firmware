@@ -13,6 +13,31 @@ namespace {
 const uint8_t LLC_SEND[DLMS_LLC_LEN] = {0xE6, 0xE6, 0x00};
 const uint8_t LLC_RECV[DLMS_LLC_LEN] = {0xE6, 0xE7, 0x00};
 
+const uint8_t AARQ[] = {
+  0x60, 0x1D,
+  0xA1, 0x09, 0x06, 0x07, 0x60, 0x85, 0x74, 0x05, 0x08, 0x01, 0x01,
+  0xBE, 0x10, 0x04, 0x0E,
+  0x01, 0x00, 0x00, 0x00, 0x06,
+  0x5F, 0x1F, 0x04, 0x00, 0x00, 0x00, 0x10,
+  DLMS_APDU_MAX >> 8, DLMS_APDU_MAX & 0xFF,
+};
+
+int readBerLength(const uint8_t *buf, size_t end, size_t *pos, size_t *len){
+  if(*pos >= end){
+    return EXIT_FAILURE;
+  }
+  uint8_t first = buf[(*pos)++];
+  if(first < 0x80){
+    *len = first;
+    return EXIT_SUCCESS;
+  }
+  if(first == 0x81 && *pos < end){
+    *len = buf[(*pos)++];
+    return EXIT_SUCCESS;
+  }
+  return EXIT_FAILURE;
+}
+
 bool sameAddress(const HdlcAddress &a, const HdlcAddress &b){
   return a.len == b.len && memcmp(a.bytes, b.bytes, a.len) == 0;
 }
@@ -203,5 +228,63 @@ int DlmsCosemReader::exchange(const uint8_t *apdu, size_t apduLen, uint8_t *resp
   memcpy(resp, frame.info + DLMS_LLC_LEN, *respLen);
   vs = (vs + 1) & 0x07;
   vr = (vr + 1) & 0x07;
+  return EXIT_SUCCESS;
+}
+
+size_t DlmsCosemReader::buildAarq(uint8_t *out){
+  memcpy(out, AARQ, sizeof(AARQ));
+  return sizeof(AARQ);
+}
+
+int DlmsCosemReader::checkAare(const uint8_t *apdu, size_t len){
+  size_t pos = 0;
+  size_t bodyLen = 0;
+  if(len < 2 || apdu[pos++] != 0x61 ||
+     readBerLength(apdu, len, &pos, &bodyLen) != EXIT_SUCCESS || bodyLen > len - pos){
+    Serial.println("[DlmsCosemReader] reply is not a valid AARE");
+    return EXIT_FAILURE;
+  }
+
+  size_t end = pos + bodyLen;
+  int result = -1;
+  int diagnostic = -1;
+  bool initiated = false;
+  while(pos < end){
+    uint8_t tag = apdu[pos++];
+    size_t valueLen = 0;
+    if(readBerLength(apdu, end, &pos, &valueLen) != EXIT_SUCCESS || valueLen > end - pos){
+      Serial.println("[DlmsCosemReader] AARE field runs past its end");
+      return EXIT_FAILURE;
+    }
+    const uint8_t *value = apdu + pos;
+    switch(tag){
+    case 0xA2:
+      if(valueLen == 3 && value[0] == 0x02 && value[1] == 0x01){
+        result = value[2];
+      }
+      break;
+    case 0xA3:
+      if(valueLen == 5 && value[2] == 0x02 && value[3] == 0x01){
+        diagnostic = value[4];
+      }
+      break;
+    case 0xBE:
+      if(valueLen >= 3 && value[0] == 0x04){
+        initiated = value[2] == 0x08;
+      }
+      break;
+    }
+    pos += valueLen;
+  }
+
+  if(result != 0){
+    Serial.printf("[DlmsCosemReader] association rejected, result %d, diagnostic %d\n",
+                  result, diagnostic);
+    return EXIT_FAILURE;
+  }
+  if(!initiated){
+    Serial.println("[DlmsCosemReader] meter accepted the association but not the xDLMS initiate");
+    return EXIT_FAILURE;
+  }
   return EXIT_SUCCESS;
 }

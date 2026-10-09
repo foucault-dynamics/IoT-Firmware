@@ -11,6 +11,8 @@
 #include <cstring>
 #include <unity.h>
 
+#include <vector>
+
 #include "../support/fake_bus.h"
 #include "dlms_cosem.h"
 #include "hdlc.h"
@@ -33,6 +35,26 @@ class DlmsCosemReaderTest {
    * @return The encoded server address init() built.
    */
   static HdlcAddress server(const DlmsCosemReader &r) { return r.server; }
+
+  /**
+   * Calls DlmsCosemReader::buildAarq().
+   *
+   * @param[in]  r    Reader to call it on.
+   * @param[out] out  At least DLMS_APDU_MAX bytes.
+   * @return Length of the AARQ.
+   */
+  static size_t aarq(DlmsCosemReader &r, uint8_t *out) { return r.buildAarq(out); }
+
+  /**
+   * Calls DlmsCosemReader::checkAare().
+   *
+   * @param[in] r     Reader to call it on.
+   * @param[in] apdu  AARE APDU, without LLC.
+   * @return What checkAare() returned.
+   */
+  static int checkAare(DlmsCosemReader &r, const std::vector<uint8_t> &apdu) {
+    return r.checkAare(apdu.data(), apdu.size());
+  }
 };
 
 namespace {
@@ -368,6 +390,83 @@ void test_init_rejects_large_client() {
   TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, reader.init(bus));
 }
 
+namespace {
+
+/**
+ * Returns the accepted AARE APDU from AARE_INFO, without its LLC header.
+ *
+ * @return The APDU.
+ */
+std::vector<uint8_t> aareApdu() {
+  return std::vector<uint8_t>(AARE_INFO + 3, AARE_INFO + sizeof(AARE_INFO));
+}
+
+/**
+ * Runs checkAare() on an APDU.
+ *
+ * @param[in] apdu  AARE APDU, without LLC.
+ * @return What checkAare() returned.
+ */
+int checkAare(const std::vector<uint8_t> &apdu) {
+  DlmsCosemReader reader(makeConfig(0, 1));
+  return DlmsCosemReaderTest::checkAare(reader, apdu);
+}
+
+}  // namespace
+
+/** The AARQ is LN, no ciphering, GET only, and a 125 byte receive PDU. */
+void test_aarq_bytes() {
+  const uint8_t expected[] = {
+      0x60, 0x1D, 0xA1, 0x09, 0x06, 0x07, 0x60, 0x85, 0x74, 0x05, 0x08,
+      0x01, 0x01, 0xBE, 0x10, 0x04, 0x0E, 0x01, 0x00, 0x00, 0x00, 0x06,
+      0x5F, 0x1F, 0x04, 0x00, 0x00, 0x00, 0x10, 0x00, 0x7D};
+  DlmsCosemReader reader(makeConfig(0, 1));
+  uint8_t out[DLMS_APDU_MAX];
+  TEST_ASSERT_EQUAL_UINT(sizeof(expected), DlmsCosemReaderTest::aarq(reader, out));
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, out, sizeof(expected));
+}
+
+/** An AARE with result 0 and an InitiateResponse is accepted. */
+void test_aare_accepted() {
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, checkAare(aareApdu()));
+}
+
+/** An outer length in long form, 81 29, is accepted. */
+void test_aare_accepts_long_form_length() {
+  std::vector<uint8_t> apdu = aareApdu();
+  apdu.insert(apdu.begin() + 1, 0x81);
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, checkAare(apdu));
+}
+
+/** Result 1, rejected permanently, fails. */
+void test_aare_rejected() {
+  std::vector<uint8_t> apdu = aareApdu();
+  apdu[17] = 0x01;
+  apdu[24] = 0x02;
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, checkAare(apdu));
+}
+
+/** Result 0 with a ConfirmedServiceError in place of the InitiateResponse fails. */
+void test_aare_rejects_service_error() {
+  std::vector<uint8_t> apdu = aareApdu();
+  apdu[29] = 0x0E;
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, checkAare(apdu));
+}
+
+/** An AARQ tag where the AARE should be fails. */
+void test_aare_rejects_wrong_tag() {
+  std::vector<uint8_t> apdu = aareApdu();
+  apdu[0] = 0x60;
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, checkAare(apdu));
+}
+
+/** An AARE cut short fails instead of being read past its end. */
+void test_aare_rejects_truncated() {
+  std::vector<uint8_t> apdu = aareApdu();
+  apdu.resize(20);
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, checkAare(apdu));
+}
+
 /** Runs every test once the serial port is up. */
 void setup() {
   delay(500);
@@ -396,6 +495,13 @@ void setup() {
   RUN_TEST(test_init_four_byte_server);
   RUN_TEST(test_init_rejects_size_3);
   RUN_TEST(test_init_rejects_large_client);
+  RUN_TEST(test_aarq_bytes);
+  RUN_TEST(test_aare_accepted);
+  RUN_TEST(test_aare_accepts_long_form_length);
+  RUN_TEST(test_aare_rejected);
+  RUN_TEST(test_aare_rejects_service_error);
+  RUN_TEST(test_aare_rejects_wrong_tag);
+  RUN_TEST(test_aare_rejects_truncated);
   UNITY_END();
 }
 
