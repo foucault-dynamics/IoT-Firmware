@@ -1,14 +1,15 @@
 /**
  * @file
- * Unit tests for Modbus RTU frame encoding, run in QEMU.
+ * Unit tests for Modbus RTU frame encoding and T3.5 timing, run in QEMU.
  *
- * Reaches ModbusRtuReader's private CRC and request builder through the
- * ModbusRtuReaderTest friend class.
+ * Reaches ModbusRtuReader's private CRC, request builder and T3.5 gap through
+ * the ModbusRtuReaderTest friend class.
  */
 
 #include <Arduino.h>
 #include <unity.h>
 
+#include "../support/fake_bus.h"
 #include "modbus_rtu.h"
 
 /** Forwards to ModbusRtuReader's private helpers. */
@@ -32,6 +33,14 @@ class ModbusRtuReaderTest {
    * @param[in]  addr  Start address of the register pair.
    */
   static void request(ModbusRtuReader &r, uint8_t *out, uint16_t addr) { r.build_request(out, addr); }
+
+  /**
+   * Reads ModbusRtuReader::t35_us.
+   *
+   * @param[in] r  Reader to read it from.
+   * @return The T3.5 gap init() worked out, in us.
+   */
+  static uint32_t t35(const ModbusRtuReader &r) { return r.t35_us; }
 };
 
 namespace {
@@ -61,6 +70,38 @@ void assertCrc(const uint8_t *frame, uint8_t lo, uint8_t hi) {
   uint16_t crc = ModbusRtuReaderTest::crc(reader, frame, 6);
   TEST_ASSERT_EQUAL_HEX8(lo, crc & 0xFF);
   TEST_ASSERT_EQUAL_HEX8(hi, crc >> 8);
+}
+
+/**
+ * Runs init() for a bus speed and frame format.
+ *
+ * @param[in]  baud    Bus speed in baud.
+ * @param[in]  format  Frame format, e.g. SERIAL_8N1.
+ * @param[out] t35Us   The T3.5 gap init() worked out, in us.
+ * @return What init() returned.
+ */
+int initWith(uint32_t baud, SerialConfig format, uint32_t &t35Us) {
+  ModbusRtuConfig config = {};
+  config.bus.baudRate = baud;
+  config.bus.format = format;
+  ModbusRtuReader reader(config);
+  FakeBus bus;
+  int result = reader.init(bus);
+  t35Us = ModbusRtuReaderTest::t35(reader);
+  return result;
+}
+
+/**
+ * Checks the T3.5 gap init() works out for a bus speed and frame format.
+ *
+ * @param[in] baud      Bus speed in baud.
+ * @param[in] format    Frame format, e.g. SERIAL_8N1.
+ * @param[in] expected  Expected gap, in us.
+ */
+void assertT35(uint32_t baud, SerialConfig format, uint32_t expected) {
+  uint32_t t35Us = 0;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, initWith(baud, format, t35Us));
+  TEST_ASSERT_EQUAL_UINT32(expected, t35Us);
 }
 
 }  // namespace
@@ -113,6 +154,39 @@ void test_build_request_address_0() {
   TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, out, REQUEST_LEN);
 }
 
+/** 8N1 is 10 bits a character, so 9600 baud gives 3.5 * 10 / 9600 s. */
+void test_t35_9600_8n1() {
+  assertT35(9600, SERIAL_8N1, 3646);
+}
+
+/** 19200 baud is the fastest speed where T3.5 still scales with the rate. */
+void test_t35_19200_8n1() {
+  assertT35(19200, SERIAL_8N1, 1823);
+}
+
+/** Above 19200 baud the spec fixes T3.5 at 1750 us. */
+void test_t35_above_19200_is_fixed() {
+  assertT35(38400, SERIAL_8N1, 1750);
+  assertT35(115200, SERIAL_8N1, 1750);
+}
+
+/** A parity bit makes 8E1 11 bits a character. */
+void test_t35_9600_8e1() {
+  assertT35(9600, SERIAL_8E1, 4010);
+}
+
+/** A second stop bit makes 8N2 11 bits a character. */
+void test_t35_9600_8n2() {
+  assertT35(9600, SERIAL_8N2, 4010);
+}
+
+/** A frame format with no valid stop bit setting fails init(). */
+void test_init_rejects_invalid_stop_bits() {
+  uint32_t t35Us = 0;
+  SerialConfig noStopBits = static_cast<SerialConfig>(SERIAL_8N1 & ~STOP_MASK);
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, initWith(9600, noStopBits, t35Us));
+}
+
 /** Runs every test once the serial port is up. */
 void setup() {
   delay(500);
@@ -123,6 +197,12 @@ void setup() {
   RUN_TEST(test_crc_read_two_registers_at_2);
   RUN_TEST(test_build_request_address_4);
   RUN_TEST(test_build_request_address_0);
+  RUN_TEST(test_t35_9600_8n1);
+  RUN_TEST(test_t35_19200_8n1);
+  RUN_TEST(test_t35_above_19200_is_fixed);
+  RUN_TEST(test_t35_9600_8e1);
+  RUN_TEST(test_t35_9600_8n2);
+  RUN_TEST(test_init_rejects_invalid_stop_bits);
   UNITY_END();
 }
 

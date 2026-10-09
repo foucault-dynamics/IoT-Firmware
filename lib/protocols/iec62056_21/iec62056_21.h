@@ -22,6 +22,9 @@
  */
 class Iec6205621Reader : public Reader {
  private:
+#ifdef PIO_UNIT_TESTING
+  friend class Iec6205621ReaderTest;
+#endif
   IrHead *head = nullptr;  ///< The bus from init(), as an IrHead so the baud rate can change.
   /**
    * Reader settings.
