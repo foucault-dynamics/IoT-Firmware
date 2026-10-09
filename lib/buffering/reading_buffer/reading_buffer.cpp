@@ -82,6 +82,9 @@ bool readingBufferPush(const Payload &p) {
     Serial.printf("[Buffer] Full for UID: %s | oldest SEQ: %u overwritten\n", uidToHex(p.uid, uidHex), slot->ring[slot->head].seq);
     slot->head = (slot->head + 1) % READINGS_PER_NODE;
     slot->count--;
+    if (peekedSlot >= 0 && slot == &slots[peekedSlot]) {
+      peekedSlot = -1;
+    }
   }
 
   Reading &r = slot->ring[(slot->head + slot->count) % READINGS_PER_NODE];
@@ -125,6 +128,9 @@ void readingBufferPop() {
   if (slot.count > 0) {
     slot.head = (slot.head + 1) % READINGS_PER_NODE;
     slot.count--;
+  }
+  if (slot.count == 0) {
+    slot.used = false;
   }
   nextSlot = (peekedSlot + 1) % MAX_END_NODES;
   peekedSlot = -1;
