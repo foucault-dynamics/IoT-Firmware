@@ -64,6 +64,10 @@ class ModbusRtuReader: public Reader{
   int get_export(float *val) override;
   int get_voltage(float *val) override;
 private:
+#ifdef PIO_UNIT_TESTING
+  friend class ModbusRtuReaderTest;
+#endif
+
   ModbusRtuConfig config;   ///< Slave address, register addresses and format.
   uint32_t t35_us = 0;      ///< T3.5 inter frame gap, in us. Set by init().
   uint32_t last_rx_us = 0;  ///< micros() timestamp of the last received byte.
