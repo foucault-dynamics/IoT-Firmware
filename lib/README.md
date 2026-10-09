@@ -14,7 +14,7 @@ lib/
   interfaces/  module, reader, transmitter, shared
   config/      node_config, nvs_config, secrets
   buses/       sp3485, http_bus, tcp_bus, lora, ir_head
-  protocols/   modbus_rtu, cam_http, iec62056_21
+  protocols/   modbus_rtu, dlms_cosem, cam_http, iec62056_21
   links/       esp_now_uplink, lora_link, wifi_radio
   buffering/   seq_counter, reading_buffer
 ```
@@ -57,7 +57,8 @@ bus. It knows its pins and its peripheral and nothing about what the bytes mean.
 through a `float*` and returning `EXIT_SUCCESS` or `EXIT_FAILURE`.
 
 Each concrete reader takes its config in its own constructor (`ModbusRtuReader(const
-ModbusRtuConfig&)`, `CamHttpReader(const CamHttpConfig&)`), storing it by value.
+ModbusRtuConfig&)`, `DlmsCosemReader(const DlmsCosemConfig&)`,
+`CamHttpReader(const CamHttpConfig&)`), storing it by value.
 That keeps every protocol's fields out of the shared base interface without an
 unchecked cast, at the cost of the caller in `src/nodes/` having to construct the
 right reader for its config.
@@ -80,7 +81,7 @@ more than one node uses:
 | Header | Structs |
 |---|---|
 | `networking_config.h` | `SoftApConfig`, `EspNowConfig`, `EspNowPeerConfig`, `LoRaConfig` and its `LoRaPins`, `LoRaLinkConfig` |
-| `rs485_config.h` | `ReaderType`, `MeterModel`, `RegisterFormat`, `Rs485Config`, `TcpBusConfig`, `ModbusRtuConfig`, `Rs485NodeConfig` |
+| `rs485_config.h` | `ReaderType`, `MeterModel`, `RegisterFormat`, `Rs485Config`, `TcpBusConfig`, `ModbusRtuConfig`, `DlmsCosemConfig`, `Rs485NodeConfig` |
 | `ir_config.h` | `IrConfig`, `Iec62056Config`, `IrNodeConfig` |
 | `cv_config.h` | `HttpBusConfig`, `CamHttpConfig`, `CvNodeConfig` |
 | `substation_config.h` | `SubstationConfig` |
@@ -99,7 +100,8 @@ Each node has its own loader file here (`rs485_loader.cpp`,
 `ir_loader.cpp`, `cv_loader.cpp`, `substation_loader.cpp`,
 `gateway_loader.cpp`) holding that node's defaults, NVS keys and board pins;
 `rs485_loader.cpp` also holds the `METER_MODELS` table mapping a `MeterModel`
-to its register addresses. A field is read from NVS if it was ever set there,
+to its register addresses, and the `DLMS_*_OBIS` constants naming the import,
+export and voltage Registers the DLMS/COSEM reader asks for. A field is read from NVS if it was ever set there,
 falling back to its firmware default otherwise, so a fresh board runs on
 defaults and a firmware update can still improve them. `lora_loader.cpp` holds
 the LoRa radio and link loaders shared by the substation and gateway loaders.
@@ -146,6 +148,49 @@ interpreted as a scaled integer or an IEEE 754 float depending on
 `RegisterFormat`.
 
 Developed against `ModbusSim/`. Not yet tested against real hardware.
+
+### `dlms_cosem/`
+
+`DlmsCosemReader : Reader`, for DLMS/COSEM meters on the same `Sp3485` bus,
+selected by `reader = 5` (`ReaderType::DlmsCosem`). Two files:
+
+- `hdlc.h` / `hdlc.cpp` are plain functions for the HDLC link layer (IEC
+  62056-46): the FCS (CRC16/X.25), encoding 1, 2 or 4 byte addresses, and
+  building and parsing type A frames with their HCS and FCS checks. They know
+  nothing about the bus, so the frame tests run on them directly.
+- `dlms_cosem.h` / `dlms_cosem.cpp` hold the reader, which drives the HDLC
+  link and speaks COSEM on top of it.
+
+The client uses no authentication and no ciphering, with Logical Name
+referencing, which is what the public client (SAP 16) gets on most meters.
+Every getter runs one whole session for its Register:
+
+1. SNRM, expecting UA. The I-frame counters V(S) and V(R) are reset only once
+   the meter accepts.
+2. AARQ in an I-frame, expecting an AARE that accepts the association with an
+   xDLMS InitiateResponse. A rejection logs its result source diagnostic.
+3. GET attribute 3, `scaler_unit`. The unit must be Wh for import and export,
+   V for voltage, so a misconfigured OBIS code fails instead of reporting the
+   wrong quantity.
+4. GET attribute 2, `value`, decoded from any A-XDR integer or float32 into a
+   `double` and multiplied by 10 to the power of the scaler.
+5. DISC, sent whenever the link came up, even after a failed step, so the
+   meter is never left holding an open link until its inactivity timeout.
+
+Import and export are divided by 1000 to give the kWh the `Reader` interface
+and the payload expect.
+
+`readFrame()` hunts for a flag followed by a type A format byte, skipping noise
+and repeated idle flags, then reads exactly as many bytes as the length field
+gives, within the 1000 ms `DLMS_TIMEOUT`. Every I-frame exchange checks N(S)
+and N(R) against the counters and the LLC header (`E6 E6 00` out, `E6 E7 00`
+back). Segmented replies and block transfers are rejected, which holds as long
+as every APDU fits the default 128 byte info field. Each GET failure decodes its
+data-access-result to serial.
+
+The client and server addresses come from NVS (`dlms_client`, `dlms_logical`,
+`dlms_physical`, `dlms_addr_len`), the OBIS codes from `rs485_loader.cpp`.
+Tested in QEMU against scripted frames. Not yet tested against a real meter.
 
 ### `wifi_radio/`
 

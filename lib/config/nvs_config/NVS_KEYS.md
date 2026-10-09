@@ -35,7 +35,7 @@ or the value will be written but silently unused / misread.
 |---|---|---|---|
 | `comm_id` | uint | `0` | Community code (goes out in the payload) |
 | `unit_id` | uint | `0` | Unit code (goes out in the payload) |
-| `reader` | uint | `ReaderType::ModbusTCP` | Reader backend |
+| `reader` | uint | `ReaderType::ModbusTCP` | Reader backend, `0` Modbus RTU, `3` Modbus TCP, `5` DLMS/COSEM |
 | `ap_ssid` | string | `SECRET_AP_SSID` | SoftAP SSID (ModbusTCP mode only) |
 | `ap_pass` | string | `SECRET_AP_PASS` | SoftAP password (ModbusTCP mode only) |
 | `espnow_chan` | uint | `6` | Radio channel, shared by ESP-NOW and the softAP |
@@ -43,10 +43,18 @@ or the value will be written but silently unused / misread.
 | `sub_mac` | string (MAC) | `SECRET_MAC` | Substation MAC, `aa:bb:cc:dd:ee:ff` |
 | `meter_model` | uint | `MeterModel::Simulated_Tcp` | Meter model (selects registers) |
 | `poll_ms` | uint | `1000` | Meter poll interval (ms) |
-| `baud` | uint | `9600` | RS485 baud rate |
+| `baud` | uint | `9600` | RS485 baud rate, Modbus RTU and DLMS/COSEM |
 | `slave_addr` | uint | `1` | Modbus slave address |
+| `dlms_client` | uint | `16` | DLMS client SAP, 16 is the public client |
+| `dlms_logical` | uint | `1` | DLMS server logical device, 1 is the management device |
+| `dlms_physical` | uint | `0` | DLMS server physical address on the bus |
+| `dlms_addr_len` | uint | `1` | DLMS server address size in bytes, `1`, `2` or `4` |
 | `tcp_host` | string | `SECRET_MODBUS_SIM_HOST` | Modbus TCP simulator host |
 | `tcp_port` | uint | `SECRET_MODBUS_SIM_PORT` | Modbus TCP simulator port |
+
+The DLMS/COSEM OBIS codes are not NVS keys. They are the `DLMS_IMPORT_OBIS`,
+`DLMS_EXPORT_OBIS` and `DLMS_VOLTAGE_OBIS` constants in `rs485_loader.cpp`,
+1.0.1.8.0.255, 1.0.2.8.0.255 and 1.0.32.7.0.255.
 
 ## CV (camera) node (`loadCvNodeConfig`)
 

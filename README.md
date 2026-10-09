@@ -27,6 +27,7 @@ flowchart TD
         direction TB
         A["Sp3485 (Module)"] --> R1["ModbusRtuReader"]
         B["TcpBus (Module)"] --> R1
+        A --> R4["DlmsCosemReader"]
     end
 
     subgraph ir["IR node (ESP32-C3)"]
@@ -50,13 +51,13 @@ flowchart TD
     classDef untested fill:#fff3cd,stroke:#e0a800,color:#000
 
     class A,B,R1,E,R3,S,G,M working
-    class C,D,R2 untested
+    class C,D,R2,R4 untested
 ```
 
 | Colour | Meaning |
 |---|---|
 | Green | Works (RS485 and CV paths tested, ESP-NOW, LoRa and MQTT working) |
-| Yellow | Untested (IR path) |
+| Yellow | Untested on hardware (IR path, DLMS/COSEM reader) |
 
 ## Architecture
 
@@ -148,6 +149,7 @@ Project_Kaizen/
 │   │   └── ir_head/         Optical probe Module
 │   ├── protocols/
 │   │   ├── modbus_rtu/      Modbus RTU Reader
+│   │   ├── dlms_cosem/      DLMS/COSEM Reader over HDLC
 │   │   ├── cam_http/        ESP32-CAM Reader
 │   │   └── iec62056_21/     IEC 62056-21 optical protocol
 │   ├── links/

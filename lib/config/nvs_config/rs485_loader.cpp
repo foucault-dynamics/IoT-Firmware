@@ -6,6 +6,8 @@
 #include "nvs_config.h"
 #include "nvs_read.h"
 
+#include <cstring>
+
 #include "secrets.h"
 #include "esp_efuse.h"
 #include "esp_efuse_table.h"
@@ -18,6 +20,13 @@ const uint8_t RS485_RX_PIN = 8;
 const uint8_t RS485_TX_PIN = 9;
 /** GPIO driving the SP3485's DE/RE pins. Board wiring, never an NVS key. */
 const uint8_t RS485_DERE_PIN = 10;
+
+/** OBIS code of total imported active energy, 1.0.1.8.0.255. */
+const uint8_t DLMS_IMPORT_OBIS[6] = {1, 0, 1, 8, 0, 255};
+/** OBIS code of total exported active energy, 1.0.2.8.0.255. */
+const uint8_t DLMS_EXPORT_OBIS[6] = {1, 0, 2, 8, 0, 255};
+/** OBIS code of the phase 1 instantaneous voltage, 1.0.32.7.0.255. */
+const uint8_t DLMS_VOLTAGE_OBIS[6] = {1, 0, 32, 7, 0, 255};
 
 /** Register map of one supported meter model. */
 struct MeterModelEntry {
@@ -94,6 +103,15 @@ Rs485NodeConfig loadRs485NodeConfig() {
   cfg.modbus.voltage_address = entry.voltage;
   cfg.modbus.import_address = entry.import_energy;
   cfg.modbus.export_address = entry.export_energy;
+
+  cfg.dlms.bus = cfg.modbus.bus;
+  cfg.dlms.clientSap = static_cast<uint8_t>(readU32("dlms_client", 16));
+  cfg.dlms.serverLogical = static_cast<uint16_t>(readU32("dlms_logical", 1));
+  cfg.dlms.serverPhysical = static_cast<uint16_t>(readU32("dlms_physical", 0));
+  cfg.dlms.serverAddrLen = static_cast<uint8_t>(readU32("dlms_addr_len", 1));
+  memcpy(cfg.dlms.importObis, DLMS_IMPORT_OBIS, sizeof(DLMS_IMPORT_OBIS));
+  memcpy(cfg.dlms.exportObis, DLMS_EXPORT_OBIS, sizeof(DLMS_EXPORT_OBIS));
+  memcpy(cfg.dlms.voltageObis, DLMS_VOLTAGE_OBIS, sizeof(DLMS_VOLTAGE_OBIS));
 
   readStr("tcp_host", SECRET_MODBUS_SIM_HOST, cfg.tcp.host, sizeof(cfg.tcp.host));
   cfg.tcp.port = static_cast<uint16_t>(readU32("tcp_port", SECRET_MODBUS_SIM_PORT));
