@@ -16,6 +16,9 @@ void seqCounterBegin();
 /**
  * Increments the sequence number and saves it to NVS.
  *
+ * Wraps to 0 after UINT32_MAX. At one reading a second that takes about 136
+ * years, so nothing handles it.
+ *
  * @return The new sequence number.
  */
 uint32_t seqNext();
