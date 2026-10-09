@@ -1,0 +1,87 @@
+# Builds both firmware envs and runs the unit tests in an emulated ESP32-C3.
+#
+# Tests run with `pio test -e test_c3 --without-uploading`, which boots each
+# test/test_qemu_* suite in Espressif's QEMU through tools/qemu_test.py. Suites
+# that need a real board (test/test_board_*) are not run here.
+
+name: Firmware
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same PR cancels the stale run.
+concurrency:
+  group: firmware-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [unified, lilygo_lora]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.platformio
+            .pio
+          key: pio-${{ matrix.env }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Build ${{ matrix.env }}
+        run: pio run -e ${{ matrix.env }}
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.platformio
+            .pio
+          key: pio-test_c3-${{ hashFiles('platformio.ini') }}
+
+      - name: Install QEMU runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgcrypt20 libglib2.0-0 libpixman-1-0 libsdl2-2.0-0 libslirp0
+
+      # Keyed on the setup script, which pins the QEMU release.
+      - name: Cache QEMU
+        uses: actions/cache@v5
+        with:
+          path: ~/.kaizen/qemu
+          key: qemu-${{ runner.os }}-${{ hashFiles('tools/setup_qemu.sh') }}
+
+      - name: Set up QEMU
+        run: tools/setup_qemu.sh
+
+      - name: Run unit tests
+        run: pio test -e test_c3 --without-uploading
