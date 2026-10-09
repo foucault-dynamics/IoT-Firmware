@@ -50,3 +50,11 @@ void readingBufferPop();
  * @return Number of buffered readings.
  */
 size_t readingBufferCount();
+
+/**
+ * Empties the buffer and frees every node slot.
+ *
+ * Also forgets the last peek and restarts the node rotation from the first
+ * slot, leaving the buffer as it was at boot.
+ */
+void readingBufferClear();

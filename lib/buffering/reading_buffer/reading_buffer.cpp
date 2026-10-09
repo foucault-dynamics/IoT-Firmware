@@ -137,3 +137,9 @@ size_t readingBufferCount() {
   }
   return total;
 }
+
+void readingBufferClear() {
+  memset(slots, 0, sizeof(slots));
+  nextSlot = 0;
+  peekedSlot = -1;
+}
