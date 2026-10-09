@@ -60,8 +60,8 @@ flowchart TD
 
 ## Architecture
 
-All reusable code lives in `lib/`, split into six groups. `src/` holds the firmware itself: `main.cpp`
-picks a node role, and `src/nodes/` assembles that node from the libraries.
+All reusable code lives in `lib/`, split into six groups. `src/` holds the firmware itself: one entry file
+per PCB picks a node role, and `src/nodes/` assembles that node from the libraries.
 
 ### Lib directory
 
@@ -108,13 +108,19 @@ touching any call site **(FUTURE IMPLEMENTATION)**.
 
 ### Role dispatch
 
-Role dispatch lives in `src/main.cpp`. `readModuleType()` currently asks for the
-role over serial, and is meant to be replaced by driving current to `GPIO3` and reading the
-voltage difference over `GPIO4` **(FUTURE IMPLEMENTATION WHEN FINAL PCB AVAILABLE)**.
+Each PCB gets its own firmware image, so the build decides which PCB a board is
+and `readModuleType()` only picks a role within that PCB.
+
+- `src/end_node_main.cpp` picks RS485, IR or CV. `readModuleType()` currently asks
+  over serial, and is meant to be replaced by driving current to `GPIO3` and reading the
+  voltage difference over `GPIO4` **(FUTURE IMPLEMENTATION WHEN FINAL PCB AVAILABLE)**.
+- `src/lora_main.cpp` picks substation or gateway. `readModuleType()` currently asks
+  over serial, and will read whatever ID mechanism the hardware team puts on the LoRa PCB
+  **(FUTURE IMPLEMENTATION)**.
 
 ### Basic flow
 
-Flow begins in `src/main.cpp` where the serial monitor is prompted to choose a given module
+Flow begins in the PCB's entry file where the serial monitor is prompted to choose a given module
 (Replaced with the Role Dispatch in the future). Based on the module type the given setup is called in `src/nodes`,
 and subsequently its respective loop. At the beginning of each loop, the serial buffer is parsed for any NVS configuration
 to be set (more information in the NVS subfolder README).
@@ -152,7 +158,8 @@ Project_Kaizen/
 │       ├── seq_counter/     Persistent reading sequence number
 │       └── reading_buffer/  Substation store and forward buffer
 ├── src/
-│   ├── main.cpp                       role dispatch
+│   ├── end_node_main.cpp              end node role dispatch
+│   ├── lora_main.cpp                  LoRa PCB role dispatch
 │   └── nodes/
 │       ├── nodes.h
 │       ├── rs485_node.cpp
@@ -178,17 +185,21 @@ Project_Kaizen/
 
 ## PlatformIO Environments
 
-Both firmware environments build the same sources, `main.cpp` and `nodes/`.
-They differ only in the board they target. `test_c3` builds the unit tests
-instead, see [`docs/TESTING.md`](docs/TESTING.md).
+Each firmware environment builds one PCB's image: its entry file plus only the
+nodes that PCB runs. `test_c3` builds the unit tests instead, see
+[`docs/TESTING.md`](docs/TESTING.md).
 
 | Environment | Board | Use |
 |---|---|---|
-| `unified` (default) | `esp32-c3-devkitm-1` | **Builds.** The current architecture, for every node type. Role is hardcoded to `Rs485Node`. |
-| `lilygo_lora` | `ttgo-lora32-v21` | **Builds.** The LilyGo LoRa board, for testing the substation and gateway roles. |
+| `end_node` (default) | `esp32-c3-devkitm-1` | **Builds.** The end node image, `end_node_main.cpp` with the RS485, IR and CV nodes. |
+| `lilygo_lora` | `ttgo-lora32-v21` | **Builds.** The LoRa PCB image, `lora_main.cpp` with the substation and gateway nodes, on the LilyGo LoRa board. |
 | `test_c3` | `esp32-c3-devkitm-1` | Unit tests in emulated ESP32-C3, `pio test -e test_c3 --without-uploading`. |
 
-**Note**:` unified` sets `ARDUINO_USB_MODE` and `ARDUINO_USB_CDC_ON_BOOT` so serial output
+There is no C3 build of the LoRa image yet, because the LoRa pins in
+`lib/config/nvs_config/lora_loader.cpp` are the LilyGo pins. It gets added once
+the LoRa PCB pinout exists.
+
+**Note**:` end_node` sets `ARDUINO_USB_MODE` and `ARDUINO_USB_CDC_ON_BOOT` so serial output
 appears over the C3's native USB. `lilygo_lora` does not need them, because that
 board talks to the computer through a USB to UART bridge chip.
 

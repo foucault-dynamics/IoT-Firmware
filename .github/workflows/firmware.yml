@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        env: [unified, lilygo_lora]
+        env: [end_node, lilygo_lora]
     steps:
       - uses: actions/checkout@v7
 

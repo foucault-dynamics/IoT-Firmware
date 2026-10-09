@@ -2,7 +2,7 @@
  * @file
  * Radio bring up tests. Needs a real ESP32-C3, QEMU has no Wi-Fi radio.
  *
- * Run with `pio test -e unified -f test_board_radio` on a connected board.
+ * Run with `pio test -e end_node -f test_board_radio` on a connected board.
  * The tests share one radio, so they run in order and build on each other.
  */
 

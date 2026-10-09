@@ -27,8 +27,8 @@ brew install libgcrypt glib pixman sdl2 libslirp
 |---|---|
 | `pio test -e test_c3 --without-uploading -f test_qemu_nvs` | Runs one suite |
 | `pio test -e test_c3 --without-uploading -v` | Also shows the firmware's serial output, including crash dumps |
-| `pio test -e unified -f test_board_radio` | Runs the real board suite on a connected C3 |
-| `pio test -e unified --without-uploading --without-testing` | Only builds the board suites, no board needed |
+| `pio test -e end_node -f test_board_radio` | Runs the real board suite on a connected C3 |
+| `pio test -e end_node --without-uploading --without-testing` | Only builds the board suites, no board needed |
 
 ## Layout
 
@@ -41,7 +41,7 @@ test/
 ├── test_qemu_modbus_driver/
 ├── test_qemu_iec62056/
 ├── test_qemu_nvs/
-└── test_board_radio/             needs a real C3, run by unified
+└── test_board_radio/             needs a real C3, run by end_node
 ```
 
 Every folder starting with `test_` is a suite: its own firmware image with its
@@ -50,7 +50,7 @@ own `setup()`. The prefix decides where it runs.
 | Prefix | Environment | Runs in |
 |---|---|---|
 | `test_qemu_*` | `test_c3` | QEMU, locally and in CI |
-| `test_board_*` | `unified` | A real ESP32-C3 over USB, never in CI |
+| `test_board_*` | `end_node` | A real ESP32-C3 over USB, never in CI |
 
 Each environment's `test_filter` in `platformio.ini` picks its prefix, so a new
 suite only needs the right folder name.
@@ -82,7 +82,7 @@ flashing a board, runs the command in `test_testing_command`:
 
 Every run starts from a freshly merged image, so NVS is always empty at boot.
 
-`test_c3` extends `unified` and changes one flag:
+`test_c3` extends `end_node` and changes one flag:
 `ARDUINO_USB_CDC_ON_BOOT=0`. QEMU does not emulate the C3's USB port, so
 `Serial` has to go to the UART instead, or nothing prints after the bootloader.
 
@@ -115,7 +115,7 @@ void loop() {}
 
 Save it as `test/test_qemu_<name>/test_main.cpp`. Libraries are found from
 their `#include`, as in the firmware. `src/` is never built into tests, so the
-suite's `setup()` does not clash with `main.cpp`.
+suite's `setup()` does not clash with the firmware entry files.
 
 `test/` is outside the Doxygen input, but test code follows
 [`COMMENTING.md`](COMMENTING.md).
@@ -164,7 +164,7 @@ timeout in a test takes that long.
 ### Real board suites
 
 Name the folder `test/test_board_<name>`. These run on whatever C3 is connected
-over USB, with the normal `unified` build flags. Keep them for what QEMU cannot
+over USB, with the normal `end_node` build flags. Keep them for what QEMU cannot
 do, such as the radio. Anything else belongs in a QEMU suite, because only
 those run in CI.
 
@@ -175,7 +175,7 @@ request:
 
 | Job | Does |
 |---|---|
-| `build (unified)`, `build (lilygo_lora)` | `pio run` for each firmware environment |
+| `build (end_node)`, `build (lilygo_lora)` | `pio run` for each firmware environment |
 | `test` | Installs QEMU with `tools/setup_qemu.sh` and runs `pio test -e test_c3 --without-uploading` |
 
 PlatformIO packages and the QEMU download are cached between runs. To change
