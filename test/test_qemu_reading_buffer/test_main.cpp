@@ -3,8 +3,7 @@
  * Unit tests for the substation's reading buffer, run in QEMU.
  *
  * test_peek_overflow_pop_keeps_unsent_reading and
- * test_drained_slot_is_freed_for_new_uid assert the intended behaviour of two
- * known bugs and fail until those bugs are fixed.
+ * test_drained_slot_is_freed_for_new_uid guard against two fixed bugs.
  */
 
 #include <Arduino.h>
@@ -165,7 +164,7 @@ void test_ids_follow_latest_push() {
 /**
  * A push between a peek and its pop must not cost an unsent reading.
  *
- * Known bug: the push overwrites the peeked reading A, then the pop removes
+ * Regression: the push overwrote the peeked reading A, then the pop removed
  * B, which was never sent.
  */
 void test_peek_overflow_pop_keeps_unsent_reading() {
@@ -186,7 +185,7 @@ void test_peek_overflow_pop_keeps_unsent_reading() {
 /**
  * A node slot is freed once its ring is drained, so a new UID can claim it.
  *
- * Known bug: NodeSlot::used is never cleared.
+ * Regression: NodeSlot::used was never cleared.
  */
 void test_drained_slot_is_freed_for_new_uid() {
   for (uint8_t node = 1; node <= SLOT_COUNT; node++) {
