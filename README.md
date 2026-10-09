@@ -103,13 +103,13 @@ fields out of the shared base interface.
 struct. Each field is read from NVS if it was ever set, and otherwise falls back
 to the firmware default from `lib/config/secrets/`. The loaders are the seam
 where upstream configuration selection will replace the defaults later without
-touching any call site (FUTURE IMPLEMENTATION).
+touching any call site **(FUTURE IMPLEMENTATION)**.
 
 ### Role dispatch
 
 Role dispatch lives in `src/main.cpp`. `readModuleType()` currently asks for the
 role over serial, and is meant to be replaced by driving current to `GPIO3` and reading the
-voltage difference over `GPIO4` (FUTURE IMPLEMENTATION WHEN FINAL PCB AVAILABLE)
+voltage difference over `GPIO4` **(FUTURE IMPLEMENTATION WHEN FINAL PCB AVAILABLE)**.
 
 ### Basic flow
 

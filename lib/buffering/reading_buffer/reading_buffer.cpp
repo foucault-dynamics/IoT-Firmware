@@ -13,31 +13,31 @@ namespace {
 
 /** Most meter nodes one substation can buffer for. */
 constexpr size_t MAX_END_NODES = 8;
-/** Readings held per node. 288 is one day at one reading every 5 minutes. */
+/** Readings held per node. */
 constexpr uint16_t READINGS_PER_NODE = 288;
 
 /** One buffered reading, without the per node fields NodeSlot already holds. */
 struct Reading {
-  uint32_t seq;      ///< Payload::seq.
-  float kwh_import;  ///< Payload::kwh_import.
-  float kwh_export;  ///< Payload::kwh_export.
-  float voltage;     ///< Payload::voltage.
+  uint32_t seq;     ///< Payload::seq.
+  float kwh_import; ///< Payload::kwh_import.
+  float kwh_export; ///< Payload::kwh_export.
+  float voltage;    ///< Payload::voltage.
 };
 
 /** Everything buffered for one meter node. */
 struct NodeSlot {
-  bool used;                        ///< False while the slot is free.
-  uint8_t uid[UID_LEN];             ///< Node this slot belongs to.
-  uint8_t community_id;             ///< Latest community ID the node sent.
-  uint8_t unit_id;                  ///< Latest unit ID the node sent.
-  Reading ring[READINGS_PER_NODE];  ///< Readings, oldest at #head.
-  uint16_t head;                    ///< Index of the oldest reading in #ring.
-  uint16_t count;                   ///< Number of readings held.
+  bool used;                       ///< False while the slot is free.
+  uint8_t uid[UID_LEN];            ///< Node this slot belongs to.
+  uint8_t community_id;            ///< Latest community ID the node sent.
+  uint8_t unit_id;                 ///< Latest unit ID the node sent.
+  Reading ring[READINGS_PER_NODE]; ///< Readings, oldest at #head.
+  uint16_t head;                   ///< Index of the oldest reading in #ring.
+  uint16_t count;                  ///< Number of readings held.
 };
 
-NodeSlot slots[MAX_END_NODES];  ///< Every node slot.
-size_t nextSlot = 0;            ///< Slot the next peek starts searching from.
-int peekedSlot = -1;            ///< Slot of the last peeked reading, or -1.
+NodeSlot slots[MAX_END_NODES]; ///< Every node slot.
+size_t nextSlot = 0;           ///< Slot the next peek starts searching from.
+int peekedSlot = -1;           ///< Slot of the last peeked reading, or -1.
 
 /**
  * Finds the slot for a UID, claiming a free one if it is new.
@@ -68,6 +68,7 @@ NodeSlot *findOrClaimSlot(const uint8_t *uid) {
 bool readingBufferPush(const Payload &p) {
   char uidHex[UID_HEX_LEN];
   NodeSlot *slot = findOrClaimSlot(p.uid);
+  // Not enough slots for more nodes
   if (slot == nullptr) {
     Serial.printf("[Buffer] No free slot for UID: %s | SEQ: %u dropped\n", uidToHex(p.uid, uidHex), p.seq);
     return false;
@@ -76,7 +77,7 @@ bool readingBufferPush(const Payload &p) {
   slot->community_id = p.community_id;
   slot->unit_id = p.unit_id;
 
-  // A full ring drops its oldest reading to make room
+  //Full ring drops its oldest reading when full
   if (slot->count == READINGS_PER_NODE) {
     Serial.printf("[Buffer] Full for UID: %s | oldest SEQ: %u overwritten\n", uidToHex(p.uid, uidHex), slot->ring[slot->head].seq);
     slot->head = (slot->head + 1) % READINGS_PER_NODE;
@@ -90,6 +91,7 @@ bool readingBufferPush(const Payload &p) {
   r.voltage = p.voltage;
   slot->count++;
   return true;
+  
 }
 
 bool readingBufferPeek(Payload &out) {

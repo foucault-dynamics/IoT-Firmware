@@ -2,8 +2,7 @@
 
 Every comment in `lib/` and `src/` follows the rules below, so the codebase reads
 the same everywhere and Doxygen can build the docs site from it. The build fails
-on any missing or malformed doc comment (`WARN_AS_ERROR` in the `Doxyfile`), so
-CI catches a gap before it reaches `main`.
+on any missing or malformed doc comment (`WARN_AS_ERROR` in the `Doxyfile`).
 
 ## Rules
 
@@ -13,12 +12,11 @@ CI catches a gap before it reaches `main`.
 | Class, struct, enum | `/** */` block directly above it. First sentence is the summary, then the "why" | header |
 | Function | `/** */` with `@param[in]`, `@param[out]` or `@param[in,out]` for every parameter, and `@return` or `@retval` for anything that is not `void` | header only, never repeated in the `.cpp` |
 | Status codes | One `@retval` per value, e.g. `@retval EXIT_SUCCESS`, `@retval EXIT_FAILURE`, `@retval -1` | header |
-| Override that behaves like its base | No comment. Doxygen copies the base class docs onto it | header |
 | Override that differs from its base | Its own `/** */` describing only what differs, and the full `@param`/`@retval` set | header |
 | Struct field, enum value, short member | Trailing `///<` on the same line. Put units in it (`ms`, `baud`, `Hz`, `dBm`) | header |
 | One line declaring several fields (`uint8_t rx, tx;`) | `/** */` above, then wrap the line in `///@{` and `///@}` so every field gets the comment | header |
 | File local `static` function or variable | Same rules as a public one | `.cpp` |
-| Comment inside a function body | Plain `//`, short, and about *why*, not *what* | `.cpp` |
+| Comment inside a function body | Plain `//`, short | `.cpp` |
 | Known gap or unfinished work | `@todo`. Doxygen collects every one into the Todo List page | anywhere |
 | Pointer to related code | `@see` | anywhere |
 | Gotcha the caller must know | `@note` or `@warning` | anywhere |
