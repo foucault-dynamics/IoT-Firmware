@@ -2,7 +2,7 @@
 
 A fake IR meter in Python, the IR version of `ModbusSim/`. It stands in for a
 meter's optical port so the IR node (`src/nodes/ir_node.cpp`,
-`lib/iec62056_21/`) can be tested with no meter and no IR circuit on the desk.
+`lib/protocols/iec62056_21/`) can be tested with no meter and no IR circuit on the desk.
 
 It speaks IEC 62056-21 mode C, like a real optical-port meter:
 
@@ -116,7 +116,7 @@ one can damage the ESP32.
 | RX | GPIO 21 (`IR_TX_PIN`) |
 | GND | GND |
 
-TX goes to RX, crossed over. Pins are in `src/nodes/nvs_config.cpp`, taken from
+TX goes to RX, crossed over. Pins are in `lib/config/nvs_config/ir_loader.cpp`, taken from
 the EE team's `IR_probe_signal_testing` rig. Unplug the IR circuit from those
 pins first.
 

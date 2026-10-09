@@ -1,0 +1,67 @@
+# Doxygen configuration for the firmware docs site.
+#
+# Only settings that differ from Doxygen's defaults are listed, so every line
+# here is a deliberate choice. `doxygen -g` prints the full list with
+# explanations. Build with `doxygen` from the repo root, the site lands in
+# build/docs. Pinned to Doxygen 1.18.0, the same version CI installs.
+
+PROJECT_NAME           = "Foucault Dynamics IoT Firmware"
+PROJECT_BRIEF          = "ESP32-C3 metering network: meter nodes, substation and gateway"
+
+# Doxygen only creates one directory level, so the parent and the HTML folder
+# are set separately.
+OUTPUT_DIRECTORY       = build
+HTML_OUTPUT            = docs
+
+# Sources. The repo README becomes the home page, the other READMEs become pages.
+INPUT                  = README.md \
+                         lib \
+                         src \
+                         docs \
+                         ModbusSim/README.md
+FILE_PATTERNS          = *.h *.cpp *.md
+RECURSIVE              = YES
+USE_MDFILE_AS_MAINPAGE = README.md
+
+# secrets.h holds Wi-Fi, MQTT and AP credentials. Keep it off the public site.
+EXCLUDE                = lib/config/secrets
+
+# The first sentence of a /** */ block is the summary, so @brief is never needed.
+JAVADOC_AUTOBRIEF      = YES
+
+# Lets one comment cover a line declaring several fields (uint8_t rx, tx;) by
+# wrapping it in a ///@{ ///@} group.
+DISTRIBUTE_GROUP_DOC   = YES
+
+# Document internals as well as the public API, this is a team codebase.
+# Anonymous namespaces are how .cpp files keep helpers file local, the same as
+# static, so they are held to the same rule.
+EXTRACT_PRIVATE        = YES
+EXTRACT_STATIC         = YES
+EXTRACT_ANON_NSPACES   = YES
+
+# Anything without a comment is a warning, and any warning fails the build.
+# This is what keeps the commenting convention in docs/COMMENTING.md enforced.
+WARN_NO_PARAMDOC       = YES
+WARN_IF_UNDOC_ENUM_VAL = YES
+WARN_AS_ERROR          = FAIL_ON_WARNINGS_PRINT
+QUIET                  = YES
+
+# Theme (docs/doxygen-awesome.css, doxygen-awesome-css v2.5.0). It requires the
+# LIGHT colour style and a sidebar tree that is not the full sidebar.
+GENERATE_TREEVIEW      = YES
+FULL_SIDEBAR           = NO
+HTML_COLORSTYLE        = LIGHT
+HTML_EXTRA_STYLESHEET  = docs/doxygen-awesome.css
+
+# Graphs drawn with Graphviz: class hierarchies, includes, and who calls what.
+HAVE_DOT               = YES
+CALL_GRAPH             = YES
+CALLER_GRAPH           = YES
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES
+
+# Show each function's source on its page, handy when reading the docs.
+SOURCE_BROWSER         = YES
+
+GENERATE_LATEX         = NO

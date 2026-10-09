@@ -1,39 +1,40 @@
+/**
+ * @file
+ * Substation node: relays meter readings from ESP-NOW to LoRa.
+ *
+ * Readings arriving over ESP-NOW go into the reading buffer straight away.
+ * One buffered reading at a time is then relayed over LoRa, whose ACK and
+ * retry scheme lives in LoRaLink. A reading only leaves the buffer once the
+ * gateway acknowledges it. After a failed relay the substation waits
+ * RETRY_BACKOFF_MS before trying again, while still buffering new readings.
+ */
+
 #include <Arduino.h>
-#include <esp_now.h>
-#include <esp_wifi.h>
 #include <WiFi.h>
 
 #include <cstdlib>
 #include <cstring>
 
+#include "esp_now_uplink.h"
 #include "loramodule.h"
 #include "lora_link.h"
 #include "nodes.h"
-#include "node_config.h"
+#include "substation_config.h"
 #include "nvs_config.h"
+#include "reading_buffer.h"
 #include "shared_payload.h"
 
-// Substation node: receives Payloads from meter nodes over ESP-NOW and
-// relays them over LoRa with an ACK/retry scheme, both owned by LoRaLink.
-// The ESP-NOW receive side stays a raw callback out of scope for this pass.
+static LoRaModule *radio = nullptr;     ///< LoRa radio.
+static LoRaLink *loraLink = nullptr;    ///< ACK layer on top of #radio, toward the gateway.
+static EspNowUplink *uplink = nullptr;  ///< ESP-NOW receiver for the meter nodes.
 
-static LoRaModule *radio = nullptr;
-static LoRaLink *loraLink = nullptr;
+static SubstationConfig cfg;  ///< Config loaded at setup.
 
-static SubstationConfig cfg;
+/** Wait after a failed relay before trying again, in ms. */
+static constexpr unsigned long RETRY_BACKOFF_MS = 30UL * 1000UL;
 
-static volatile bool hasNewDataToRelay = false;
-static Payload pendingPayload;
-static bool ready = false;
-
-static void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
-  if (len != sizeof(Payload)) {
-    Serial.println("[Error] Payload size mismatch!");
-    return;
-  }
-  memcpy(&pendingPayload, incomingData, sizeof(pendingPayload));
-  hasNewDataToRelay = true;
-}
+static unsigned long nextSendAt = 0;  ///< millis() before which no relay is attempted.
+static bool ready = false;            ///< True once setup fully succeeded.
 
 void substationSetup() {
   cfg = loadSubstationConfig();
@@ -46,37 +47,62 @@ void substationSetup() {
     return;
   }
 
-  WiFi.mode(WIFI_STA);
-  if (esp_wifi_set_channel(cfg.espNowChannel, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
-    Serial.printf("[Substation] Failed to set channel %u, idling\n", cfg.espNowChannel);
-    return;
-  }
-  if (esp_now_init() != ESP_OK) {
+  // Receive only, so the send timeout is never used
+  uplink = new EspNowUplink(EspNowConfig{cfg.espNowChannel, 0});
+  if (uplink->init() != EXIT_SUCCESS) {
     Serial.println("[Substation] ESP-NOW init failed, idling");
     return;
   }
-  esp_now_register_recv_cb(OnDataRecv);
 
+  // Meter nodes need this MAC as their sub_mac setting
   Serial.println(">>> MAC Address: " + WiFi.macAddress() + " <<<");
   Serial.println("SUBSTATION: Ready to Relay");
 
   ready = true;
 }
 
+/** Moves every reading waiting in the ESP-NOW queue into the reading buffer. */
+static void bufferIncoming() {
+  Payload incoming;
+  int len;
+  while ((len = uplink->receivePacket(nullptr, reinterpret_cast<uint8_t *>(&incoming), sizeof(incoming))) != -1) {
+    if (len != static_cast<int>(sizeof(Payload))) {
+      Serial.println("[Error] Payload size mismatch!");
+      continue;
+    }
+    char uidHex[UID_HEX_LEN];
+    readingBufferPush(incoming);
+    Serial.printf("[Substation] Buffered UID: %s | SEQ: %u | Total: %u\n", uidToHex(incoming.uid, uidHex), incoming.seq, readingBufferCount());
+  }
+}
+
 void substationLoop() {
-  if (!ready || !hasNewDataToRelay) {
+  if (!ready) {
     return;
   }
-  hasNewDataToRelay = false;
+
+  bufferIncoming();
+
+  // Signed difference so the check still works when millis() wraps
+  if (static_cast<long>(millis() - nextSendAt) < 0) {
+    return;
+  }
+
+  Payload pending;
+  if (!readingBufferPeek(pending)) {
+    return;
+  }
 
   char uidHex[UID_HEX_LEN];
-  Serial.printf("[Substation] Relaying UID: %s | SEQ: %u\n", uidToHex(pendingPayload.uid, uidHex), pendingPayload.seq);
+  Serial.printf("[Substation] Relaying UID: %s | SEQ: %u\n", uidToHex(pending.uid, uidHex), pending.seq);
 
-  int result = loraLink->sendPacket(nullptr, reinterpret_cast<const uint8_t *>(&pendingPayload), sizeof(Payload));
+  int result = loraLink->sendPacket(nullptr, reinterpret_cast<const uint8_t *>(&pending), sizeof(Payload));
 
   if (result == EXIT_SUCCESS) {
-    Serial.printf("[Substation] Relay SUCCESS | UID: %s | SEQ: %u | ACK received\n", uidToHex(pendingPayload.uid, uidHex), pendingPayload.seq);
+    readingBufferPop();
+    Serial.printf("[Substation] Relay SUCCESS | UID: %s | SEQ: %u | Remaining: %u\n", uidToHex(pending.uid, uidHex), pending.seq, readingBufferCount());
   } else {
-    Serial.printf("[Substation] Relay FAILED | UID: %s | SEQ: %u | Data dropped\n", uidToHex(pendingPayload.uid, uidHex), pendingPayload.seq);
+    nextSendAt = millis() + RETRY_BACKOFF_MS;
+    Serial.printf("[Substation] Relay FAILED | UID: %s | SEQ: %u | Kept, retry in %lus | Buffered: %u\n", uidToHex(pending.uid, uidHex), pending.seq, RETRY_BACKOFF_MS / 1000, readingBufferCount());
   }
 }

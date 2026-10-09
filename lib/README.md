@@ -6,8 +6,24 @@ scans the source files for `#include`s and pulls in only what is actually
 reachable, so a subdirectory that nothing includes is never compiled. That is
 why the work-in-progress modules below do not break the build.
 
-Each library lives directly in `lib/<name>/` as a flat `.h` plus `.cpp` pair.
+Each library lives in `lib/<group>/<name>/` as a flat `.h` plus `.cpp` pair.
 More on the LDF: https://docs.platformio.org/page/librarymanager/ldf.html
+
+```text
+lib/
+  interfaces/  module, reader, transmitter, shared
+  config/      node_config, nvs_config, secrets
+  buses/       sp3485, http_bus, tcp_bus, lora, ir_head
+  protocols/   modbus_rtu, cam_http, iec62056_21
+  links/       esp_now_uplink, lora_link, wifi_radio
+  buffering/   seq_counter, reading_buffer
+```
+
+PlatformIO only looks one level deep, so on its own it would see each group
+folder as a single library. `lib_extra_dirs` in `platformio.ini` lists every
+group folder as a separate place to search, which keeps each module its own
+library. A new group folder must be added to that list, otherwise the modules
+inside it are never found and their headers fail to resolve.
 
 ## The three abstractions
 
@@ -58,23 +74,45 @@ will be something else.
 
 ### `node_config/`
 
-`node_config.h` holds only shapes: one plain struct per transport and per
-protocol (`Rs485Config`, `SoftApConfig`, `HttpBusConfig`, `TcpBusConfig`,
-`LoRaConfig` and its `LoRaPins`, `LoRaLinkConfig`, `EspNowConfig`,
-`EspNowPeerConfig`, `ModbusRtuConfig`, `CamHttpConfig`), one struct per node
-composed from those (`Rs485NodeConfig`, `CvNodeConfig`, `SubstationConfig`,
-`GatewayConfig`), plus the `ReaderType`, `MeterModel`, and `RegisterFormat`
-enums. No values, no loaders: those live in `src/nodes/nvs_config.cpp`,
-because that file needs `secrets.h`, which lives under `src/`.
+Holds only shapes, one header per node plus one for the networking structs
+more than one node uses:
 
-`nvs_config.cpp` holds every default, every NVS key, the `METER_MODELS` table
-mapping a `MeterModel` to its register addresses, and the loaders
-(`loadRs485NodeConfig()`, `loadCvNodeConfig()`, `loadSubstationConfig()`,
-`loadGatewayConfig()`). A field is read from NVS if it was ever set there,
+| Header | Structs |
+|---|---|
+| `networking_config.h` | `SoftApConfig`, `EspNowConfig`, `EspNowPeerConfig`, `LoRaConfig` and its `LoRaPins`, `LoRaLinkConfig` |
+| `rs485_config.h` | `ReaderType`, `MeterModel`, `RegisterFormat`, `Rs485Config`, `TcpBusConfig`, `ModbusRtuConfig`, `Rs485NodeConfig` |
+| `ir_config.h` | `IrConfig`, `Iec62056Config`, `IrNodeConfig` |
+| `cv_config.h` | `HttpBusConfig`, `CamHttpConfig`, `CvNodeConfig` |
+| `substation_config.h` | `SubstationConfig` |
+| `gateway_config.h` | `WifiStationConfig`, `MqttConfig`, `GatewayConfig` |
+
+Each lib includes the header for the node it serves. A struct moves to
+`networking_config.h` only once a second node uses it. No values, no loaders:
+those live in `nvs_config/`.
+
+### `nvs_config/`
+
+Fills the `node_config/` structs from NVS. Defaults come from `secrets/`. The NVS
+keys are listed in `NVS_KEYS.md`.
+
+Each node has its own loader file here (`rs485_loader.cpp`,
+`ir_loader.cpp`, `cv_loader.cpp`, `substation_loader.cpp`,
+`gateway_loader.cpp`) holding that node's defaults, NVS keys and board pins;
+`rs485_loader.cpp` also holds the `METER_MODELS` table mapping a `MeterModel`
+to its register addresses. A field is read from NVS if it was ever set there,
 falling back to its firmware default otherwise, so a fresh board runs on
-defaults and a firmware update can still improve them. It also holds
-`nvsConfigPollSerial()`, a serial command stand-in for the upstream config
-channel a future team will replace it with.
+defaults and a firmware update can still improve them. `lora_loader.cpp` holds
+the LoRa radio and link loaders shared by the substation and gateway loaders.
+`nvs_config.cpp` holds the NVS read helpers, declared in `nvs_read.h`, plus
+`nvsConfigPollSerial()`,
+a serial command stand-in for the upstream config channel a future team will
+replace it with.
+
+### `secrets/`
+
+`secrets.h`, the credentials and default addresses the NVS loaders fall back
+to. It is a library rather than a file in `src/` because a library cannot include
+headers from `src/`.
 
 ### `shared/`
 
@@ -168,6 +206,45 @@ there is one radio.
 
 `addPeer()` registers a peer from an `EspNowPeerConfig`.
 
+### `seq_counter/`
+
+The reading sequence number used by the meter nodes. `seqCounterBegin()` loads
+it from the `runtime` NVS namespace, and `seqNext()` increments it and writes it
+back, so it survives a reboot.
+
+### `reading_buffer/`
+
+The substation's store and forward buffer. It keeps a ring of readings per end
+node, keyed by UID, so readings are held until the gateway acknowledges them.
+`readingBufferPush()`, `readingBufferPeek()`, `readingBufferPop()`,
+`readingBufferCount()`.
+
+### `ir_head/`
+
+`IrHead : Module`, plus `setBaudRate()`, because IEC 62056-21 opens at 300 baud
+and switches to the meter's offered rate for the data block. Three heads:
+
+- `RealIrHead` is the EE team's UART to IR circuit on `Serial1`, 7E1, with
+  RX/TX optionally inverted (`ir_invert`) since the circuit reads light ON as
+  HIGH. Pins come from the `IR_probe_signal_testing` rig and still need
+  checking against the PCB.
+- `SimulatedIrHead` plays back a canned EM211 session with no wires at all.
+- `TcpIrHead` carries the same bytes over `TcpBus` to `IrSim/IrSimTCP.py`, the
+  IR counterpart of `ModbusSim/ModbusSimTCP.py`.
+
+The IR node picks one with the `simulate` NVS key (0, 1, 2).
+
+### `iec62056_21/`
+
+`Iec6205621Reader : Reader`. IEC 62056-21 mode C: drops the head back to 300
+baud, sends `/?!`, reads the identification message, ACKs the offered baud rate,
+switches, then reads the data block and checks its ETX and BCC. Import (1.8.0)
+and export (2.8.0) come from one session, so `get_import()` reads the block and
+caches the export for `get_export()`. `get_voltage()` always fails for now.
+
+Developed against `IrSim/` and `SimulatedIrHead`. Not yet tested against real
+hardware.
+
 ## Work in progress
 
 Neither of these is included by any built source, so neither is compiled.
@@ -183,15 +260,6 @@ The logic is written, but it needs `TcpBusConfig`, which exists on the `RS485`
 branch and not on `main`. It will not compile until that struct is merged.
 
 ## Not started
-
-### `ir_head/`
-
-Header only, and it declares nothing. Intended to be an `IrHead : Module` for the
-optical probe on the meter's front panel. Many meters expose the same register
-map over the optical port as over RS485, so `ModbusRtuReader` should run on it
-unchanged once it exists. Needs `pin_config.h`, which is on the `ir-module`
-branch, along with a working IR stack (`lib/iec62056_21/`, real and simulated
-heads) that should be ported here.
 
 ### `esp32cam/`
 

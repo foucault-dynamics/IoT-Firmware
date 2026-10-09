@@ -1,18 +1,34 @@
+/**
+ * @file
+ * Firmware entry point: picks this board's node role and runs that node.
+ *
+ * Every board runs the same firmware. setup() asks which role the board plays,
+ * then calls that node's setup function, and loop() keeps calling that node's
+ * loop function.
+ */
+
 #include <Arduino.h>
 #include <cstdint>
 #include "nodes/nodes.h"
-#include "nodes/nvs_config.h"
+#include "nvs_config.h"
 
+/** Role a board plays in the network. The values match the boot menu keys. */
 enum class ModuleType : uint8_t {
-  Unknown = 0,
-  Rs485Node = 1,
-  IrNode = 2,
-  CvNode = 3,
-  Substation = 4,
-  Gateway = 5,
+  Unknown = 0,     ///< No valid role chosen. The board idles.
+  Rs485Node = 1,   ///< Meter node reading over RS485 (Modbus).
+  IrNode = 2,      ///< Meter node reading the optical port (IEC 62056-21).
+  CvNode = 3,      ///< Meter node reading the display with a camera.
+  Substation = 4,  ///< Relays meter readings from ESP-NOW to LoRa.
+  Gateway = 5,     ///< Receives over LoRa and publishes to MQTT.
 };
 
-// Change this to read the Module ID pin
+/**
+ * Asks over serial which role this board plays, blocking until a valid key.
+ *
+ * @return The chosen role.
+ * @todo Read the board's module ID pin instead (driving GPIO3 and reading the
+ *       voltage on GPIO4) once the final PCB exists.
+ */
 static ModuleType readModuleType() {
   Serial.println("[BOOT] Select module to test:");
   Serial.println("  1: RS485 node");
@@ -36,8 +52,9 @@ static ModuleType readModuleType() {
   }
 }
 
-static ModuleType moduleType = ModuleType::Unknown;
+static ModuleType moduleType = ModuleType::Unknown;  ///< Role chosen at boot.
 
+/** Arduino entry point. Opens serial, picks the role and sets that node up. */
 void setup() {
   Serial.begin(115200);
 
@@ -45,8 +62,8 @@ void setup() {
   delay(2000);
 
   moduleType = readModuleType();
-  Serial.printf("[BOOT] module type %d\n", (int)moduleType);  
-    
+  Serial.printf("[BOOT] module type %d\n", (int)moduleType);
+
 
   switch (moduleType) {
   case ModuleType::Rs485Node:
@@ -70,6 +87,7 @@ void setup() {
   }
 }
 
+/** Arduino main loop. Handles serial config commands, then runs the node. */
 void loop() {
   nvsConfigPollSerial();
 

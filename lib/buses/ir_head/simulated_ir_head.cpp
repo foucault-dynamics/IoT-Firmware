@@ -1,0 +1,75 @@
+/**
+ * @file
+ * SimulatedIrHead implementation and the canned EM211 responses.
+ */
+
+#include "simulated_ir_head.h"
+#include <Arduino.h>
+#include <cstdlib>
+#include <cstring>
+
+/**
+ * Identification message a real EM211 sends, per IEC 62056-21 mode C.
+ *
+ * Shape: "/" + 3 char manufacturer ID + 1 char baud rate ID + identification
+ * text + CRLF. The baud rate ID here is '5', which Table 6 of the standard maps
+ * to 9600. That is deliberately different from the 19200 this codebase used to
+ * hardcode, so a correct parser and a broken one negotiate visibly different
+ * rates.
+ */
+static const char ID_RESPONSE[] = "/EMH5EM211\r\n";
+/** Data block with the import (1.8.0) and export (2.8.0) readings. */
+static const char DATA_BLOCK[] =
+    "1-0:1.8.0(001234.567*kWh)\r\n"
+    "1-0:2.8.0(000045.123*kWh)\r\n"
+    "!\r\n";
+
+void SimulatedIrHead::queueResponse(const char *response) {
+  pendingResponse = response;
+  pendingLen = strlen(response);
+  pendingPos = 0;
+}
+
+int SimulatedIrHead::init() {
+  state = AWAITING_REQUEST;
+  pendingResponse = nullptr;
+  return EXIT_SUCCESS;
+}
+
+int SimulatedIrHead::send(const uint8_t *data, size_t len) {
+  // Look at what the reader just sent to decide what a real meter would
+  // send back next. A request restarts the session from any state, as it
+  // does on a real meter. Otherwise only the first poll would ever work.
+  if (len == 5 && memcmp(data, "/?!\r\n", 5) == 0) {
+    queueResponse(ID_RESPONSE);
+    state = SENDING_ID;
+  } else if (state == AWAITING_ACK && len >= 1 && data[0] == 0x06) {
+    queueResponse(DATA_BLOCK);
+    state = SENDING_DATA;
+  }
+  return EXIT_SUCCESS;
+}
+
+int SimulatedIrHead::readByte() {
+  if (!available()) return -1;
+
+  uint8_t byte = pendingResponse[pendingPos++];
+
+  // The last byte of a response moves the session on to its next step.
+  if (pendingPos >= pendingLen) {
+    if (state == SENDING_ID) state = AWAITING_ACK;
+    else if (state == SENDING_DATA) state = DONE;
+    pendingResponse = nullptr;
+  }
+  return byte;
+}
+
+bool SimulatedIrHead::available() {
+  return pendingResponse != nullptr && pendingPos < pendingLen;
+}
+
+void SimulatedIrHead::setBaudRate(uint32_t baud) {
+  // No real link to reconfigure, so just log it so the simulated run looks
+  // like the real handshake in the serial monitor.
+  Serial.printf("[SimulatedIrHead] would switch to %u baud\n", baud);
+}

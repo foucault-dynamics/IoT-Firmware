@@ -8,8 +8,9 @@ set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 LIB="$HERE/../../lib"
 OUT="${TMPDIR:-/tmp}/ir_reader_test"
-g++ -std=c++17 -I"$HERE/shim" -I"$LIB/iec62056_21" -I"$LIB/ir_head" -I"$LIB/module" \
-    -I"$LIB/node_config" -I"$LIB/reader" \
-    "$HERE/reader_test.cpp" "$LIB/iec62056_21/iec62056_21.cpp" "$LIB/ir_head/simulated_ir_head.cpp" \
+g++ -std=c++17 -I"$HERE/shim" -I"$LIB/protocols/iec62056_21" -I"$LIB/buses/ir_head" \
+    -I"$LIB/interfaces/module" -I"$LIB/interfaces/reader" -I"$LIB/config/node_config" \
+    "$HERE/reader_test.cpp" "$LIB/protocols/iec62056_21/iec62056_21.cpp" \
+    "$LIB/buses/ir_head/simulated_ir_head.cpp" \
     -o "$OUT"
 "$OUT"

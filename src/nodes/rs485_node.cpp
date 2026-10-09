@@ -1,3 +1,14 @@
+/**
+ * @file
+ * RS485 meter node: polls a Modbus RTU meter and sends readings to the
+ * substation.
+ *
+ * The bus is an Sp3485 for a real meter, or a TcpBus for ModbusSim testing,
+ * which also brings up a softAP for the simulator host to join. Each cycle
+ * reads import, export and voltage, sends them over ESP-NOW, then waits
+ * POLL_INTERVAL_MS without blocking loop().
+ */
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <cstdint>
@@ -6,7 +17,7 @@
 #include "sp3485.h"
 #include "tcp_bus.h"
 #include "module.h"
-#include "node_config.h"
+#include "rs485_config.h"
 #include "nvs_config.h"
 #include "nodes.h"
 #include "reader.h"
@@ -15,37 +26,35 @@
 #include "wifi_radio.h"
 #include "esp_now_uplink.h"
 
+/** Steps of the node's read, send, sleep cycle. */
 enum States {
-  READ,
-  SLEEP,
-  SEND,
-  REQUEST
+  READ,    ///< Read import, export and voltage. Retries next loop on failure.
+  SLEEP,   ///< Wait out POLL_INTERVAL_MS.
+  SEND,    ///< Send the reading to the substation.
+  REQUEST  ///< Unused.
 };
 
-// Substation details
-static EspNowUplink *uplink;
+static EspNowUplink *uplink;  ///< Link to the substation.
 
-// Meter Objects
-static Module *bus;
-static Reader *reader;
+static Module *bus;     ///< Sp3485 or TcpBus, picked by Rs485NodeConfig::readerType.
+static Reader *reader;  ///< ModbusRtuReader on top of #bus.
 
-// Runtime configuration
-static Rs485NodeConfig cfg;
+static Rs485NodeConfig cfg;  ///< Config loaded at setup.
 
-// Time spent idling in SLEEP between meter reads
+/** Time spent idling in SLEEP between meter reads, in ms. */
 static constexpr unsigned long POLL_INTERVAL_MS = 60UL * 1000UL;
 
-// State variables
-static volatile States state = READ;
-static unsigned long lastPoll = 0;
-static bool readerReady = false;
+static volatile States state = READ;  ///< Current step of the cycle.
+static unsigned long lastPoll = 0;    ///< millis() when the last send finished.
+static bool readerReady = false;      ///< True once setup fully succeeded.
 
-static Payload payload;
+static Payload payload;  ///< Reading sent each cycle. Identity fields are set once.
 
 void rs485NodeSetup() {
 
   cfg = loadRs485NodeConfig();
 
+  // The simulator host joins this softAP to reach the TCP bus
   if (cfg.readerType == ReaderType::ModbusTCP
       && !wifiRadioStartAp(cfg.ap, cfg.espNow.channel)) {
     Serial.println("[RS485] SoftAP bring-up failed, idling");
@@ -53,20 +62,17 @@ void rs485NodeSetup() {
     return;
   }
 
-  // Initialise the ESP-NOW module
   uplink = new EspNowUplink(cfg.espNow);
   if (uplink->init() != EXIT_SUCCESS) {
     readerReady = false;
     return;
   }
 
-  // Add substation as an ESP-NOW Peer
   if (uplink->addPeer(cfg.substation) != EXIT_SUCCESS) {
     readerReady = false;
     return;
   }
 
-  // Store identity on payload
   memcpy(payload.uid,cfg.uid,sizeof(payload.uid));
   payload.community_id = cfg.communityId;
   payload.unit_id = cfg.unitId;
@@ -74,7 +80,6 @@ void rs485NodeSetup() {
   seqCounterBegin();
 
   switch (cfg.readerType) {
-    // Modbus over Serial bus
   case ReaderType::ModbusRtu:{
     bus = new Sp3485(cfg.modbus.bus, Serial1);
     if (bus->init() != EXIT_SUCCESS) {
@@ -97,14 +102,14 @@ void rs485NodeSetup() {
   case ReaderType::Iec62056:
     Serial.println("Not applicable");
     break;
-    // Modbus over TCP (only for testing)
   case ReaderType::ModbusTCP: {
-    bus = new TcpBus(cfg.tcp);    
+    bus = new TcpBus(cfg.tcp);
+    // Testing only, so keep retrying until the simulator is reachable
     while(true){
       if(bus->init() == EXIT_SUCCESS) break;
-      Serial.println("[RS485] TcpBus init failed.");      
+      Serial.println("[RS485] TcpBus init failed.");
     }
-    
+
     reader = new ModbusRtuReader(cfg.modbus);
     if (reader->init(*bus) == EXIT_SUCCESS) {
       readerReady = true;
@@ -138,14 +143,12 @@ void rs485NodeLoop() {
     if(reader->get_voltage(&payload.voltage) == EXIT_FAILURE){
       return;
     }
-    // Printing
     Serial.printf("import: %f\n",payload.kwh_import);
     Serial.printf("export: %f\n",payload.kwh_export);
-    Serial.printf("voltage: %f\n",payload.voltage);    
+    Serial.printf("voltage: %f\n",payload.voltage);
     state = SEND;
     break;
   case SEND:
-    //Sending
     payload.seq = seqNext();
     if(uplink->sendPacket(cfg.substation.mac,reinterpret_cast<const uint8_t *>(&payload),sizeof(payload)) == EXIT_FAILURE){
       Serial.printf("Error sending payload at sequence: %u\n",payload.seq);
