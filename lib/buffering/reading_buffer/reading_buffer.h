@@ -18,7 +18,8 @@
  * Stores a reading under its node's UID.
  *
  * A new UID claims a free node slot. When that node's ring is full, its
- * oldest reading is overwritten.
+ * oldest reading is overwritten, and if that reading was peeked, the pending
+ * readingBufferPop() is cancelled.
  *
  * @param[in] p  Reading to copy in.
  * @retval true   Stored.
@@ -39,8 +40,10 @@ bool readingBufferPeek(Payload &out);
 /**
  * Removes the reading returned by the last readingBufferPeek().
  *
- * Moves on to the next node, so the next peek serves a different one. Does
- * nothing if there was no peek since the last pop.
+ * Moves on to the next node, so the next peek serves a different one, and
+ * frees the node's slot once its ring is empty. Does nothing if there was no
+ * peek since the last pop, or if a push has since overwritten the peeked
+ * reading.
  */
 void readingBufferPop();
 
@@ -50,3 +53,11 @@ void readingBufferPop();
  * @return Number of buffered readings.
  */
 size_t readingBufferCount();
+
+/**
+ * Empties the buffer and frees every node slot.
+ *
+ * Also forgets the last peek and restarts the node rotation from the first
+ * slot, leaving the buffer as it was at boot.
+ */
+void readingBufferClear();
