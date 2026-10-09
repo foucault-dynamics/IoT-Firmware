@@ -77,6 +77,17 @@ int hdlcBuildFrame(const HdlcAddress *dest, const HdlcAddress *src,
 
 namespace {
 
+/**
+ * Reads one HDLC address, ending at the first byte with its low bit set.
+ *
+ * @param[in]     buf  Frame being parsed.
+ * @param[in]     end  Index just past the last byte that may be read.
+ * @param[in,out] pos  Index of the address, moved past it.
+ * @param[out]    out  Address read.
+ * @retval EXIT_SUCCESS  @p out holds a 1, 2 or 4 byte address.
+ * @retval EXIT_FAILURE  No end bit within HDLC_ADDRESS_MAX bytes, the
+ *                       address runs past @p end, or it is 3 bytes long.
+ */
 int parseAddress(const uint8_t *buf, size_t end, size_t *pos, HdlcAddress *out){
   size_t n = 0;
   while(true){

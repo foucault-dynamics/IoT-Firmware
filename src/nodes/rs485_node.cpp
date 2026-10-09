@@ -1,6 +1,6 @@
 /**
  * @file
- * RS485 meter node: polls a Modbus RTU meter and sends readings to the
+ * RS485 meter node: polls a Modbus RTU or DLMS/COSEM meter and sends readings to the
  * substation.
  *
  * The bus is an Sp3485 for a real meter, or a TcpBus for ModbusSim testing,
@@ -23,6 +23,7 @@
 #include "reader.h"
 #include "seq_counter.h"
 #include "modbus_rtu.h"
+#include "dlms_cosem.h"
 #include "wifi_radio.h"
 #include "esp_now_uplink.h"
 
@@ -37,7 +38,7 @@ enum States {
 static EspNowUplink *uplink;  ///< Link to the substation.
 
 static Module *bus;     ///< Sp3485 or TcpBus, picked by Rs485NodeConfig::readerType.
-static Reader *reader;  ///< ModbusRtuReader on top of #bus.
+static Reader *reader;  ///< ModbusRtuReader or DlmsCosemReader on top of #bus.
 
 static Rs485NodeConfig cfg;  ///< Config loaded at setup.
 
@@ -88,6 +89,22 @@ void rs485NodeSetup() {
     }
 
     reader = new ModbusRtuReader(cfg.modbus);
+    if (reader->init(*bus) == EXIT_SUCCESS) {
+      readerReady = true;
+    } else {
+      delete reader;
+      reader = nullptr;
+    }
+    break;
+  }
+  case ReaderType::DlmsCosem:{
+    bus = new Sp3485(cfg.dlms.bus, Serial1);
+    if (bus->init() != EXIT_SUCCESS) {
+      Serial.println("[RS485] Sp3485 init failed.");
+      break;
+    }
+
+    reader = new DlmsCosemReader(cfg.dlms);
     if (reader->init(*bus) == EXIT_SUCCESS) {
       readerReady = true;
     } else {

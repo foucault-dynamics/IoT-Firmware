@@ -1,6 +1,6 @@
 /**
  * @file
- * Config structs and enums for the RS485 (Modbus) node.
+ * Config structs and enums for the RS485 node, Modbus RTU and DLMS/COSEM.
  */
 
 #ifndef RS485_CONFIG_H

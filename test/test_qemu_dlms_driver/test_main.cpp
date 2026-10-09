@@ -7,8 +7,9 @@
  * reads, and the 1000 ms timeout. Then opening and closing the link: the exact
  * SNRM and DISC sent, which replies are accepted, and the sequence reset.
  * Then I-frame exchanges: LLC headers, N(S) and N(R) in both directions, and
- * every way a reply is rejected. millis() runs in real time under QEMU, so the
- * timeouts are real.
+ * every way a reply is rejected. Then whole sessions through the getters,
+ * including DISC after a failed read. millis() runs in real time under QEMU,
+ * so the timeouts are real.
  */
 
 #include <Arduino.h>
@@ -107,6 +108,12 @@ DlmsCosemConfig makeConfig() {
   config.clientSap = 16;
   config.serverLogical = 1;
   config.serverAddrLen = 1;
+  const uint8_t importObis[6] = {1, 0, 1, 8, 0, 255};
+  const uint8_t exportObis[6] = {1, 0, 2, 8, 0, 255};
+  const uint8_t voltageObis[6] = {1, 0, 32, 7, 0, 255};
+  memcpy(config.importObis, importObis, 6);
+  memcpy(config.exportObis, exportObis, 6);
+  memcpy(config.voltageObis, voltageObis, 6);
   return config;
 }
 
@@ -270,6 +277,102 @@ void assertExchangeRejects(const std::vector<uint8_t> &reply) {
   TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, exchangeGet(reader));
   TEST_ASSERT_EQUAL_UINT8(0, DlmsCosemReaderTest::vs(reader));
   TEST_ASSERT_EQUAL_UINT8(0, DlmsCosemReaderTest::vr(reader));
+}
+
+/** AARQ from the trace, as buildAarq() writes it. */
+const std::vector<uint8_t> AARQ = {
+    0x60, 0x1D, 0xA1, 0x09, 0x06, 0x07, 0x60, 0x85, 0x74, 0x05, 0x08,
+    0x01, 0x01, 0xBE, 0x10, 0x04, 0x0E, 0x01, 0x00, 0x00, 0x00, 0x06,
+    0x5F, 0x1F, 0x04, 0x00, 0x00, 0x00, 0x10, 0x00, 0x7D};
+
+/** Accepted AARE from the trace, without LLC. */
+const std::vector<uint8_t> AARE = {
+    0x61, 0x29, 0xA1, 0x09, 0x06, 0x07, 0x60, 0x85, 0x74, 0x05, 0x08,
+    0x01, 0x01, 0xA2, 0x03, 0x02, 0x01, 0x00, 0xA3, 0x05, 0xA1, 0x03,
+    0x02, 0x01, 0x00, 0xBE, 0x10, 0x04, 0x0E, 0x08, 0x00, 0x06, 0x5F,
+    0x1F, 0x04, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x07};
+
+/**
+ * Builds a GET request APDU for one Register attribute.
+ *
+ * @param[in] c          OBIS value group C.
+ * @param[in] d          OBIS value group D.
+ * @param[in] attribute  Attribute id.
+ * @return The APDU.
+ */
+std::vector<uint8_t> getApdu(uint8_t c, uint8_t d, uint8_t attribute) {
+  return {0xC0, 0x01, 0xC1, 0x00, 0x03, 0x01, 0x00, c, d, 0x00, 0xFF, attribute, 0x00};
+}
+
+/**
+ * Builds the I-frame the reader sends, from client 16 to server 1.
+ *
+ * @param[in] control  Control byte.
+ * @param[in] apdu     APDU, without LLC.
+ * @return The frame.
+ */
+std::vector<uint8_t> request(uint8_t control, const std::vector<uint8_t> &apdu) {
+  HdlcAddress client;
+  HdlcAddress server;
+  hdlcAddress(16, 0, 1, &client);
+  hdlcAddress(1, 0, 1, &server);
+  std::vector<uint8_t> info = concat({0xE6, 0xE6, 0x00}, apdu);
+  uint8_t buf[HDLC_FRAME_MAX];
+  size_t len = 0;
+  hdlcBuildFrame(&server, &client, control, info.data(), info.size(), buf, &len);
+  return std::vector<uint8_t>(buf, buf + len);
+}
+
+/**
+ * Builds a reply I-frame from server 1 carrying an APDU behind the response LLC.
+ *
+ * @param[in] control  Control byte.
+ * @param[in] apdu     APDU, without LLC.
+ * @return The frame.
+ */
+std::vector<uint8_t> respond(uint8_t control, const std::vector<uint8_t> &apdu) {
+  return iReply(control, concat({0xE6, 0xE7, 0x00}, apdu));
+}
+
+/**
+ * Builds a get-response-normal carrying Data.
+ *
+ * @param[in] data  Data, starting at its type tag.
+ * @return The APDU.
+ */
+std::vector<uint8_t> getResponse(const std::vector<uint8_t> &data) {
+  return concat({0xC4, 0x01, 0xC1, 0x00}, data);
+}
+
+/**
+ * Queues a whole session's replies: UA, the AARE, scaler_unit, value, and UA
+ * for the DISC.
+ *
+ * @param[in] bus         Bus to queue them on.
+ * @param[in] scalerUnit  Data of the scaler_unit response.
+ * @param[in] value       Data of the value response.
+ */
+void queueSession(FakeBus &bus, const std::vector<uint8_t> &scalerUnit,
+                  const std::vector<uint8_t> &value) {
+  bus.queueReply(UA);
+  bus.queueReply(respond(0x30, AARE));
+  bus.queueReply(respond(0x52, getResponse(scalerUnit)));
+  bus.queueReply(respond(0x74, getResponse(value)));
+  bus.queueReply(UA);
+}
+
+/**
+ * Checks every frame the reader sent, in order.
+ *
+ * @param[in] bus       Bus the reader sent on.
+ * @param[in] expected  Frames it should have sent.
+ */
+void assertSent(const FakeBus &bus, const std::vector<std::vector<uint8_t>> &expected) {
+  TEST_ASSERT_EQUAL_UINT(expected.size(), bus.sent.size());
+  for (size_t i = 0; i < expected.size(); i++) {
+    TEST_ASSERT_EQUAL_UINT(expected[i].size(), bus.sent[i].size());
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(expected[i].data(), bus.sent[i].data(), expected[i].size());
+  }
 }
 
 }  // namespace
@@ -538,6 +641,99 @@ void test_exchange_rejects_oversized_apdu() {
   TEST_ASSERT_EQUAL_UINT(0, bus.sent.size());
 }
 
+/** The trace's whole session reads 12345.678 kWh, and every frame sent matches it. */
+void test_session_import() {
+  FakeBus bus;
+  queueSession(bus, {0x02, 0x02, 0x0F, 0x00, 0x16, 0x1E}, {0x06, 0x00, 0xBC, 0x61, 0x4E});
+  DlmsCosemReader reader(makeConfig());
+  reader.init(bus);
+  float val = 0;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, reader.get_import(&val));
+  TEST_ASSERT_EQUAL_FLOAT(12345.678f, val);
+  assertSent(bus, {SNRM, request(0x10, AARQ), request(0x32, getApdu(1, 8, DLMS_ATTR_SCALER_UNIT)),
+                   request(0x54, getApdu(1, 8, DLMS_ATTR_VALUE)), DISC});
+}
+
+/** Export reads OBIS 1.0.2.8.0.255, here with scaler 3 so 12 is 12 kWh. */
+void test_session_export() {
+  FakeBus bus;
+  queueSession(bus, {0x02, 0x02, 0x0F, 0x03, 0x16, 0x1E}, {0x12, 0x00, 0x0C});
+  DlmsCosemReader reader(makeConfig());
+  reader.init(bus);
+  float val = 0;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, reader.get_export(&val));
+  TEST_ASSERT_EQUAL_FLOAT(12.0f, val);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(request(0x54, getApdu(2, 8, DLMS_ATTR_VALUE)).data(),
+                               bus.sent[3].data(), bus.sent[3].size());
+}
+
+/** Voltage reads OBIS 1.0.32.7.0.255 in tenths of a volt, 2301 is 230.1 V. */
+void test_session_voltage() {
+  FakeBus bus;
+  queueSession(bus, {0x02, 0x02, 0x0F, 0xFF, 0x16, 0x23}, {0x12, 0x08, 0xFD});
+  DlmsCosemReader reader(makeConfig());
+  reader.init(bus);
+  float val = 0;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, reader.get_voltage(&val));
+  TEST_ASSERT_EQUAL_FLOAT(230.1f, val);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(request(0x54, getApdu(32, 7, DLMS_ATTR_VALUE)).data(),
+                               bus.sent[3].data(), bus.sent[3].size());
+}
+
+/** A rejected AARE fails the read, and DISC is still sent. */
+void test_session_rejected_aare_sends_disc() {
+  std::vector<uint8_t> rejected = AARE;
+  rejected[17] = 0x01;
+  rejected[24] = 0x01;
+  FakeBus bus;
+  bus.queueReply(UA);
+  bus.queueReply(respond(0x30, rejected));
+  bus.queueReply(UA);
+  DlmsCosemReader reader(makeConfig());
+  reader.init(bus);
+  float val = 0;
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, reader.get_import(&val));
+  assertSent(bus, {SNRM, request(0x10, AARQ), DISC});
+}
+
+/** An object the meter does not have fails the read, and DISC is still sent. */
+void test_session_object_undefined_sends_disc() {
+  FakeBus bus;
+  bus.queueReply(UA);
+  bus.queueReply(respond(0x30, AARE));
+  bus.queueReply(respond(0x52, {0xC4, 0x01, 0xC1, 0x01, 0x04}));
+  bus.queueReply(UA);
+  DlmsCosemReader reader(makeConfig());
+  reader.init(bus);
+  float val = 0;
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, reader.get_import(&val));
+  assertSent(bus, {SNRM, request(0x10, AARQ), request(0x32, getApdu(1, 8, DLMS_ATTR_SCALER_UNIT)),
+                   DISC});
+}
+
+/** A register in V read as energy fails before its value is asked for. */
+void test_session_wrong_unit_fails() {
+  FakeBus bus;
+  queueSession(bus, {0x02, 0x02, 0x0F, 0x00, 0x16, 0x23}, {0x06, 0x00, 0xBC, 0x61, 0x4E});
+  DlmsCosemReader reader(makeConfig());
+  reader.init(bus);
+  float val = 0;
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, reader.get_import(&val));
+  TEST_ASSERT_EQUAL_UINT(4, bus.sent.size());
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(DISC.data(), bus.sent[3].data(), DISC.size());
+}
+
+/** A refused SNRM fails without a DISC, since the link never came up. */
+void test_session_refused_link_skips_disc() {
+  FakeBus bus;
+  bus.queueReply(reply(HDLC_DM));
+  DlmsCosemReader reader(makeConfig());
+  reader.init(bus);
+  float val = 0;
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, reader.get_import(&val));
+  assertSent(bus, {SNRM});
+}
+
 /** Runs every test once the serial port is up. */
 void setup() {
   delay(500);
@@ -570,6 +766,13 @@ void setup() {
   RUN_TEST(test_exchange_rejects_segmented);
   RUN_TEST(test_exchange_rejects_oversized_reply);
   RUN_TEST(test_exchange_rejects_oversized_apdu);
+  RUN_TEST(test_session_import);
+  RUN_TEST(test_session_export);
+  RUN_TEST(test_session_voltage);
+  RUN_TEST(test_session_rejected_aare_sends_disc);
+  RUN_TEST(test_session_object_undefined_sends_disc);
+  RUN_TEST(test_session_wrong_unit_fails);
+  RUN_TEST(test_session_refused_link_skips_disc);
   UNITY_END();
 }
 

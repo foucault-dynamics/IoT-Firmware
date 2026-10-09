@@ -55,6 +55,58 @@ class DlmsCosemReaderTest {
   static int checkAare(DlmsCosemReader &r, const std::vector<uint8_t> &apdu) {
     return r.checkAare(apdu.data(), apdu.size());
   }
+
+  /**
+   * Calls DlmsCosemReader::buildGetRequest().
+   *
+   * @param[in]  r          Reader to call it on.
+   * @param[in]  obis       OBIS code, 6 bytes.
+   * @param[in]  attribute  Attribute id.
+   * @param[out] out        At least DLMS_GET_REQUEST_LEN bytes.
+   */
+  static void getRequest(DlmsCosemReader &r, const uint8_t *obis, uint8_t attribute, uint8_t *out) {
+    r.buildGetRequest(obis, attribute, out);
+  }
+
+  /**
+   * Calls DlmsCosemReader::parseGetResponse().
+   *
+   * @param[in]  r        Reader to call it on.
+   * @param[in]  apdu     GET response APDU, without LLC.
+   * @param[out] data     Points into @p apdu at the Data.
+   * @param[out] dataLen  Length of the Data.
+   * @return What parseGetResponse() returned.
+   */
+  static int getResponse(DlmsCosemReader &r, const std::vector<uint8_t> &apdu,
+                         const uint8_t **data, size_t *dataLen) {
+    return r.parseGetResponse(apdu.data(), apdu.size(), data, dataLen);
+  }
+
+  /**
+   * Calls DlmsCosemReader::decodeNumber().
+   *
+   * @param[in]  r     Reader to call it on.
+   * @param[in]  data  Data, starting at its type tag.
+   * @param[out] val   Decoded value.
+   * @return What decodeNumber() returned.
+   */
+  static int number(DlmsCosemReader &r, const std::vector<uint8_t> &data, double *val) {
+    return r.decodeNumber(data.data(), data.size(), val);
+  }
+
+  /**
+   * Calls DlmsCosemReader::decodeScalerUnit().
+   *
+   * @param[in]  r       Reader to call it on.
+   * @param[in]  data    Data, starting at its type tag.
+   * @param[in]  unit    Expected unit.
+   * @param[out] scaler  Decoded scaler.
+   * @return What decodeScalerUnit() returned.
+   */
+  static int scalerUnit(DlmsCosemReader &r, const std::vector<uint8_t> &data, uint8_t unit,
+                        int8_t *scaler) {
+    return r.decodeScalerUnit(data.data(), data.size(), unit, scaler);
+  }
 };
 
 namespace {
@@ -467,6 +519,235 @@ void test_aare_rejects_truncated() {
   TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, checkAare(apdu));
 }
 
+namespace {
+
+/** OBIS 1.0.1.8.0.255, imported active energy. */
+const uint8_t IMPORT_OBIS[6] = {1, 0, 1, 8, 0, 255};
+
+/**
+ * Builds a GET request and checks it against its expected bytes.
+ *
+ * @param[in] obis       OBIS code, 6 bytes.
+ * @param[in] attribute  Attribute id.
+ * @param[in] expected   Expected APDU, DLMS_GET_REQUEST_LEN bytes.
+ */
+void assertGetRequest(const uint8_t *obis, uint8_t attribute, const uint8_t *expected) {
+  DlmsCosemReader reader(makeConfig(0, 1));
+  uint8_t out[DLMS_GET_REQUEST_LEN];
+  DlmsCosemReaderTest::getRequest(reader, obis, attribute, out);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, out, DLMS_GET_REQUEST_LEN);
+}
+
+}  // namespace
+
+/** GET of the import value matches trace frame 7. */
+void test_get_import_value() {
+  const uint8_t expected[] = {0xC0, 0x01, 0xC1, 0x00, 0x03, 0x01, 0x00,
+                              0x01, 0x08, 0x00, 0xFF, 0x02, 0x00};
+  assertGetRequest(IMPORT_OBIS, DLMS_ATTR_VALUE, expected);
+}
+
+/** GET of the import scaler_unit matches trace frame 5. */
+void test_get_import_scaler_unit() {
+  const uint8_t expected[] = {0xC0, 0x01, 0xC1, 0x00, 0x03, 0x01, 0x00,
+                              0x01, 0x08, 0x00, 0xFF, 0x03, 0x00};
+  assertGetRequest(IMPORT_OBIS, DLMS_ATTR_SCALER_UNIT, expected);
+}
+
+/** GET of the voltage value carries OBIS 1.0.32.7.0.255. */
+void test_get_voltage_value() {
+  const uint8_t obis[6] = {1, 0, 32, 7, 0, 255};
+  const uint8_t expected[] = {0xC0, 0x01, 0xC1, 0x00, 0x03, 0x01, 0x00,
+                              0x20, 0x07, 0x00, 0xFF, 0x02, 0x00};
+  assertGetRequest(obis, DLMS_ATTR_VALUE, expected);
+}
+
+namespace {
+
+/**
+ * Decodes a Data item and checks it succeeds with the expected value.
+ *
+ * @param[in] data      Data, starting at its type tag.
+ * @param[in] expected  Value it must decode to exactly.
+ */
+void assertNumber(const std::vector<uint8_t> &data, double expected) {
+  DlmsCosemReader reader(makeConfig(0, 1));
+  double val = 0;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, DlmsCosemReaderTest::number(reader, data, &val));
+  char msg[64];
+  snprintf(msg, sizeof(msg), "expected %f, got %f", expected, val);
+  TEST_ASSERT_TRUE_MESSAGE(val == expected, msg);
+}
+
+/**
+ * Decodes a Data item that must be rejected.
+ *
+ * @param[in] data  Data, starting at its type tag.
+ * @return What decodeNumber() returned.
+ */
+int decodeNumber(const std::vector<uint8_t> &data) {
+  DlmsCosemReader reader(makeConfig(0, 1));
+  double val = 0;
+  return DlmsCosemReaderTest::number(reader, data, &val);
+}
+
+/**
+ * Parses a GET response, discarding the Data pointer.
+ *
+ * @param[in] apdu  GET response APDU, without LLC.
+ * @return What parseGetResponse() returned.
+ */
+int parseGetResponse(const std::vector<uint8_t> &apdu) {
+  DlmsCosemReader reader(makeConfig(0, 1));
+  const uint8_t *data = nullptr;
+  size_t dataLen = 0;
+  return DlmsCosemReaderTest::getResponse(reader, apdu, &data, &dataLen);
+}
+
+}  // namespace
+
+/** Tag 11, unsigned, decodes 0xFF as 255. */
+void test_number_unsigned() { assertNumber({0x11, 0xFF}, 255); }
+
+/** Tag 0F, integer, decodes 0xFF as -1. */
+void test_number_integer() { assertNumber({0x0F, 0xFF}, -1); }
+
+/** Tag 12, long-unsigned, decodes 0x8000 as 32768. */
+void test_number_long_unsigned() { assertNumber({0x12, 0x80, 0x00}, 32768); }
+
+/** Tag 10, long, decodes 0x8000 as -32768. */
+void test_number_long() { assertNumber({0x10, 0x80, 0x00}, -32768); }
+
+/** Tag 06, double-long-unsigned, decodes the trace's 12345678. */
+void test_number_double_long_unsigned() { assertNumber({0x06, 0x00, 0xBC, 0x61, 0x4E}, 12345678); }
+
+/** Tag 06 keeps a value above float's 2^24 exact. */
+void test_number_double_long_unsigned_max() {
+  assertNumber({0x06, 0xFF, 0xFF, 0xFF, 0xFF}, 4294967295.0);
+}
+
+/** Tag 05, double-long, decodes 0xFFFFFFFE as -2. */
+void test_number_double_long() { assertNumber({0x05, 0xFF, 0xFF, 0xFF, 0xFE}, -2); }
+
+/** Tag 15, long64-unsigned, decodes 2^32. */
+void test_number_long64_unsigned() {
+  assertNumber({0x15, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00}, 4294967296.0);
+}
+
+/** Tag 17, float32, decodes 0x43660000 as 230.0. */
+void test_number_float32() { assertNumber({0x17, 0x43, 0x66, 0x00, 0x00}, 230.0); }
+
+/** Tag 09, octet-string, is not a number. */
+void test_number_rejects_octet_string() {
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, decodeNumber({0x09, 0x02, 0x00, 0x01}));
+}
+
+/** A tag 06 with only 2 of its 4 bytes fails. */
+void test_number_rejects_truncated() {
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, decodeNumber({0x06, 0x00, 0xBC}));
+}
+
+/** Empty Data fails. */
+void test_number_rejects_empty() { TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, decodeNumber({})); }
+
+/** Trace frame 8 parses, and its Data starts at the 06 tag. */
+void test_get_response_data() {
+  const std::vector<uint8_t> apdu = {0xC4, 0x01, 0xC1, 0x00, 0x06, 0x00, 0xBC, 0x61, 0x4E};
+  DlmsCosemReader reader(makeConfig(0, 1));
+  const uint8_t *data = nullptr;
+  size_t dataLen = 0;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS,
+                        DlmsCosemReaderTest::getResponse(reader, apdu, &data, &dataLen));
+  TEST_ASSERT_EQUAL_PTR(apdu.data() + 4, data);
+  TEST_ASSERT_EQUAL_UINT(5, dataLen);
+}
+
+/** Data-access-result 4, object undefined, fails. */
+void test_get_response_rejects_access_result() {
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, parseGetResponse({0xC4, 0x01, 0xC1, 0x01, 0x04}));
+}
+
+/** A get-response-with-datablock fails, since block transfer is out of scope. */
+void test_get_response_rejects_datablock() {
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE,
+                        parseGetResponse({0xC4, 0x02, 0xC1, 0x00, 0x00, 0x00, 0x00, 0x01}));
+}
+
+/** An invoke id other than the C1 we sent fails. */
+void test_get_response_rejects_wrong_invoke_id() {
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, parseGetResponse({0xC4, 0x01, 0xC2, 0x00, 0x11, 0x01}));
+}
+
+/** A SET response tag where the GET response should be fails. */
+void test_get_response_rejects_wrong_tag() {
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, parseGetResponse({0xC5, 0x01, 0xC1, 0x00}));
+}
+
+/** A response shorter than its header fails. */
+void test_get_response_rejects_short() {
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, parseGetResponse({0xC4, 0x01, 0xC1}));
+}
+
+/** Choice 00 with no Data after it fails. */
+void test_get_response_rejects_missing_data() {
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, parseGetResponse({0xC4, 0x01, 0xC1, 0x00}));
+}
+
+namespace {
+
+/**
+ * Decodes a scaler_unit expected to be valid and checks its scaler.
+ *
+ * @param[in] data      Data, starting at its type tag.
+ * @param[in] unit      Expected unit.
+ * @param[in] expected  Scaler it must decode to.
+ */
+void assertScaler(const std::vector<uint8_t> &data, uint8_t unit, int8_t expected) {
+  DlmsCosemReader reader(makeConfig(0, 1));
+  int8_t scaler = 0;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, DlmsCosemReaderTest::scalerUnit(reader, data, unit, &scaler));
+  TEST_ASSERT_EQUAL_INT8(expected, scaler);
+}
+
+/**
+ * Decodes a scaler_unit that must be rejected.
+ *
+ * @param[in] data  Data, starting at its type tag.
+ * @param[in] unit  Expected unit.
+ * @return What decodeScalerUnit() returned.
+ */
+int decodeScalerUnit(const std::vector<uint8_t> &data, uint8_t unit) {
+  DlmsCosemReader reader(makeConfig(0, 1));
+  int8_t scaler = 0;
+  return DlmsCosemReaderTest::scalerUnit(reader, data, unit, &scaler);
+}
+
+}  // namespace
+
+/** Trace frame 6, scaler 0 in Wh. */
+void test_scaler_unit_zero() { assertScaler({0x02, 0x02, 0x0F, 0x00, 0x16, 0x1E}, DLMS_UNIT_WH, 0); }
+
+/** Scaler 0xFF is -1, as for a voltage in tenths. */
+void test_scaler_unit_negative() { assertScaler({0x02, 0x02, 0x0F, 0xFF, 0x16, 0x23}, DLMS_UNIT_V, -1); }
+
+/** Scaler 3, as for an energy counted in kWh. */
+void test_scaler_unit_positive() { assertScaler({0x02, 0x02, 0x0F, 0x03, 0x16, 0x1E}, DLMS_UNIT_WH, 3); }
+
+/** A register in V read by an energy getter fails. */
+void test_scaler_unit_rejects_wrong_unit() {
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, decodeScalerUnit({0x02, 0x02, 0x0F, 0x00, 0x16, 0x23}, DLMS_UNIT_WH));
+}
+
+/** A plain number where the structure should be fails. */
+void test_scaler_unit_rejects_number() {
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, decodeScalerUnit({0x06, 0x00, 0xBC, 0x61, 0x4E}, DLMS_UNIT_WH));
+}
+
+/** A structure cut short fails instead of being read past its end. */
+void test_scaler_unit_rejects_truncated() {
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, decodeScalerUnit({0x02, 0x02, 0x0F, 0x00, 0x16}, DLMS_UNIT_WH));
+}
+
 /** Runs every test once the serial port is up. */
 void setup() {
   delay(500);
@@ -502,6 +783,34 @@ void setup() {
   RUN_TEST(test_aare_rejects_service_error);
   RUN_TEST(test_aare_rejects_wrong_tag);
   RUN_TEST(test_aare_rejects_truncated);
+  RUN_TEST(test_get_import_value);
+  RUN_TEST(test_get_import_scaler_unit);
+  RUN_TEST(test_get_voltage_value);
+  RUN_TEST(test_number_unsigned);
+  RUN_TEST(test_number_integer);
+  RUN_TEST(test_number_long_unsigned);
+  RUN_TEST(test_number_long);
+  RUN_TEST(test_number_double_long_unsigned);
+  RUN_TEST(test_number_double_long_unsigned_max);
+  RUN_TEST(test_number_double_long);
+  RUN_TEST(test_number_long64_unsigned);
+  RUN_TEST(test_number_float32);
+  RUN_TEST(test_number_rejects_octet_string);
+  RUN_TEST(test_number_rejects_truncated);
+  RUN_TEST(test_number_rejects_empty);
+  RUN_TEST(test_get_response_data);
+  RUN_TEST(test_get_response_rejects_access_result);
+  RUN_TEST(test_get_response_rejects_datablock);
+  RUN_TEST(test_get_response_rejects_wrong_invoke_id);
+  RUN_TEST(test_get_response_rejects_wrong_tag);
+  RUN_TEST(test_get_response_rejects_short);
+  RUN_TEST(test_get_response_rejects_missing_data);
+  RUN_TEST(test_scaler_unit_zero);
+  RUN_TEST(test_scaler_unit_negative);
+  RUN_TEST(test_scaler_unit_positive);
+  RUN_TEST(test_scaler_unit_rejects_wrong_unit);
+  RUN_TEST(test_scaler_unit_rejects_number);
+  RUN_TEST(test_scaler_unit_rejects_truncated);
   UNITY_END();
 }
 

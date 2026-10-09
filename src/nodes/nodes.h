@@ -11,7 +11,7 @@
 #define NODES_H
 
 
-/** Loads config, starts the ESP-NOW uplink and builds the Modbus bus and reader. */
+/** Loads config, starts the ESP-NOW uplink and builds the Modbus or DLMS/COSEM bus and reader. */
 void rs485NodeSetup();
 /** Steps the read, send, sleep cycle. Never blocks between readings. */
 void rs485NodeLoop();
