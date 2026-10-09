@@ -29,9 +29,19 @@ class Iec6205621Reader : public Reader {
   /**
    * Reader settings.
    *
-   * Only bus.baudRate is used, as the rate every handshake starts at.
+   * Kept for symmetry with ModbusRtuReader and CamHttpReader. Nothing in this
+   * protocol is actually per meter configurable.
    */
   Iec62056Config config;
+
+  /**
+   * Rate #head is at right now.
+   *
+   * A session ends at the negotiated rate, but the meter drops back to 300, so
+   * the next handshake switches back first. Tracked so a head already at 300
+   * is not retuned for nothing.
+   */
+  uint32_t currentBaud = 0;
 
   float cachedExport = 0.0f;  ///< Export reading from the last get_import().
   bool exportValid = false;   ///< True once get_import() has filled #cachedExport this cycle.
@@ -72,13 +82,16 @@ class Iec6205621Reader : public Reader {
   /**
    * Finds an OBIS code in a data block and parses the number after it.
    *
-   * OBIS lines look like "1-0:1.8.0(001234.567*kWh)".
+   * OBIS lines look like "1-0:1.8.0(001234.567*kWh)". The bracket must follow
+   * the code directly, and the number must run up to the '*' before the unit
+   * or the closing bracket.
    *
    * @param[in]  block     Data block from the meter.
    * @param[in]  obisCode  Code to look for, e.g. "1-0:1.8.0".
-   * @param[out] out       Parsed value. Untouched if the code is missing.
+   * @param[out] out       Parsed value. Untouched on failure.
    * @retval true   Found and parsed.
-   * @retval false  The code or its opening bracket was not in the block.
+   * @retval false  The code is missing, has no bracket straight after it, or
+   *                its value is not a number.
    */
   static bool parseObisFloat(const String &block, const char *obisCode,
                               float &out);

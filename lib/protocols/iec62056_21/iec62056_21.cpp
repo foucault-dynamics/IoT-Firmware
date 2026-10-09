@@ -6,6 +6,7 @@
 #include "iec62056_21.h"
 #include <Arduino.h>
 #include <cstdlib>
+#include <cstring>
 
 namespace {
 /** How long to wait for the meter's identification message, in ms. */
@@ -14,6 +15,9 @@ constexpr unsigned long ID_TIMEOUT_MS = 2000;
 constexpr unsigned long DATA_TIMEOUT_MS = 3000;
 /** How long to wait for the ETX and BCC after the data block's "!\r\n", in ms. */
 constexpr unsigned long BCC_TIMEOUT_MS = 500;
+
+/** Rate every mode C session opens at, fixed by the standard. */
+constexpr uint32_t START_BAUD = 300;
 
 /** Start of text, the first byte of a framed data block. */
 constexpr char STX = 0x02;
@@ -29,6 +33,7 @@ int Iec6205621Reader::init(Module &module) {
   // optical port is the only thing it's ever attached to.
   head = static_cast<IrHead *>(&module);
   head->init();
+  currentBaud = START_BAUD;  // every IrHead's init() opens the link at 300
   return EXIT_SUCCESS;
 }
 
@@ -103,7 +108,10 @@ int Iec6205621Reader::handshake(uint32_t &negotiatedBaud) {
   // whatever rate it negotiated, but the meter dropped back to 300 as soon
   // as it finished sending. Skip this and every read after the first
   // goes out at the wrong speed.
-  head->setBaudRate(config.bus.baudRate);
+  if (currentBaud != START_BAUD) {
+    head->setBaudRate(START_BAUD);
+    currentBaud = START_BAUD;
+  }
 
   // Throw away anything still waiting from the last read (late bytes,
   // line noise) so it can't be mistaken for the identification message.
@@ -161,20 +169,31 @@ int Iec6205621Reader::handshake(uint32_t &negotiatedBaud) {
   // baud until it has received this ACK, so switching any earlier would
   // mean sending the ACK itself at the wrong speed.
   head->setBaudRate(negotiatedBaud);
+  currentBaud = negotiatedBaud;
 
   return 0;
 }
 
 bool Iec6205621Reader::parseObisFloat(const String &block,
                                        const char *obisCode, float &out) {
+  const size_t codeLen = strlen(obisCode);
+
+  // The bracket must follow the code directly. Searching further would run
+  // past the end of the line and take the next code's value.
   int idx = block.indexOf(obisCode);
+  while (idx >= 0 && block[idx + codeLen] != '(') {
+    idx = block.indexOf(obisCode, idx + 1);
+  }
   if (idx < 0) return false;
 
-  // Skip past the opening bracket and read the number.
-  int openParen = block.indexOf('(', idx);
-  if (openParen < 0) return false;
+  // The number must fill the bracket up to the unit or the closing bracket.
+  // String::toFloat() would read garbage as 0 and give no sign of it.
+  const char *start = block.c_str() + idx + codeLen + 1;
+  char *end = nullptr;
+  float value = strtof(start, &end);
+  if (end == start || (*end != '*' && *end != ')')) return false;
 
-  out = block.substring(openParen + 1).toFloat();
+  out = value;
   return true;
 }
 

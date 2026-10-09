@@ -13,6 +13,8 @@ class String {
   char operator[](unsigned int i) const { return s[i]; }
   bool operator==(const char *c) const { return s == c; }
   int indexOf(const char *t) const { auto p = s.find(t); return p == std::string::npos ? -1 : (int)p; }
+  int indexOf(const char *t, int from) const { auto p = s.find(t, from); return p == std::string::npos ? -1 : (int)p; }
+  const char *c_str() const { return s.c_str(); }
   int indexOf(char c) const { auto p = s.find(c); return p == std::string::npos ? -1 : (int)p; }
   int indexOf(char c, int from) const { auto p = s.find(c, from); return p == std::string::npos ? -1 : (int)p; }
   String substring(int from) const { return String(s.substr(from)); }
