@@ -5,7 +5,9 @@
  * Covers reading HDLC frames off the bus: skipping noise and idle flags,
  * trusting the length field over flags inside the frame, replies split across
  * reads, and the 1000 ms timeout. Then opening and closing the link: the exact
- * SNRM and DISC sent, which replies are accepted, and the sequence reset. millis() runs in real time under QEMU, so the
+ * SNRM and DISC sent, which replies are accepted, and the sequence reset.
+ * Then I-frame exchanges: LLC headers, N(S) and N(R) in both directions, and
+ * every way a reply is rejected. millis() runs in real time under QEMU, so the
  * timeouts are real.
  */
 
@@ -74,6 +76,20 @@ class DlmsCosemReaderTest {
    * @return V(R).
    */
   static uint8_t vr(const DlmsCosemReader &r) { return r.vr; }
+
+  /**
+   * Calls DlmsCosemReader::exchange().
+   *
+   * @param[in]  r        Reader to call it on.
+   * @param[in]  apdu     APDU to send.
+   * @param[out] resp     At least DLMS_APDU_MAX bytes.
+   * @param[out] respLen  Length of @p resp.
+   * @return What exchange() returned.
+   */
+  static int exchange(DlmsCosemReader &r, const std::vector<uint8_t> &apdu, uint8_t *resp,
+                      size_t *respLen) {
+    return r.exchange(apdu.data(), apdu.size(), resp, respLen);
+  }
 };
 
 namespace {
@@ -187,6 +203,73 @@ void assertSentOnly(const FakeBus &bus, const std::vector<uint8_t> &expected) {
 int connectWith(FakeBus &bus, DlmsCosemReader &reader) {
   reader.init(bus);
   return DlmsCosemReaderTest::connect(reader);
+}
+
+/** A GET request APDU, its contents do not matter to exchange(). */
+const std::vector<uint8_t> GET_APDU = {0xC0, 0x01, 0xC1, 0x00, 0x03, 0x01, 0x00,
+                                       0x01, 0x08, 0x00, 0xFF, 0x02, 0x00};
+
+/** A GET response APDU, its contents do not matter to exchange(). */
+const std::vector<uint8_t> RESP_APDU = {0xC4, 0x01, 0xC1, 0x00, 0x06, 0x00, 0xBC, 0x61, 0x4E};
+
+/**
+ * Builds a reply I-frame from server 1 to client 16 by hand, with no limit on
+ * the info length, so a test can send what hdlcBuildFrame() would refuse.
+ *
+ * @param[in] control  Control byte.
+ * @param[in] info     Info field, LLC included.
+ * @return The frame, HCS and FCS included.
+ */
+std::vector<uint8_t> iReply(uint8_t control, const std::vector<uint8_t> &info) {
+  size_t length = 9 + info.size();
+  std::vector<uint8_t> frame = {0x7E, static_cast<uint8_t>(0xA0 | (length >> 8)),
+                                static_cast<uint8_t>(length), 0x21, 0x03, control};
+  uint16_t hcs = hdlcFcs(frame.data() + 1, frame.size() - 1);
+  frame.push_back(hcs & 0xFF);
+  frame.push_back(hcs >> 8);
+  frame.insert(frame.end(), info.begin(), info.end());
+  uint16_t fcs = hdlcFcs(frame.data() + 1, frame.size() - 1);
+  frame.push_back(fcs & 0xFF);
+  frame.push_back(fcs >> 8);
+  frame.push_back(0x7E);
+  return frame;
+}
+
+/**
+ * Builds a valid reply I-frame carrying RESP_APDU behind the response LLC.
+ *
+ * @param[in] control  Control byte.
+ * @return The frame.
+ */
+std::vector<uint8_t> respFrame(uint8_t control) {
+  return iReply(control, concat({0xE6, 0xE7, 0x00}, RESP_APDU));
+}
+
+/**
+ * Runs one exchange of GET_APDU on a reader already set up.
+ *
+ * @param[in] reader  Reader to exchange on.
+ * @return What exchange() returned.
+ */
+int exchangeGet(DlmsCosemReader &reader) {
+  uint8_t resp[DLMS_APDU_MAX];
+  size_t respLen = 0;
+  return DlmsCosemReaderTest::exchange(reader, GET_APDU, resp, &respLen);
+}
+
+/**
+ * Checks that one exchange fails against a reply and leaves the counters at 0.
+ *
+ * @param[in] reply  Frame the meter answers with.
+ */
+void assertExchangeRejects(const std::vector<uint8_t> &reply) {
+  FakeBus bus;
+  bus.queueReply(reply);
+  DlmsCosemReader reader(makeConfig());
+  reader.init(bus);
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, exchangeGet(reader));
+  TEST_ASSERT_EQUAL_UINT8(0, DlmsCosemReaderTest::vs(reader));
+  TEST_ASSERT_EQUAL_UINT8(0, DlmsCosemReaderTest::vr(reader));
 }
 
 }  // namespace
@@ -356,6 +439,105 @@ void test_disconnect_accepts_dm() {
   TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, DlmsCosemReaderTest::disconnect(reader));
 }
 
+/** The info field sent is the command LLC followed by the APDU. */
+void test_exchange_sends_llc_and_apdu() {
+  FakeBus bus;
+  bus.queueReply(respFrame(0x30));
+  DlmsCosemReader reader(makeConfig());
+  reader.init(bus);
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, exchangeGet(reader));
+  std::vector<uint8_t> info = concat({0xE6, 0xE6, 0x00}, GET_APDU);
+  const std::vector<uint8_t> &sent = bus.sent[0];
+  TEST_ASSERT_EQUAL_UINT(info.size() + 11, sent.size());
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(info.data(), sent.data() + 8, info.size());
+}
+
+/** Two exchanges send controls 10 then 32, as in the trace. */
+void test_exchange_controls_advance() {
+  FakeBus bus;
+  bus.queueReply(respFrame(0x30));
+  bus.queueReply(respFrame(0x52));
+  DlmsCosemReader reader(makeConfig());
+  reader.init(bus);
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, exchangeGet(reader));
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, exchangeGet(reader));
+  TEST_ASSERT_EQUAL_HEX8(0x10, bus.sent[0][5]);
+  TEST_ASSERT_EQUAL_HEX8(0x32, bus.sent[1][5]);
+  TEST_ASSERT_EQUAL_UINT8(2, DlmsCosemReaderTest::vs(reader));
+  TEST_ASSERT_EQUAL_UINT8(2, DlmsCosemReaderTest::vr(reader));
+}
+
+/** The reply's APDU comes back without its LLC header. */
+void test_exchange_returns_apdu() {
+  FakeBus bus;
+  bus.queueReply(respFrame(0x30));
+  DlmsCosemReader reader(makeConfig());
+  reader.init(bus);
+  uint8_t resp[DLMS_APDU_MAX];
+  size_t respLen = 0;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, DlmsCosemReaderTest::exchange(reader, GET_APDU, resp, &respLen));
+  TEST_ASSERT_EQUAL_UINT(RESP_APDU.size(), respLen);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(RESP_APDU.data(), resp, respLen);
+}
+
+/** From 7 and 7 the control is FE, and both counters wrap to 0. */
+void test_exchange_wraps_mod_8() {
+  FakeBus bus;
+  bus.queueReply(respFrame(0x1E));
+  DlmsCosemReader reader(makeConfig());
+  reader.init(bus);
+  DlmsCosemReaderTest::setSequence(reader, 7, 7);
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, exchangeGet(reader));
+  TEST_ASSERT_EQUAL_HEX8(0xFE, bus.sent[0][5]);
+  TEST_ASSERT_EQUAL_UINT8(0, DlmsCosemReaderTest::vs(reader));
+  TEST_ASSERT_EQUAL_UINT8(0, DlmsCosemReaderTest::vr(reader));
+}
+
+/** A reply numbered 1 when 0 was expected is rejected. */
+void test_exchange_rejects_wrong_ns() {
+  assertExchangeRejects(respFrame(0x32));
+}
+
+/** A reply that does not acknowledge the frame sent is rejected. */
+void test_exchange_rejects_wrong_nr() {
+  assertExchangeRejects(respFrame(0x10));
+}
+
+/** A reply with the command LLC instead of the response LLC is rejected. */
+void test_exchange_rejects_wrong_llc() {
+  assertExchangeRejects(iReply(0x30, concat({0xE6, 0xE6, 0x00}, RESP_APDU)));
+}
+
+/** A DM in the middle of a session is rejected. */
+void test_exchange_rejects_u_frame() {
+  assertExchangeRejects(reply(HDLC_DM));
+}
+
+/** A reply with the final bit clear is segmented, and rejected. */
+void test_exchange_rejects_segmented() {
+  assertExchangeRejects(respFrame(0x20));
+}
+
+/** A reply with more info than HDLC_INFO_MAX is rejected, not copied. */
+void test_exchange_rejects_oversized_reply() {
+  std::vector<uint8_t> info(HDLC_INFO_MAX + 2, 0x00);
+  info[0] = 0xE6;
+  info[1] = 0xE7;
+  assertExchangeRejects(iReply(0x30, info));
+}
+
+/** An APDU too long for one frame is rejected before anything is sent. */
+void test_exchange_rejects_oversized_apdu() {
+  FakeBus bus;
+  DlmsCosemReader reader(makeConfig());
+  reader.init(bus);
+  std::vector<uint8_t> apdu(DLMS_APDU_MAX + 1, 0x00);
+  uint8_t resp[DLMS_APDU_MAX];
+  size_t respLen = 0;
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, DlmsCosemReaderTest::exchange(reader, apdu, resp, &respLen));
+  TEST_ASSERT_EQUAL_UINT(0, bus.sent.size());
+}
+
 /** Runs every test once the serial port is up. */
 void setup() {
   delay(500);
@@ -377,6 +559,17 @@ void setup() {
   RUN_TEST(test_connect_rejects_silence);
   RUN_TEST(test_disconnect_sends_disc);
   RUN_TEST(test_disconnect_accepts_dm);
+  RUN_TEST(test_exchange_sends_llc_and_apdu);
+  RUN_TEST(test_exchange_controls_advance);
+  RUN_TEST(test_exchange_returns_apdu);
+  RUN_TEST(test_exchange_wraps_mod_8);
+  RUN_TEST(test_exchange_rejects_wrong_ns);
+  RUN_TEST(test_exchange_rejects_wrong_nr);
+  RUN_TEST(test_exchange_rejects_wrong_llc);
+  RUN_TEST(test_exchange_rejects_u_frame);
+  RUN_TEST(test_exchange_rejects_segmented);
+  RUN_TEST(test_exchange_rejects_oversized_reply);
+  RUN_TEST(test_exchange_rejects_oversized_apdu);
   UNITY_END();
 }
 

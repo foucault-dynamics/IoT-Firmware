@@ -13,6 +13,10 @@
 
 /** How long to wait for a complete frame, in ms. */
 #define DLMS_TIMEOUT 1000
+/** Length of the LLC header in front of every APDU. */
+#define DLMS_LLC_LEN 3
+/** Largest APDU that fits one frame after the LLC header. */
+#define DLMS_APDU_MAX (HDLC_INFO_MAX - DLMS_LLC_LEN)
 
 /**
  * DLMS/COSEM reader for meters on RS485, framed with HDLC.
@@ -96,6 +100,25 @@ class DlmsCosemReader : public Reader {
    * @retval EXIT_FAILURE  Timed out, malformed, or addressed elsewhere.
    */
   int receive(uint8_t *buf, HdlcFrame *frame);
+
+  /**
+   * Sends one APDU in an I-frame and reads the APDU of the reply.
+   *
+   * Adds the LLC header E6 E6 00 going out. The reply must be a single
+   * I-frame with the final bit set, N(S) equal to V(R), N(R) acknowledging
+   * the frame just sent, and the LLC header E6 E7 00. Only then do V(S) and
+   * V(R) advance.
+   *
+   * @param[in]  apdu     APDU to send, without LLC.
+   * @param[in]  apduLen  Length of @p apdu, at most DLMS_APDU_MAX.
+   * @param[out] resp     At least DLMS_APDU_MAX bytes. The reply's APDU,
+   *                      without LLC.
+   * @param[out] respLen  Length of @p resp.
+   * @retval EXIT_SUCCESS  @p resp holds the reply.
+   * @retval EXIT_FAILURE  @p apdu was too long, or the reply was missing,
+   *                       out of sequence, segmented or not a DLMS response.
+   */
+  int exchange(const uint8_t *apdu, size_t apduLen, uint8_t *resp, size_t *respLen);
 
   /**
    * Reads one HDLC frame, skipping noise and idle flags before it.

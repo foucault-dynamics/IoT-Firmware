@@ -10,6 +10,9 @@
 
 namespace {
 
+const uint8_t LLC_SEND[DLMS_LLC_LEN] = {0xE6, 0xE6, 0x00};
+const uint8_t LLC_RECV[DLMS_LLC_LEN] = {0xE6, 0xE7, 0x00};
+
 bool sameAddress(const HdlcAddress &a, const HdlcAddress &b){
   return a.len == b.len && memcmp(a.bytes, b.bytes, a.len) == 0;
 }
@@ -155,5 +158,50 @@ int DlmsCosemReader::disconnect(){
     Serial.println("[DlmsCosemReader] unexpected reply to DISC");
     return EXIT_FAILURE;
   }
+  return EXIT_SUCCESS;
+}
+
+int DlmsCosemReader::exchange(const uint8_t *apdu, size_t apduLen, uint8_t *resp, size_t *respLen){
+  if(apduLen > DLMS_APDU_MAX){
+    Serial.println("[DlmsCosemReader] APDU too long for one frame");
+    return EXIT_FAILURE;
+  }
+  uint8_t info[HDLC_INFO_MAX];
+  memcpy(info, LLC_SEND, DLMS_LLC_LEN);
+  memcpy(info + DLMS_LLC_LEN, apdu, apduLen);
+  uint8_t control = (vr << 5) | HDLC_PF | (vs << 1);
+  if(sendFrame(control, info, DLMS_LLC_LEN + apduLen) != EXIT_SUCCESS){
+    return EXIT_FAILURE;
+  }
+
+  uint8_t buf[HDLC_FRAME_MAX];
+  HdlcFrame frame;
+  if(receive(buf, &frame) != EXIT_SUCCESS){
+    return EXIT_FAILURE;
+  }
+  if((frame.control & 1) != 0){
+    Serial.println("[DlmsCosemReader] expected an I-frame");
+    return EXIT_FAILURE;
+  }
+  if((frame.control & HDLC_PF) == 0){
+    Serial.println("[DlmsCosemReader] segmented reply not supported");
+    return EXIT_FAILURE;
+  }
+  uint8_t ns = (frame.control >> 1) & 0x07;
+  uint8_t nr = frame.control >> 5;
+  if(ns != vr || nr != ((vs + 1) & 0x07)){
+    Serial.println("[DlmsCosemReader] reply out of sequence");
+    return EXIT_FAILURE;
+  }
+  if(frame.infoLen < DLMS_LLC_LEN || frame.infoLen > HDLC_INFO_MAX ||
+     memcmp(frame.info, LLC_RECV, DLMS_LLC_LEN) != 0){
+    Serial.println("[DlmsCosemReader] reply is not a DLMS response");
+    return EXIT_FAILURE;
+  }
+
+  *respLen = frame.infoLen - DLMS_LLC_LEN;
+  memcpy(resp, frame.info + DLMS_LLC_LEN, *respLen);
+  vs = (vs + 1) & 0x07;
+  vr = (vr + 1) & 0x07;
   return EXIT_SUCCESS;
 }
