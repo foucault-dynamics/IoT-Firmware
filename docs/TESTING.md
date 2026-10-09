@@ -1,13 +1,9 @@
 # Testing
 
 The firmware's unit tests run inside an emulated ESP32-C3, using Espressif's
-fork of QEMU and the real Arduino core. Nothing is faked at the OS level:
-`millis()`, `micros()`, `delay()` and NVS all behave as they do on a board. The
+fork of QEMU and the real Arduino core. The
 only thing QEMU cannot run is the radio, so Wi-Fi and ESP-NOW tests need a real
-C3.
-
-The guiding idea is to keep logic apart from hardware. The less a piece of code
-depends on pins, radios or timers, the cheaper and more reliable its tests are.
+C3 run.
 
 ## Quick start
 
@@ -17,8 +13,7 @@ export ESP_QEMU=~/.kaizen/qemu/esp-develop-9.2.2-20260417/qemu/bin/qemu-system-r
 pio test -e test_c3 --without-uploading     # every QEMU suite
 ```
 
-`setup_qemu.sh` prints the exact `export` line. Put it in your shell profile
-so you only do this once. It supports macOS on Apple Silicon and Linux x86_64.
+Supported in  macOS on Apple Silicon and Linux x86_64.
 
 On macOS QEMU needs these Homebrew libraries:
 
@@ -34,9 +29,6 @@ brew install libgcrypt glib pixman sdl2 libslirp
 | `pio test -e test_c3 --without-uploading -v` | Also shows the firmware's serial output, including crash dumps |
 | `pio test -e unified -f test_board_radio` | Runs the real board suite on a connected C3 |
 | `pio test -e unified --without-uploading --without-testing` | Only builds the board suites, no board needed |
-
-A full QEMU run takes about 30 seconds. Most of that is building, each suite
-boots in a few seconds.
 
 ## Layout
 
@@ -74,19 +66,6 @@ suite only needs the right folder name.
 | `test_qemu_nvs` | NVS read helpers, the substation loader, and the sequence counter resuming from NVS |
 | `test_board_radio` | Wi-Fi station start, channel conflicts, ESP-NOW init and adding a peer |
 
-### Known failing tests
-
-Tests for known bugs assert the **correct** behaviour and are left failing
-until the bug is fixed, rather than being skipped. That keeps the bug visible
-in every run.
-
-| Test | Bug |
-|---|---|
-| `test_qemu_iec62056`: `test_obis_rejects_non_numeric_value` | `parseObisFloat` accepts `(abc*kWh)` as 0 |
-| `test_qemu_iec62056`: `test_obis_missing_bracket_does_not_borrow_next_line` | A code with no `(` takes its value from the next line |
-
-Remove a row here when its fix lands.
-
 ## How a QEMU run works
 
 `pio test -e test_c3 --without-uploading` builds each suite, then, instead of
@@ -99,7 +78,7 @@ flashing a board, runs the command in `test_testing_command`:
    output back to PlatformIO, which parses Unity's results from it.
 3. It stops QEMU as soon as Unity prints `OK` or `FAIL`. If neither appears
    within 60 seconds, because the firmware crashed or hung, it kills QEMU and
-   fails the run, so CI never stalls.
+   fails the run. 
 
 Every run starts from a freshly merged image, so NVS is always empty at boot.
 
@@ -139,8 +118,7 @@ their `#include`, as in the firmware. `src/` is never built into tests, so the
 suite's `setup()` does not clash with `main.cpp`.
 
 `test/` is outside the Doxygen input, but test code follows
-[`COMMENTING.md`](COMMENTING.md) anyway, so it reads like the rest of the
-codebase.
+[`COMMENTING.md`](COMMENTING.md).
 
 ### Reaching private functions
 
@@ -159,8 +137,7 @@ class ModbusRtuReader : public Reader {
 PlatformIO defines `PIO_UNIT_TESTING` only during `pio test`, so release builds
 are unchanged. The suite then defines that class with static functions that
 forward to the private ones. See `test_qemu_modbus_frame` and
-`test_qemu_iec62056`. `ModbusRtuReader` and `Iec6205621Reader` already have
-one.
+`test_qemu_iec62056`. `ModbusRtuReader` and `Iec6205621Reader` for examples.
 
 ### Faking a bus
 
