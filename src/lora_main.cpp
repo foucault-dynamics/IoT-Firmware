@@ -1,10 +1,11 @@
 /**
  * @file
- * Firmware entry point: picks this board's node role and runs that node.
+ * LoRa PCB firmware entry point: picks whether this board is a substation or a
+ * gateway and runs that node.
  *
- * Every board runs the same firmware. setup() asks which role the board plays,
- * then calls that node's setup function, and loop() keeps calling that node's
- * loop function.
+ * Every LoRa PCB runs the same firmware. setup() asks which role the board
+ * plays, then calls that node's setup function, and loop() keeps calling that
+ * node's loop function.
  */
 
 #include <Arduino.h>
@@ -12,12 +13,9 @@
 #include "nodes/nodes.h"
 #include "nvs_config.h"
 
-/** Role a board plays in the network. The values match the boot menu keys. */
+/** Role a LoRa PCB plays in the network. The values match the boot menu keys. */
 enum class ModuleType : uint8_t {
   Unknown = 0,     ///< No valid role chosen. The board idles.
-  Rs485Node = 1,   ///< Meter node reading over RS485 (Modbus).
-  IrNode = 2,      ///< Meter node reading the optical port (IEC 62056-21).
-  CvNode = 3,      ///< Meter node reading the display with a camera.
   Substation = 4,  ///< Relays meter readings from ESP-NOW to LoRa.
   Gateway = 5,     ///< Receives over LoRa and publishes to MQTT.
 };
@@ -26,14 +24,11 @@ enum class ModuleType : uint8_t {
  * Asks over serial which role this board plays, blocking until a valid key.
  *
  * @return The chosen role.
- * @todo Read the board's module ID pin instead (driving GPIO3 and reading the
- *       voltage on GPIO4) once the final PCB exists.
+ * @todo Read whatever ID mechanism the hardware team puts on the LoRa PCB
+ *       instead.
  */
 static ModuleType readModuleType() {
   Serial.println("[BOOT] Select module to test:");
-  Serial.println("  1: RS485 node");
-  Serial.println("  2: IR node");
-  Serial.println("  3: CV node");
   Serial.println("  4: Substation");
   Serial.println("  5: Gateway");
 
@@ -43,11 +38,11 @@ static ModuleType readModuleType() {
       continue;
     }
     char c = Serial.read();
-    if (c >= '1' && c <= '5') {
+    if (c == '4' || c == '5') {
       return static_cast<ModuleType>(c - '0');
     }
     if (c != '\n' && c != '\r') {
-      Serial.printf("[BOOT] '%c' is not 1-5\n", c);
+      Serial.printf("[BOOT] '%c' is not 4 or 5\n", c);
     }
   }
 }
@@ -66,15 +61,6 @@ void setup() {
 
 
   switch (moduleType) {
-  case ModuleType::Rs485Node:
-    rs485NodeSetup();
-    break;
-  case ModuleType::IrNode:
-    irNodeSetup();
-    break;
-  case ModuleType::CvNode:
-    cvNodeSetup();
-    break;
   case ModuleType::Substation:
     substationSetup();
     break;
@@ -92,15 +78,6 @@ void loop() {
   nvsConfigPollSerial();
 
   switch (moduleType) {
-  case ModuleType::Rs485Node:
-    rs485NodeLoop();
-    break;
-  case ModuleType::IrNode:
-    irNodeLoop();
-    break;
-  case ModuleType::CvNode:
-    cvNodeLoop();
-    break;
   case ModuleType::Substation:
     substationLoop();
     break;
