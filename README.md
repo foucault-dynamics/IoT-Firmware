@@ -10,7 +10,8 @@ IR optical head, or camera) chosen by its role in the network.
 API docs for every class, function and config struct are published at
 **https://foucault-dynamics.github.io/IoT-Firmware/**, rebuilt from the code on
 every push to `main`. The commenting rules the site is built from are in
-[`docs/COMMENTING.md`](docs/COMMENTING.md). To build it locally:
+[`docs/COMMENTING.md`](docs/COMMENTING.md). How to run and write the unit
+tests is in [`docs/TESTING.md`](docs/TESTING.md). To build the docs locally:
 
 ```sh
 brew install doxygen graphviz
@@ -165,19 +166,27 @@ Project_Kaizen/
 │   ├── poll_test.py
 │   └── README.md
 ├── test/
+│   ├── support/             FakeBus, shared by the driver tests
+│   ├── test_qemu_*/         unit tests run in QEMU
+│   └── test_board_*/        tests that need a real C3
+├── tools/
+│   ├── setup_qemu.sh        downloads Espressif's QEMU
+│   └── qemu_test.py         runs a test build in QEMU
 ├── platformio.ini
 └── README.md
 ```
 
 ## PlatformIO Environments
 
-Both environments build the same sources, `main.cpp` and `nodes/`. They differ
-only in the board they target.
+Both firmware environments build the same sources, `main.cpp` and `nodes/`.
+They differ only in the board they target. `test_c3` builds the unit tests
+instead, see [`docs/TESTING.md`](docs/TESTING.md).
 
 | Environment | Board | Use |
 |---|---|---|
 | `unified` (default) | `esp32-c3-devkitm-1` | **Builds.** The current architecture, for every node type. Role is hardcoded to `Rs485Node`. |
 | `lilygo_lora` | `ttgo-lora32-v21` | **Builds.** The LilyGo LoRa board, for testing the substation and gateway roles. |
+| `test_c3` | `esp32-c3-devkitm-1` | Unit tests in emulated ESP32-C3, `pio test -e test_c3 --without-uploading`. |
 
 **Note**:` unified` sets `ARDUINO_USB_MODE` and `ARDUINO_USB_CDC_ON_BOOT` so serial output
 appears over the C3's native USB. `lilygo_lora` does not need them, because that
