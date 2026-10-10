@@ -43,6 +43,9 @@ test/
 ├── test_qemu_dlms_driver/
 ├── test_qemu_iec62056/
 ├── test_qemu_nvs/
+├── test_qemu_payload/
+├── test_qemu_cam_http/
+├── test_qemu_payload_json/
 └── test_board_radio/             needs a real C3, run by end_node
 ```
 
@@ -67,8 +70,11 @@ suite only needs the right folder name.
 | `test_qemu_dlms_frame` | HDLC FCS, addresses, building and parsing frames, the AARQ and AARE, GET requests and responses, A-XDR numbers, and scaler_unit |
 | `test_qemu_dlms_driver` | Reading HDLC frames off the bus, the 1000 ms timeout, SNRM and DISC, I-frame sequencing, and whole sessions through the getters, including DISC after a failure |
 | `test_qemu_iec62056` | The baud rate ID table, OBIS parsing, a full optical port session, and handshake failures |
-| `test_qemu_nvs` | NVS read helpers, the substation loader, and the sequence counter resuming from NVS |
-| `test_board_radio` | Wi-Fi station start, channel conflicts, ESP-NOW init and adding a peer |
+| `test_qemu_nvs` | NVS read helpers, the defaults and NVS overrides of every node's config loader, and the sequence counter resuming from NVS |
+| `test_qemu_payload` | The over the air packets: size, field offsets and byte image of Payload and AckPayload, and the UID helpers |
+| `test_qemu_cam_http` | The CV node's CamHttpReader: the request URL, a good read, every way the cam's JSON is rejected, and the unsupported registers |
+| `test_qemu_payload_json` | The gateway's MQTT JSON: the exact output for a known reading, `ts` before and after NTP sync, the `+10:00` offset, and buffer sizes |
+| `test_board_radio` | Wi-Fi station start, channel conflicts, ESP-NOW init, adding a peer, and sends that fail: no ACK, unknown peer, bad length |
 
 The DLMS suites check the reader against frames written for the tests. To check
 it against an independent implementation, run it against `DlmsSim/`, a Gurux
@@ -126,8 +132,26 @@ Save it as `test/test_qemu_<name>/test_main.cpp`. Libraries are found from
 their `#include`, as in the firmware. `src/` is never built into tests, so the
 suite's `setup()` does not clash with the firmware entry files.
 
-`test/` is outside the Doxygen input, but test code follows
-[`COMMENTING.md`](COMMENTING.md).
+Test code follows [`COMMENTING.md`](COMMENTING.md). Each test's comment says
+what it checks, and the tests sit inside a Doxygen group named after the
+suite, so the generated docs list every suite's tests under Topics > Tests:
+
+```cpp
+/**
+ * @defgroup test_qemu_<name> <Title>
+ * @ingroup tests
+ * Tests in test_qemu_<name>/test_main.cpp.
+ * @{
+ */
+
+/** One line saying what the test checks. */
+void test_something() { ... }
+
+/** @} */
+```
+
+Open the group after `tearDown()` and close it before `setup()`, so only the
+tests join it.
 
 ### Reaching private functions
 
@@ -201,3 +225,6 @@ The cache is keyed on that file, so CI downloads the new release.
 | Suite shows `ERRORED` with no test results | Same as above, rerun with `-v` |
 | QEMU fails to start on macOS with a missing `.dylib` | Install the Homebrew libraries listed in the quick start |
 | A board suite prints nothing | Give USB serial time to enumerate. Board suites wait 2 s in `setup()` |
+
+@defgroup tests Tests
+@brief Every test suite, one group per suite.

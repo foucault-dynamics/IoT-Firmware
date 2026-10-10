@@ -155,6 +155,7 @@ Project_Kaizen/
 │   │   ├── modbus_rtu/      Modbus RTU Reader
 │   │   ├── dlms_cosem/      DLMS/COSEM Reader over HDLC
 │   │   ├── cam_http/        ESP32-CAM Reader
+│   │   ├── payload_json/    Gateway's MQTT JSON
 │   │   └── iec62056_21/     IEC 62056-21 optical protocol
 │   ├── links/
 │   │   ├── esp_now_uplink/  ESP-NOW Transmitter
