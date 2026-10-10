@@ -7,6 +7,10 @@ IR optical head, or camera) chosen by its role in the network.
 
 ## Documentation
 
+New to the codebase? Start with [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md),
+which covers installing, flashing, a first end to end run, testing, and how the
+code in `src/` flows.
+
 API docs for every class, function and config struct are published at
 **https://foucault-dynamics.github.io/IoT-Firmware/**, rebuilt from the code on
 every push to `main`. The commenting rules the site is built from are in

@@ -15,6 +15,7 @@ HTML_OUTPUT            = docs
 
 # Sources. The repo README becomes the home page, the other READMEs become pages.
 INPUT                  = README.md \
+                         docs/GETTING_STARTED.md \
                          lib \
                          src \
                          docs \
