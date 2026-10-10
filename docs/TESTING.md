@@ -67,7 +67,7 @@ suite only needs the right folder name.
 | `test_qemu_dlms_frame` | HDLC FCS, addresses, building and parsing frames, the AARQ and AARE, GET requests and responses, A-XDR numbers, and scaler_unit |
 | `test_qemu_dlms_driver` | Reading HDLC frames off the bus, the 1000 ms timeout, SNRM and DISC, I-frame sequencing, and whole sessions through the getters, including DISC after a failure |
 | `test_qemu_iec62056` | The baud rate ID table, OBIS parsing, a full optical port session, and handshake failures |
-| `test_qemu_nvs` | NVS read helpers, the substation loader, and the sequence counter resuming from NVS |
+| `test_qemu_nvs` | NVS read helpers, the defaults and NVS overrides of every node's config loader, and the sequence counter resuming from NVS |
 | `test_board_radio` | Wi-Fi station start, channel conflicts, ESP-NOW init and adding a peer |
 
 The DLMS suites check the reader against frames written for the tests. To check
