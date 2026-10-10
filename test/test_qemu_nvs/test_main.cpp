@@ -1,7 +1,7 @@
 /**
  * @file
- * Tests for the NVS config readers, a loader and the sequence counter, run in
- * QEMU against its emulated flash.
+ * Tests for the NVS config readers, every node's loader and the sequence
+ * counter, run in QEMU against its emulated flash.
  *
  * Every run boots a freshly merged flash image, so NVS starts empty. setUp()
  * also wipes both namespaces, so each test starts from defaults.
@@ -13,6 +13,7 @@
 
 #include "nvs_config.h"
 #include "nvs_read.h"
+#include "secrets.h"
 #include "seq_counter.h"
 
 namespace {
@@ -142,6 +143,162 @@ void test_substation_loader_reads_nvs() {
   prefs.begin(NVS_NAMESPACE, false);
 }
 
+/** With NVS empty the RS485 loader gives Modbus RTU on the SP3485 pins and the secrets.h substation. */
+void test_rs485_loader_defaults() {
+  prefs.end();
+  Rs485NodeConfig cfg = loadRs485NodeConfig();
+  prefs.begin(NVS_NAMESPACE, false);
+
+  const uint8_t expectedMac[6] = SECRET_MAC;
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ReaderType::ModbusRtu), static_cast<uint8_t>(cfg.readerType));
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(expectedMac, cfg.substation.mac, 6);
+  TEST_ASSERT_EQUAL_UINT8(6, cfg.espNow.channel);
+  TEST_ASSERT_EQUAL_UINT32(100, cfg.espNow.sendTimeoutMs);
+  TEST_ASSERT_EQUAL_UINT8(8, cfg.modbus.bus.rx);
+  TEST_ASSERT_EQUAL_UINT8(9, cfg.modbus.bus.tx);
+  TEST_ASSERT_EQUAL_UINT8(10, cfg.modbus.bus.dere);
+  TEST_ASSERT_EQUAL_UINT32(9600, cfg.modbus.bus.baudRate);
+  TEST_ASSERT_EQUAL_UINT8(1, cfg.modbus.slaveAddress);
+  TEST_ASSERT_EQUAL_UINT32(1000, cfg.modbus.pollIntervalMs);
+  TEST_ASSERT_EQUAL_UINT8(16, cfg.dlms.clientSap);
+  TEST_ASSERT_EQUAL_UINT16(1, cfg.dlms.serverLogical);
+  TEST_ASSERT_EQUAL_UINT8(1, cfg.dlms.serverAddrLen);
+}
+
+/** Every RS485 key set in NVS overrides its default. */
+void test_rs485_loader_reads_nvs() {
+  prefs.putUInt("reader", static_cast<uint32_t>(ReaderType::DlmsCosem));
+  prefs.putString("sub_mac", "aa:bb:cc:01:02:03");
+  prefs.putUInt("espnow_chan", 11);
+  prefs.putUInt("baud", 19200);
+  prefs.putUInt("slave_addr", 7);
+  prefs.putUInt("poll_ms", 30000);
+  prefs.putUInt("dlms_client", 32);
+  prefs.end();
+  Rs485NodeConfig cfg = loadRs485NodeConfig();
+  prefs.begin(NVS_NAMESPACE, false);
+
+  const uint8_t expectedMac[6] = {0xAA, 0xBB, 0xCC, 0x01, 0x02, 0x03};
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ReaderType::DlmsCosem), static_cast<uint8_t>(cfg.readerType));
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(expectedMac, cfg.substation.mac, 6);
+  TEST_ASSERT_EQUAL_UINT8(11, cfg.espNow.channel);
+  TEST_ASSERT_EQUAL_UINT32(19200, cfg.modbus.bus.baudRate);
+  TEST_ASSERT_EQUAL_UINT32(19200, cfg.dlms.bus.baudRate);
+  TEST_ASSERT_EQUAL_UINT8(7, cfg.modbus.slaveAddress);
+  TEST_ASSERT_EQUAL_UINT32(30000, cfg.modbus.pollIntervalMs);
+  TEST_ASSERT_EQUAL_UINT8(32, cfg.dlms.clientSap);
+}
+
+/** With NVS empty the IR loader gives the simulated head at 300 baud 7E1, inverted. */
+void test_ir_loader_defaults() {
+  prefs.end();
+  IrNodeConfig cfg = loadIrNodeConfig();
+  prefs.begin(NVS_NAMESPACE, false);
+
+  const uint8_t expectedMac[6] = SECRET_MAC;
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(IrHeadMode::Simulated), static_cast<uint8_t>(cfg.headMode));
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(expectedMac, cfg.substation.mac, 6);
+  TEST_ASSERT_EQUAL_UINT8(6, cfg.espNow.channel);
+  TEST_ASSERT_EQUAL_UINT32(60000, cfg.iec.pollIntervalMs);
+  TEST_ASSERT_EQUAL_UINT8(20, cfg.iec.bus.rx);
+  TEST_ASSERT_EQUAL_UINT8(21, cfg.iec.bus.tx);
+  TEST_ASSERT_EQUAL_UINT32(300, cfg.iec.bus.baudRate);
+  TEST_ASSERT_EQUAL_UINT32(SERIAL_7E1, cfg.iec.bus.format);
+  TEST_ASSERT_TRUE(cfg.iec.bus.invert);
+  TEST_ASSERT_EQUAL_UINT16(5021, cfg.tcp.port);
+}
+
+/** Every IR key set in NVS overrides its default. */
+void test_ir_loader_reads_nvs() {
+  prefs.putUInt("simulate", static_cast<uint32_t>(IrHeadMode::Real));
+  prefs.putString("sub_mac", "aa:bb:cc:01:02:03");
+  prefs.putUInt("espnow_chan", 11);
+  prefs.putUInt("poll_ms", 15000);
+  prefs.putUInt("ir_invert", 0);
+  prefs.end();
+  IrNodeConfig cfg = loadIrNodeConfig();
+  prefs.begin(NVS_NAMESPACE, false);
+
+  const uint8_t expectedMac[6] = {0xAA, 0xBB, 0xCC, 0x01, 0x02, 0x03};
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(IrHeadMode::Real), static_cast<uint8_t>(cfg.headMode));
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(expectedMac, cfg.substation.mac, 6);
+  TEST_ASSERT_EQUAL_UINT8(11, cfg.espNow.channel);
+  TEST_ASSERT_EQUAL_UINT32(15000, cfg.iec.pollIntervalMs);
+  TEST_ASSERT_FALSE(cfg.iec.bus.invert);
+}
+
+/** With NVS empty the CV loader gives the secrets.h camera and the /json path. */
+void test_cv_loader_defaults() {
+  prefs.end();
+  CvNodeConfig cfg = loadCvNodeConfig();
+  prefs.begin(NVS_NAMESPACE, false);
+
+  const uint8_t expectedMac[6] = SECRET_MAC;
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(expectedMac, cfg.substation.mac, 6);
+  TEST_ASSERT_EQUAL_UINT8(1, cfg.espNow.channel);
+  TEST_ASSERT_EQUAL_UINT32(200, cfg.espNow.sendTimeoutMs);
+  TEST_ASSERT_EQUAL_UINT32(30000, cfg.cam.pollIntervalMs);
+  TEST_ASSERT_EQUAL_STRING(SECRET_CAM_HOST, cfg.cam.host);
+  TEST_ASSERT_EQUAL_STRING("/json", cfg.cam.path);
+  TEST_ASSERT_EQUAL_STRING(SECRET_CAM_FLOW_NAME, cfg.cam.flowName);
+}
+
+/** Every CV key set in NVS overrides its default. */
+void test_cv_loader_reads_nvs() {
+  prefs.putString("sub_mac", "aa:bb:cc:01:02:03");
+  prefs.putUInt("espnow_chan", 11);
+  prefs.putUInt("poll_ms", 10000);
+  prefs.putString("cam_host", "10.0.0.5");
+  prefs.putString("cam_flow", "meter");
+  prefs.end();
+  CvNodeConfig cfg = loadCvNodeConfig();
+  prefs.begin(NVS_NAMESPACE, false);
+
+  const uint8_t expectedMac[6] = {0xAA, 0xBB, 0xCC, 0x01, 0x02, 0x03};
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(expectedMac, cfg.substation.mac, 6);
+  TEST_ASSERT_EQUAL_UINT8(11, cfg.espNow.channel);
+  TEST_ASSERT_EQUAL_UINT32(10000, cfg.cam.pollIntervalMs);
+  TEST_ASSERT_EQUAL_STRING("10.0.0.5", cfg.cam.host);
+  TEST_ASSERT_EQUAL_STRING("meter", cfg.cam.flowName);
+}
+
+/** With NVS empty the gateway loader enables TLS MQTT to the secrets.h broker, with 3 LoRa tries of 1500 ms. */
+void test_gateway_loader_defaults() {
+  prefs.end();
+  GatewayConfig cfg = loadGatewayConfig();
+  prefs.begin(NVS_NAMESPACE, false);
+
+  TEST_ASSERT_TRUE(cfg.mqtt.enabled);
+  TEST_ASSERT_EQUAL_STRING(SECRET_MQTT_SERVER, cfg.mqtt.server);
+  TEST_ASSERT_EQUAL_UINT16(SECRET_MQTT_PORT, cfg.mqtt.port);
+  TEST_ASSERT_EQUAL_STRING(SECRET_MQTT_TOPIC, cfg.mqtt.topic);
+  TEST_ASSERT_EQUAL_STRING(SECRET_WIFI_SSID, cfg.wifi.ssid);
+  TEST_ASSERT_EQUAL_UINT8(3, cfg.link.maxRetries);
+  TEST_ASSERT_EQUAL_UINT32(1500, cfg.link.ackTimeoutMs);
+}
+
+/** Every gateway key set in NVS overrides its default, including turning MQTT off. */
+void test_gateway_loader_reads_nvs() {
+  prefs.putUInt("mqtt_on", 0);
+  prefs.putString("mqtt_host", "abc123.s1.eu.hivemq.cloud");
+  prefs.putUInt("mqtt_port", 8884);
+  prefs.putString("mqtt_topic", "kaizen/test");
+  prefs.putString("wifi_ssid", "Bench");
+  prefs.putUInt("lora_retries", 5);
+  prefs.putUInt("lora_ack_ms", 2500);
+  prefs.end();
+  GatewayConfig cfg = loadGatewayConfig();
+  prefs.begin(NVS_NAMESPACE, false);
+
+  TEST_ASSERT_FALSE(cfg.mqtt.enabled);
+  TEST_ASSERT_EQUAL_STRING("abc123.s1.eu.hivemq.cloud", cfg.mqtt.server);
+  TEST_ASSERT_EQUAL_UINT16(8884, cfg.mqtt.port);
+  TEST_ASSERT_EQUAL_STRING("kaizen/test", cfg.mqtt.topic);
+  TEST_ASSERT_EQUAL_STRING("Bench", cfg.wifi.ssid);
+  TEST_ASSERT_EQUAL_UINT8(5, cfg.link.maxRetries);
+  TEST_ASSERT_EQUAL_UINT32(2500, cfg.link.ackTimeoutMs);
+}
+
 /** On a fresh board the counter starts at 1, and each value is saved. */
 void test_seq_starts_at_one_and_saves() {
   seqCounterBegin();
@@ -170,6 +327,14 @@ void setup() {
   RUN_TEST(test_read_mac_written_key);
   RUN_TEST(test_read_mac_falls_back);
   RUN_TEST(test_substation_loader_reads_nvs);
+  RUN_TEST(test_rs485_loader_defaults);
+  RUN_TEST(test_rs485_loader_reads_nvs);
+  RUN_TEST(test_ir_loader_defaults);
+  RUN_TEST(test_ir_loader_reads_nvs);
+  RUN_TEST(test_cv_loader_defaults);
+  RUN_TEST(test_cv_loader_reads_nvs);
+  RUN_TEST(test_gateway_loader_defaults);
+  RUN_TEST(test_gateway_loader_reads_nvs);
   RUN_TEST(test_seq_starts_at_one_and_saves);
   RUN_TEST(test_seq_resumes_from_nvs);
   UNITY_END();
