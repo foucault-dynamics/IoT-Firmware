@@ -45,6 +45,7 @@ test/
 ├── test_qemu_nvs/
 ├── test_qemu_payload/
 ├── test_qemu_cam_http/
+├── test_qemu_payload_json/
 └── test_board_radio/             needs a real C3, run by end_node
 ```
 
@@ -72,6 +73,7 @@ suite only needs the right folder name.
 | `test_qemu_nvs` | NVS read helpers, the defaults and NVS overrides of every node's config loader, and the sequence counter resuming from NVS |
 | `test_qemu_payload` | The over the air packets: size, field offsets and byte image of Payload and AckPayload, and the UID helpers |
 | `test_qemu_cam_http` | The CV node's CamHttpReader: the request URL, a good read, every way the cam's JSON is rejected, and the unsupported registers |
+| `test_qemu_payload_json` | The gateway's MQTT JSON: the exact output for a known reading, `ts` before and after NTP sync, the `+10:00` offset, and buffer sizes |
 | `test_board_radio` | Wi-Fi station start, channel conflicts, ESP-NOW init, adding a peer, and sends that fail: no ACK, unknown peer, bad length |
 
 The DLMS suites check the reader against frames written for the tests. To check

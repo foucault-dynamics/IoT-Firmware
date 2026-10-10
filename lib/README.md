@@ -14,7 +14,7 @@ lib/
   interfaces/  module, reader, transmitter, shared
   config/      node_config, nvs_config, secrets
   buses/       sp3485, http_bus, tcp_bus, lora, ir_head
-  protocols/   modbus_rtu, dlms_cosem, cam_http, iec62056_21
+  protocols/   modbus_rtu, dlms_cosem, cam_http, iec62056_21, payload_json
   links/       esp_now_uplink, lora_link, wifi_radio
   buffering/   seq_counter, reading_buffer
 ```

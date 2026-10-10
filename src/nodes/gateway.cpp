@@ -9,7 +9,6 @@
  */
 
 #include <Arduino.h>
-#include <ArduinoJson.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -19,6 +18,7 @@
 #include "nodes.h"
 #include "gateway_config.h"
 #include "nvs_config.h"
+#include "payload_json.h"
 #include "shared_payload.h"
 
 /** A received reading and its signal quality. */
@@ -47,8 +47,6 @@ static constexpr uint32_t PUBLISH_WAIT_MS = 100;      ///< Queue wait in gateway
 
 static constexpr const char *NTP_SERVER = "pool.ntp.org";  ///< Time source for timestamps.
 static constexpr const char *TIMEZONE = "AEST-10";         ///< POSIX timezone: AEST, UTC+10 with no daylight saving.
-static constexpr time_t MIN_VALID_EPOCH = 1700000000;      ///< Clock earlier than this (Nov 2023) means NTP has not synced yet.
-static constexpr size_t TIMESTAMP_LEN = 32;                ///< Buffer size for an ISO 8601 timestamp.
 
 /** Joins the configured Wi-Fi network, giving up after about 10 s. */
 static void setup_wifi() {
@@ -89,66 +87,6 @@ static void reconnect_mqtt() {
       delay(5000);
     }
   }
-}
-
-/**
- * Formats the local time as ISO 8601, e.g. "2026-10-07T14:03:00+10:00".
- *
- * @param[out] out     Destination buffer.
- * @param[in]  outLen  Size of @p out in bytes.
- * @retval true   @p out holds the timestamp.
- * @retval false  NTP has not synced yet, or @p out is too small.
- */
-static bool currentTimestamp(char *out, size_t outLen) {
-  time_t now = time(nullptr);
-  if (now < MIN_VALID_EPOCH) {
-    return false;
-  }
-  struct tm local;
-  localtime_r(&now, &local);
-  size_t len = strftime(out, outLen, "%Y-%m-%dT%H:%M:%S%z", &local);
-  if (len < 2 || len + 2 > outLen) {
-    return false;
-  }
-  // strftime gives "+1000", ISO 8601 wants "+10:00", so insert the colon
-  out[len + 1] = '\0';
-  out[len] = out[len - 1];
-  out[len - 1] = out[len - 2];
-  out[len - 2] = ':';
-  return true;
-}
-
-/**
- * Serialises a reading and its signal quality to the JSON published on MQTT.
- *
- * "ts" is null when NTP has not synced yet.
- *
- * @param[in]  p       Reading to serialise.
- * @param[in]  rssi    Packet RSSI in dBm.
- * @param[in]  snr     Packet SNR in dB.
- * @param[out] out     Destination buffer.
- * @param[in]  outLen  Size of @p out in bytes.
- * @return Number of bytes written, not counting the terminator.
- */
-static size_t buildPayloadJson(const Payload &p, int rssi, float snr, char *out, size_t outLen) {
-  char uidHex[UID_HEX_LEN];
-  JsonDocument doc;
-  char ts[TIMESTAMP_LEN];
-  if (currentTimestamp(ts, sizeof(ts))) {
-    doc["ts"] = ts;
-  } else {
-    doc["ts"] = nullptr;
-  }
-  doc["uid"] = uidToHex(p.uid, uidHex);
-  doc["seq"] = p.seq;
-  doc["kwh_import"] = p.kwh_import;
-  doc["kwh_export"] = p.kwh_export;
-  doc["voltage"] = p.voltage;
-  doc["community_id"] = p.community_id;
-  doc["unit_id"] = p.unit_id;
-  doc["rssi"] = rssi;
-  doc["snr"] = snr;
-  return serializeJson(doc, out, outLen);
 }
 
 /**
@@ -239,7 +177,7 @@ void gatewayLoop() {
   }
 
   char json[320];
-  buildPayloadJson(r.payload, r.rssi, r.snr, json, sizeof(json));
+  buildPayloadJson(r.payload, r.rssi, r.snr, time(nullptr), json, sizeof(json));
   Serial.printf("=> JSON: %s\n", json);
   bool pubSuccess = client.publish(cfg.mqtt.topic, json);
   Serial.printf("DATA FWD, UID: %s, PUB: %s\n", uidToHex(r.payload.uid, uidHex), pubSuccess ? "SUCCESS" : "FAILED");
