@@ -70,6 +70,11 @@ suite only needs the right folder name.
 | `test_qemu_nvs` | NVS read helpers, the substation loader, and the sequence counter resuming from NVS |
 | `test_board_radio` | Wi-Fi station start, channel conflicts, ESP-NOW init and adding a peer |
 
+The DLMS suites check the reader against frames written for the tests. To check
+it against an independent implementation, run it against `DlmsSim/`, a Gurux
+based meter, over TCP (`reader = 6`) or RS485 (`reader = 5`). See
+`DlmsSim/README.md`.
+
 ## How a QEMU run works
 
 `pio test -e test_c3 --without-uploading` builds each suite, then, instead of

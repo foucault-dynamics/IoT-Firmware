@@ -17,7 +17,8 @@ enum class ReaderType : uint8_t {
     IEMS = 2,  ///< IEMS reader. Not implemented on this branch.
     ModbusTCP = 3,  ///< Modbus RTU frames over TCP, for ModbusSim testing.
     CamHttp = 4,  ///< ESP32-CAM over HTTP. Not handled by the RS485 node.
-    DlmsCosem = 5  ///< DLMS/COSEM over HDLC on the SP3485 RS485 transceiver.
+    DlmsCosem = 5,  ///< DLMS/COSEM over HDLC on the SP3485 RS485 transceiver.
+    DlmsTcp = 6  ///< DLMS/COSEM HDLC frames over TCP, for DlmsSim testing.
 };
 /**
  * Which meter a reader node is attached to.
