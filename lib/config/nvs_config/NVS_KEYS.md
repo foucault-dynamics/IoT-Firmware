@@ -35,9 +35,9 @@ or the value will be written but silently unused / misread.
 |---|---|---|---|
 | `comm_id` | uint | `0` | Community code (goes out in the payload) |
 | `unit_id` | uint | `0` | Unit code (goes out in the payload) |
-| `reader` | uint | `ReaderType::ModbusTCP` | Reader backend, `0` Modbus RTU, `3` Modbus TCP, `5` DLMS/COSEM |
-| `ap_ssid` | string | `SECRET_AP_SSID` | SoftAP SSID (ModbusTCP mode only) |
-| `ap_pass` | string | `SECRET_AP_PASS` | SoftAP password (ModbusTCP mode only) |
+| `reader` | uint | `ReaderType::ModbusTCP` | Reader backend, `0` Modbus RTU, `3` Modbus TCP, `5` DLMS/COSEM, `6` DLMS/COSEM over TCP |
+| `ap_ssid` | string | `SECRET_AP_SSID` | SoftAP SSID (ModbusTCP and DlmsTcp modes only) |
+| `ap_pass` | string | `SECRET_AP_PASS` | SoftAP password (ModbusTCP and DlmsTcp modes only) |
 | `espnow_chan` | uint | `6` | Radio channel, shared by ESP-NOW and the softAP |
 | `espnow_to_ms` | uint | `100` | ESP-NOW send timeout (ms) |
 | `sub_mac` | string (MAC) | `SECRET_MAC` | Substation MAC, `aa:bb:cc:dd:ee:ff` |
@@ -49,8 +49,8 @@ or the value will be written but silently unused / misread.
 | `dlms_logical` | uint | `1` | DLMS server logical device, 1 is the management device |
 | `dlms_physical` | uint | `0` | DLMS server physical address on the bus |
 | `dlms_addr_len` | uint | `1` | DLMS server address size in bytes, `1`, `2` or `4` |
-| `tcp_host` | string | `SECRET_MODBUS_SIM_HOST` | Modbus TCP simulator host |
-| `tcp_port` | uint | `SECRET_MODBUS_SIM_PORT` | Modbus TCP simulator port |
+| `tcp_host` | string | `SECRET_MODBUS_SIM_HOST` | TCP simulator host, ModbusSim or DlmsSim |
+| `tcp_port` | uint | `SECRET_MODBUS_SIM_PORT` | TCP simulator port, set `5022` for `DlmsSim/DlmsSimTCP.py` |
 
 The DLMS/COSEM OBIS codes are not NVS keys. They are the `DLMS_IMPORT_OBIS`,
 `DLMS_EXPORT_OBIS` and `DLMS_VOLTAGE_OBIS` constants in `rs485_loader.cpp`,

@@ -152,7 +152,9 @@ Developed against `ModbusSim/`. Not yet tested against real hardware.
 ### `dlms_cosem/`
 
 `DlmsCosemReader : Reader`, for DLMS/COSEM meters on the same `Sp3485` bus,
-selected by `reader = 5` (`ReaderType::DlmsCosem`). Two files:
+selected by `reader = 5` (`ReaderType::DlmsCosem`). `reader = 6`
+(`ReaderType::DlmsTcp`) runs the same reader on a `TcpBus` instead, against
+`DlmsSim/DlmsSimTCP.py`, the way `ModbusTCP` runs against ModbusSim. Two files:
 
 - `hdlc.h` / `hdlc.cpp` are plain functions for the HDLC link layer (IEC
   62056-46): the FCS (CRC16/X.25), encoding 1, 2 or 4 byte addresses, and
@@ -203,7 +205,7 @@ other, so they work in either order, and both refuse a channel different from
 the one the radio is already on. `EspNowUplink::init()` starts the station
 itself on `EspNowConfig::channel` and always registers peers on the station
 interface, so ESP-NOW only nodes (IR, RS485 RTU) never touch this library.
-Nodes that host a network (CV, RS485 in ModbusTCP mode) also call
+Nodes that host a network (CV, RS485 in ModbusTCP or DlmsTcp mode) also call
 `wifiRadioStartAp()` on that same channel.
 
 ### `http_bus/`

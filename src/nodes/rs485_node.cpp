@@ -56,7 +56,7 @@ void rs485NodeSetup() {
   cfg = loadRs485NodeConfig();
 
   // The simulator host joins this softAP to reach the TCP bus
-  if (cfg.readerType == ReaderType::ModbusTCP
+  if ((cfg.readerType == ReaderType::ModbusTCP || cfg.readerType == ReaderType::DlmsTcp)
       && !wifiRadioStartAp(cfg.ap, cfg.espNow.channel)) {
     Serial.println("[RS485] SoftAP bring-up failed, idling");
     readerReady = false;
@@ -128,6 +128,22 @@ void rs485NodeSetup() {
     }
 
     reader = new ModbusRtuReader(cfg.modbus);
+    if (reader->init(*bus) == EXIT_SUCCESS) {
+      readerReady = true;
+    } else {
+      delete reader;
+      reader = nullptr;
+    }
+    break;
+  }
+  case ReaderType::DlmsTcp: {
+    bus = new TcpBus(cfg.tcp);
+    while(true){
+      if(bus->init() == EXIT_SUCCESS) break;
+      Serial.println("[RS485] TcpBus init failed.");
+    }
+
+    reader = new DlmsCosemReader(cfg.dlms);
     if (reader->init(*bus) == EXIT_SUCCESS) {
       readerReady = true;
     } else {
