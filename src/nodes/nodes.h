@@ -31,9 +31,9 @@ void substationSetup();
 /** Buffers incoming ESP-NOW readings and relays the next one over LoRa. */
 void substationLoop();
 
-/** Loads config, starts LoRa, and joins Wi-Fi and sets up MQTT if enabled. */
+/** Loads config, starts LoRa and its receive task, and joins Wi-Fi and sets up MQTT if enabled. */
 void gatewaySetup();
-/** Keeps MQTT connected, then receives one LoRa reading and publishes it. */
+/** Keeps MQTT connected, then publishes the oldest queued LoRa reading. */
 void gatewayLoop();
 
 #endif

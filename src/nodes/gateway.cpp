@@ -4,6 +4,8 @@
  *
  * Each Payload is ACKed inside LoRaLink, then published as a JSON object with
  * a timestamp and the packet's RSSI and SNR added.
+ *
+ * A FreeRTOS task receives LoRa and queues readings; the loop publishes them.
  */
 
 #include <Arduino.h>
@@ -19,6 +21,13 @@
 #include "nvs_config.h"
 #include "shared_payload.h"
 
+/** A received reading and its signal quality. */
+struct GatewayReading {
+  Payload payload;  ///< Reading.
+  int rssi;         ///< RSSI in dBm.
+  float snr;        ///< SNR in dB.
+};
+
 static LoRaModule *radio = nullptr;   ///< LoRa radio, also asked for RSSI and SNR.
 static LoRaLink *loraLink = nullptr;  ///< ACK layer on top of #radio.
 
@@ -27,8 +36,14 @@ static GatewayConfig cfg;  ///< Config loaded at setup.
 static WiFiClientSecure espClient;      ///< TLS socket to the broker.
 static PubSubClient client{espClient};  ///< MQTT client on top of #espClient.
 
-static Payload payload;     ///< Last reading received.
-static bool ready = false;  ///< True once setup fully succeeded.
+static QueueHandle_t readings = nullptr;  ///< Readings waiting to be published.
+static bool ready = false;                ///< True once setup fully succeeded.
+
+static constexpr UBaseType_t READINGS_DEPTH = 32;     ///< Capacity of #readings.
+static constexpr uint32_t LORA_TASK_STACK = 4096;     ///< LoRa task stack in bytes.
+static constexpr UBaseType_t LORA_TASK_PRIORITY = 3;  ///< LoRa task priority.
+static constexpr uint32_t LORA_POLL_MS = 5;           ///< LoRa poll interval in ms.
+static constexpr uint32_t PUBLISH_WAIT_MS = 100;      ///< Queue wait in gatewayLoop() in ms.
 
 static constexpr const char *NTP_SERVER = "pool.ntp.org";  ///< Time source for timestamps.
 static constexpr const char *TIMEZONE = "AEST-10";         ///< POSIX timezone: AEST, UTC+10 with no daylight saving.
@@ -136,6 +151,29 @@ static size_t buildPayloadJson(const Payload &p, int rssi, float snr, char *out,
   return serializeJson(doc, out, outLen);
 }
 
+/**
+ * Receives and ACKs LoRa readings and queues them. Stops receiving while the queue is full.
+ *
+ * @param[in] arg  Unused.
+ */
+static void loraRxTask(void *arg) {
+  (void)arg;
+  GatewayReading r;
+  while (true) {
+    vTaskDelay(pdMS_TO_TICKS(LORA_POLL_MS));
+    if (uxQueueSpacesAvailable(readings) == 0) {
+      continue;
+    }
+    int len = loraLink->receivePacket(nullptr, reinterpret_cast<uint8_t *>(&r.payload), sizeof(r.payload));
+    if (len != sizeof(Payload)) {
+      continue;
+    }
+    r.rssi = radio->packetRssi();
+    r.snr = radio->packetSnr();
+    xQueueSend(readings, &r, 0);
+  }
+}
+
 void gatewaySetup() {
   cfg = loadGatewayConfig();
 
@@ -155,7 +193,18 @@ void gatewaySetup() {
     return;
   }
 
-  Serial.println("[System] Gateway Ready. Mode: Polling Loop.");
+  readings = xQueueCreate(READINGS_DEPTH, sizeof(GatewayReading));
+  if (readings == nullptr) {
+    Serial.println("[Gateway] Queue create failed, idling");
+    return;
+  }
+
+  if (xTaskCreate(loraRxTask, "lora_rx", LORA_TASK_STACK, nullptr, LORA_TASK_PRIORITY, nullptr) != pdPASS) {
+    Serial.println("[Gateway] LoRa task create failed, idling");
+    return;
+  }
+
+  Serial.println("[System] Gateway Ready. Mode: LoRa task + MQTT loop.");
   ready = true;
 }
 
@@ -171,22 +220,30 @@ void gatewayLoop() {
     client.loop();
   }
 
-  int len = loraLink->receivePacket(nullptr, reinterpret_cast<uint8_t *>(&payload), sizeof(payload));
-  if (len != sizeof(Payload)) {
+  GatewayReading r;
+  if (xQueuePeek(readings, &r, pdMS_TO_TICKS(PUBLISH_WAIT_MS)) != pdTRUE) {
     return;
   }
 
-  int rssi = radio->packetRssi();
-  float snr = radio->packetSnr();
-  Serial.printf("=> Packet Size: %d Bytes | RSSI: %d dBm | SNR: %.1f dB\n", len, rssi, snr);
+  Serial.printf("=> Packet Size: %d Bytes | RSSI: %d dBm | SNR: %.1f dB\n", (int)sizeof(Payload), r.rssi, r.snr);
   char uidHex[UID_HEX_LEN];
-  Serial.printf("=> Parsed Data -> UID: %s | SEQ: %u | Volt: %.1fV\n", uidToHex(payload.uid, uidHex), payload.seq, payload.voltage);
+  Serial.printf("=> Parsed Data -> UID: %s | SEQ: %u | Volt: %.1fV\n", uidToHex(r.payload.uid, uidHex), r.payload.seq, r.payload.voltage);
 
-  if (cfg.mqtt.enabled && client.connected()) {
-    char json[320];
-    buildPayloadJson(payload, rssi, snr, json, sizeof(json));
-    Serial.printf("=> JSON: %s\n", json);
-    bool pubSuccess = client.publish(cfg.mqtt.topic, json);
-    Serial.printf("DATA FWD, UID: %s, PUB: %s\n", uidToHex(payload.uid, uidHex), pubSuccess ? "SUCCESS" : "FAILED");
+  if (!cfg.mqtt.enabled) {
+    xQueueReceive(readings, &r, 0);
+    return;
+  }
+
+  if (!client.connected()) {
+    return;
+  }
+
+  char json[320];
+  buildPayloadJson(r.payload, r.rssi, r.snr, json, sizeof(json));
+  Serial.printf("=> JSON: %s\n", json);
+  bool pubSuccess = client.publish(cfg.mqtt.topic, json);
+  Serial.printf("DATA FWD, UID: %s, PUB: %s\n", uidToHex(r.payload.uid, uidHex), pubSuccess ? "SUCCESS" : "FAILED");
+  if (pubSuccess) {
+    xQueueReceive(readings, &r, 0);
   }
 }
