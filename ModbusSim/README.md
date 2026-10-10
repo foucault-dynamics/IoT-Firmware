@@ -143,3 +143,15 @@ GPIO 9 TX, GPIO 10 DE/RE, 9600 `8N1`, slave address 1, all already set in
   matches because git is case-insensitive on macOS by default. On Linux or in CI
   the virtualenv would stop being ignored. `__pycache__/` is not ignored either.
 - Both servers are `asyncio` based and stop with Ctrl-C.
+
+## Credits
+
+The simulators are built on [pymodbus](https://github.com/pymodbus-dev/pymodbus)
+by Galen Collins, Jan Iversen and contributors, licensed under BSD-3-Clause.
+Its `pymodbus.simulator` module provides the simulated device and register
+datastore, `pymodbus.server` provides the async TCP and serial servers, and
+`pymodbus.client` drives `poll_test.py`. Developed against pymodbus 3.15.0.
+
+Serial port access for `ModbusSimSerial.py` comes from
+[pySerial](https://github.com/pyserial/pyserial) by Chris Liechti, licensed
+under BSD-3-Clause.
