@@ -116,6 +116,13 @@ void setUp() {}
 /** Nothing to clean up. */
 void tearDown() {}
 
+/**
+ * @defgroup test_qemu_modbus_driver Modbus RTU driver
+ * @ingroup tests
+ * Tests in test_qemu_modbus_driver/test_main.cpp.
+ * @{
+ */
+
 /** The request sent is a 2 register read of the import address. */
 void test_sends_read_request_for_import() {
   FakeBus bus;
@@ -243,6 +250,8 @@ void test_second_attempt_succeeds_after_failure() {
   TEST_ASSERT_EQUAL_FLOAT(230.5f, val);
   TEST_ASSERT_EQUAL_size_t(2, bus.sent.size());
 }
+
+/** @} */
 
 /** Runs every test once the serial port is up. */
 void setup() {

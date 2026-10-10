@@ -34,6 +34,13 @@ void setUp() {}
 /** Nothing to clean up. */
 void tearDown() {}
 
+/**
+ * @defgroup test_board_radio Radio bring up (board)
+ * @ingroup tests
+ * Tests in test_board_radio/test_main.cpp.
+ * @{
+ */
+
 /** The station interface comes up on the requested channel. */
 void test_station_starts() {
   TEST_ASSERT_TRUE(wifiRadioStartStation(CHANNEL));
@@ -72,6 +79,8 @@ void test_send_rejects_bad_length() {
   TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, uplink.sendPacket(ABSENT_PEER.mac, oversized, sizeof(oversized)));
   TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, uplink.sendPacket(ABSENT_PEER.mac, oversized, 0));
 }
+
+/** @} */
 
 /** Runs every test once the USB serial port is up. */
 void setup() {

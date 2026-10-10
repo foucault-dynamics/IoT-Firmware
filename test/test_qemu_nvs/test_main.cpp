@@ -74,6 +74,13 @@ void tearDown() {
   prefs.end();
 }
 
+/**
+ * @defgroup test_qemu_nvs NVS config
+ * @ingroup tests
+ * Tests in test_qemu_nvs/test_main.cpp.
+ * @{
+ */
+
 /** A number written to NVS reads back. */
 void test_read_u32_written_key() {
   prefs.putUInt("poll_ms", 5000);
@@ -314,6 +321,8 @@ void test_seq_resumes_from_nvs() {
   TEST_ASSERT_EQUAL_UINT32(42, seqNext());
   TEST_ASSERT_EQUAL_UINT32(42, storedSeq());
 }
+
+/** @} */
 
 /** Runs every test once the serial port is up. */
 void setup() {

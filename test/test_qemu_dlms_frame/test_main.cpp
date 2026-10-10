@@ -143,6 +143,13 @@ void assertAddress(uint16_t upper, uint16_t lower, uint8_t size,
 
 }  // namespace
 
+/**
+ * @defgroup test_qemu_dlms_frame DLMS/COSEM HDLC framing
+ * @ingroup tests
+ * Tests in test_qemu_dlms_frame/test_main.cpp.
+ * @{
+ */
+
 /** The CRC-16/X.25 check value of "123456789" is 0x906E. */
 void test_fcs_check_value() {
   const uint8_t data[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
@@ -747,6 +754,8 @@ void test_scaler_unit_rejects_number() {
 void test_scaler_unit_rejects_truncated() {
   TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, decodeScalerUnit({0x02, 0x02, 0x0F, 0x00, 0x16}, DLMS_UNIT_WH));
 }
+
+/** @} */
 
 /** Runs every test once the serial port is up. */
 void setup() {

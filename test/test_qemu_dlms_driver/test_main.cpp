@@ -383,6 +383,13 @@ void setUp() {}
 /** Nothing to clean up. */
 void tearDown() {}
 
+/**
+ * @defgroup test_qemu_dlms_driver DLMS/COSEM driver
+ * @ingroup tests
+ * Tests in test_qemu_dlms_driver/test_main.cpp.
+ * @{
+ */
+
 /** A frame arriving on its own is read whole. */
 void test_read_whole_frame() {
   FakeBus bus;
@@ -733,6 +740,8 @@ void test_session_refused_link_skips_disc() {
   TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, reader.get_import(&val));
   assertSent(bus, {SNRM});
 }
+
+/** @} */
 
 /** Runs every test once the serial port is up. */
 void setup() {

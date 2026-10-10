@@ -132,8 +132,26 @@ Save it as `test/test_qemu_<name>/test_main.cpp`. Libraries are found from
 their `#include`, as in the firmware. `src/` is never built into tests, so the
 suite's `setup()` does not clash with the firmware entry files.
 
-`test/` is outside the Doxygen input, but test code follows
-[`COMMENTING.md`](COMMENTING.md).
+Test code follows [`COMMENTING.md`](COMMENTING.md). Each test's comment says
+what it checks, and the tests sit inside a Doxygen group named after the
+suite, so the generated docs list every suite's tests under Topics > Tests:
+
+```cpp
+/**
+ * @defgroup test_qemu_<name> <Title>
+ * @ingroup tests
+ * Tests in test_qemu_<name>/test_main.cpp.
+ * @{
+ */
+
+/** One line saying what the test checks. */
+void test_something() { ... }
+
+/** @} */
+```
+
+Open the group after `tearDown()` and close it before `setup()`, so only the
+tests join it.
 
 ### Reaching private functions
 
@@ -207,3 +225,6 @@ The cache is keyed on that file, so CI downloads the new release.
 | Suite shows `ERRORED` with no test results | Same as above, rerun with `-v` |
 | QEMU fails to start on macOS with a missing `.dylib` | Install the Homebrew libraries listed in the quick start |
 | A board suite prints nothing | Give USB serial time to enumerate. Board suites wait 2 s in `setup()` |
+
+@defgroup tests Tests
+@brief Every test suite, one group per suite.

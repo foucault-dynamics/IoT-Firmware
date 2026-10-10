@@ -67,6 +67,13 @@ void setUp() {}
 /** Nothing to clean up. */
 void tearDown() {}
 
+/**
+ * @defgroup test_qemu_cam_http Camera HTTP driver
+ * @ingroup tests
+ * Tests in test_qemu_cam_http/test_main.cpp.
+ * @{
+ */
+
 /** The request is "http://" plus the host and the API path. */
 void test_requests_json_url() {
   FakeBus bus;
@@ -175,6 +182,8 @@ void test_consecutive_reads() {
   TEST_ASSERT_EQUAL_FLOAT(100.2f, second);
   TEST_ASSERT_EQUAL_size_t(2, bus.sent.size());
 }
+
+/** @} */
 
 /** Runs every test once the serial port is up. */
 void setup() {

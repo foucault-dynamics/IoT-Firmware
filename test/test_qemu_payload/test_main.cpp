@@ -45,6 +45,13 @@ void setUp() {}
 /** Nothing to clean up. */
 void tearDown() {}
 
+/**
+ * @defgroup test_qemu_payload Radio packet formats
+ * @ingroup tests
+ * Tests in test_qemu_payload/test_main.cpp.
+ * @{
+ */
+
 /** Payload is 34 bytes and AckPayload 20, with no padding. */
 void test_sizes() {
   TEST_ASSERT_EQUAL_size_t(34, sizeof(Payload));
@@ -154,6 +161,8 @@ void test_uid_equals() {
   b[UID_LEN - 1] ^= 0x01;
   TEST_ASSERT_FALSE(uidEquals(a, b));
 }
+
+/** @} */
 
 /** Runs every test once the serial port is up. */
 void setup() {

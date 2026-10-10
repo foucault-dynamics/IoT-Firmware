@@ -18,6 +18,7 @@ INPUT                  = README.md \
                          docs/GETTING_STARTED.md \
                          lib \
                          src \
+                         test \
                          docs \
                          ModbusSim/README.md
 FILE_PATTERNS          = *.h *.cpp *.md
@@ -59,6 +60,8 @@ HTML_EXTRA_STYLESHEET  = docs/doxygen-awesome.css
 HAVE_DOT               = YES
 CALL_GRAPH             = YES
 CALLER_GRAPH           = YES
+# Room for a test runner's setup(), which calls every test in its suite.
+DOT_GRAPH_MAX_NODES    = 100
 DOT_IMAGE_FORMAT       = svg
 INTERACTIVE_SVG        = YES
 

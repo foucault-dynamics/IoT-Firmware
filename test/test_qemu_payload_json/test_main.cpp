@@ -49,6 +49,13 @@ void setUp() {
 /** Nothing to clean up. */
 void tearDown() {}
 
+/**
+ * @defgroup test_qemu_payload_json MQTT JSON payload
+ * @ingroup tests
+ * Tests in test_qemu_payload_json/test_main.cpp.
+ * @{
+ */
+
 /** A synced clock formats as local time with a +10:00 offset. */
 void test_timestamp_iso_8601() {
   char out[TIMESTAMP_LEN];
@@ -115,6 +122,8 @@ void test_json_small_buffer_fills_without_terminator() {
   TEST_ASSERT_EQUAL_CHAR('X', out[64]);
   TEST_ASSERT_EQUAL_STRING_LEN("{\"ts\":\"2026-10-07T14:03:00+10:00\"", out, 33);
 }
+
+/** @} */
 
 /** Runs every test once the serial port is up. */
 void setup() {
