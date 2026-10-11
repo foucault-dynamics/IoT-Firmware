@@ -27,7 +27,7 @@ brew install libgcrypt glib pixman sdl2 libslirp
 |---|---|
 | `pio test -e test_c3 --without-uploading -f test_qemu_nvs` | Runs one suite |
 | `pio test -e test_c3 --without-uploading -v` | Also shows the firmware's serial output, including crash dumps |
-| `pio test -e end_node -f test_board_radio` | Runs the real board suite on a connected C3 |
+| `pio test -e end_node -f test_board_radio` | Runs one real board suite on a connected C3 |
 | `pio test -e end_node --without-uploading --without-testing` | Only builds the board suites, no board needed |
 
 ## Layout
@@ -46,7 +46,8 @@ test/
 ├── test_qemu_payload/
 ├── test_qemu_cam_http/
 ├── test_qemu_payload_json/
-└── test_board_radio/             needs a real C3, run by end_node
+├── test_board_radio/             needs a real C3, run by end_node
+└── test_board_sp3485/            needs a real C3 with the SP3485 wired
 ```
 
 Every folder starting with `test_` is a suite: its own firmware image with its
@@ -75,6 +76,7 @@ suite only needs the right folder name.
 | `test_qemu_cam_http` | The CV node's CamHttpReader: the request URL, a good read, every way the cam's JSON is rejected, and the unsupported registers |
 | `test_qemu_payload_json` | The gateway's MQTT JSON: the exact output for a known reading, `ts` before and after NTP sync, the `+10:00` offset, and buffer sizes |
 | `test_board_radio` | Wi-Fi station start, channel conflicts, ESP-NOW init, adding a peer, and sends that fail: no ACK, unknown peer, bad length |
+| `test_board_sp3485` | The SP3485 probe in `init()`: passes with the transceiver fitted, fails with RX on an undriven pin |
 
 The DLMS suites check the reader against frames written for the tests. To check
 it against an independent implementation, run it against `DlmsSim/`, a Gurux

@@ -133,6 +133,12 @@ to listen, and only after the last bit has physically left the UART. `send()`
 drains stale RX bytes first so a late reply to a timed-out poll cannot desync the
 next frame, raises DE/RE, writes, flushes, then lowers DE/RE.
 
+`init()` probes the transceiver before starting the UART, so a missing or
+miswired SP3485 fails at boot rather than as timed out reads. It reads RX with
+the internal pull up and then the pull down. With DE/RE low the receiver drives
+RX and both reads agree; with DE/RE high its output floats and RX follows the
+pull. The probe cannot see the TX wire, since the SP3485's DI is an input.
+
 ### `modbus_rtu/`
 
 `ModbusRtuReader : Reader`. Function code 0x03 reads of two consecutive
