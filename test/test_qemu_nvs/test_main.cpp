@@ -1,7 +1,8 @@
 /**
  * @file
  * Tests for the NVS config readers, every node's loader and the sequence
- * counter, run in QEMU against its emulated flash.
+ * counter, run in QEMU against its emulated flash. Includes how each behaves
+ * on a never written partition and when NVS is unavailable.
  *
  * Every run boots a freshly merged flash image, so NVS starts empty. setUp()
  * also wipes both namespaces, so each test starts from defaults.
@@ -9,7 +10,10 @@
 
 #include <Arduino.h>
 #include <Preferences.h>
+#include <nvs_flash.h>
 #include <unity.h>
+
+#include <cstdlib>
 
 #include "nvs_config.h"
 #include "nvs_read.h"
@@ -58,6 +62,21 @@ uint32_t storedSeq() {
   uint32_t value = p.getUInt(SEQ_KEY, 0);
   p.end();
   return value;
+}
+
+/**
+ * Takes NVS down, so every open fails as it would with a missing or
+ * uninitialised partition. Closes the shared handle first. Undo with nvsUp().
+ */
+void nvsDown() {
+  prefs.end();
+  TEST_ASSERT_EQUAL_INT(ESP_OK, nvs_flash_deinit());
+}
+
+/** Brings NVS back after nvsDown(), and reopens the shared handle for tearDown(). */
+void nvsUp() {
+  TEST_ASSERT_EQUAL_INT(ESP_OK, nvs_flash_init());
+  prefs.begin(NVS_NAMESPACE, false);
 }
 
 }  // namespace
@@ -140,20 +159,24 @@ void test_read_mac_falls_back() {
 
 /** The substation loader uses a value set in NVS, and the default otherwise. */
 void test_substation_loader_reads_nvs() {
+  SubstationConfig cfg;
   prefs.end();
-  TEST_ASSERT_EQUAL_UINT8(6, loadSubstationConfig().espNowChannel);
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadSubstationConfig(cfg));
+  TEST_ASSERT_EQUAL_UINT8(6, cfg.espNowChannel);
 
   prefs.begin(NVS_NAMESPACE, false);
   prefs.putUInt("espnow_chan", 11);
   prefs.end();
-  TEST_ASSERT_EQUAL_UINT8(11, loadSubstationConfig().espNowChannel);
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadSubstationConfig(cfg));
+  TEST_ASSERT_EQUAL_UINT8(11, cfg.espNowChannel);
   prefs.begin(NVS_NAMESPACE, false);
 }
 
 /** With NVS empty the RS485 loader gives Modbus RTU on the SP3485 pins and the secrets.h substation. */
 void test_rs485_loader_defaults() {
   prefs.end();
-  Rs485NodeConfig cfg = loadRs485NodeConfig();
+  Rs485NodeConfig cfg;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadRs485NodeConfig(cfg));
   prefs.begin(NVS_NAMESPACE, false);
 
   const uint8_t expectedMac[6] = SECRET_MAC;
@@ -182,7 +205,8 @@ void test_rs485_loader_reads_nvs() {
   prefs.putUInt("poll_ms", 30000);
   prefs.putUInt("dlms_client", 32);
   prefs.end();
-  Rs485NodeConfig cfg = loadRs485NodeConfig();
+  Rs485NodeConfig cfg;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadRs485NodeConfig(cfg));
   prefs.begin(NVS_NAMESPACE, false);
 
   const uint8_t expectedMac[6] = {0xAA, 0xBB, 0xCC, 0x01, 0x02, 0x03};
@@ -199,7 +223,8 @@ void test_rs485_loader_reads_nvs() {
 /** With NVS empty the IR loader gives the simulated head at 300 baud 7E1, inverted. */
 void test_ir_loader_defaults() {
   prefs.end();
-  IrNodeConfig cfg = loadIrNodeConfig();
+  IrNodeConfig cfg;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadIrNodeConfig(cfg));
   prefs.begin(NVS_NAMESPACE, false);
 
   const uint8_t expectedMac[6] = SECRET_MAC;
@@ -223,7 +248,8 @@ void test_ir_loader_reads_nvs() {
   prefs.putUInt("poll_ms", 15000);
   prefs.putUInt("ir_invert", 0);
   prefs.end();
-  IrNodeConfig cfg = loadIrNodeConfig();
+  IrNodeConfig cfg;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadIrNodeConfig(cfg));
   prefs.begin(NVS_NAMESPACE, false);
 
   const uint8_t expectedMac[6] = {0xAA, 0xBB, 0xCC, 0x01, 0x02, 0x03};
@@ -237,7 +263,8 @@ void test_ir_loader_reads_nvs() {
 /** With NVS empty the CV loader gives the secrets.h camera and the /json path. */
 void test_cv_loader_defaults() {
   prefs.end();
-  CvNodeConfig cfg = loadCvNodeConfig();
+  CvNodeConfig cfg;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadCvNodeConfig(cfg));
   prefs.begin(NVS_NAMESPACE, false);
 
   const uint8_t expectedMac[6] = SECRET_MAC;
@@ -258,7 +285,8 @@ void test_cv_loader_reads_nvs() {
   prefs.putString("cam_host", "10.0.0.5");
   prefs.putString("cam_flow", "meter");
   prefs.end();
-  CvNodeConfig cfg = loadCvNodeConfig();
+  CvNodeConfig cfg;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadCvNodeConfig(cfg));
   prefs.begin(NVS_NAMESPACE, false);
 
   const uint8_t expectedMac[6] = {0xAA, 0xBB, 0xCC, 0x01, 0x02, 0x03};
@@ -272,7 +300,8 @@ void test_cv_loader_reads_nvs() {
 /** With NVS empty the gateway loader enables TLS MQTT to the secrets.h broker, with 3 LoRa tries of 1500 ms. */
 void test_gateway_loader_defaults() {
   prefs.end();
-  GatewayConfig cfg = loadGatewayConfig();
+  GatewayConfig cfg;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadGatewayConfig(cfg));
   prefs.begin(NVS_NAMESPACE, false);
 
   TEST_ASSERT_TRUE(cfg.mqtt.enabled);
@@ -294,7 +323,8 @@ void test_gateway_loader_reads_nvs() {
   prefs.putUInt("lora_retries", 5);
   prefs.putUInt("lora_ack_ms", 2500);
   prefs.end();
-  GatewayConfig cfg = loadGatewayConfig();
+  GatewayConfig cfg;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadGatewayConfig(cfg));
   prefs.begin(NVS_NAMESPACE, false);
 
   TEST_ASSERT_FALSE(cfg.mqtt.enabled);
@@ -308,7 +338,7 @@ void test_gateway_loader_reads_nvs() {
 
 /** On a fresh board the counter starts at 1, and each value is saved. */
 void test_seq_starts_at_one_and_saves() {
-  seqCounterBegin();
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, seqCounterBegin());
   TEST_ASSERT_EQUAL_UINT32(1, seqNext());
   TEST_ASSERT_EQUAL_UINT32(2, seqNext());
   TEST_ASSERT_EQUAL_UINT32(2, storedSeq());
@@ -317,9 +347,78 @@ void test_seq_starts_at_one_and_saves() {
 /** Reloading picks up the value stored in NVS, as after a reboot. */
 void test_seq_resumes_from_nvs() {
   storeSeq(41);
-  seqCounterBegin();
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, seqCounterBegin());
   TEST_ASSERT_EQUAL_UINT32(42, seqNext());
   TEST_ASSERT_EQUAL_UINT32(42, storedSeq());
+}
+
+/**
+ * On a never written partition every loader still succeeds with its defaults.
+ *
+ * The "config" namespace does not exist yet, so a read only open of it fails.
+ * The loaders must not mistake that for NVS being unavailable, or no fresh
+ * board would ever start.
+ */
+void test_loaders_succeed_on_fresh_partition() {
+  prefs.end();
+  TEST_ASSERT_EQUAL_INT(ESP_OK, nvs_flash_erase());
+  TEST_ASSERT_EQUAL_INT(ESP_OK, nvs_flash_init());
+
+  Preferences readOnly;
+  TEST_ASSERT_FALSE(readOnly.begin(NVS_NAMESPACE, true));
+
+  Rs485NodeConfig rs485;
+  IrNodeConfig ir;
+  CvNodeConfig cv;
+  SubstationConfig substation;
+  GatewayConfig gateway;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadRs485NodeConfig(rs485));
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadIrNodeConfig(ir));
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadCvNodeConfig(cv));
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadSubstationConfig(substation));
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadGatewayConfig(gateway));
+  TEST_ASSERT_EQUAL_UINT32(1000, rs485.modbus.pollIntervalMs);
+  TEST_ASSERT_EQUAL_UINT8(6, substation.espNowChannel);
+
+  prefs.begin(NVS_NAMESPACE, false);
+}
+
+/** With NVS unavailable every loader fails and leaves its config untouched. */
+void test_loaders_fail_without_nvs() {
+  Rs485NodeConfig rs485;
+  IrNodeConfig ir;
+  CvNodeConfig cv;
+  SubstationConfig substation;
+  GatewayConfig gateway;
+  substation.espNowChannel = 99;
+
+  nvsDown();
+  int rs485Result = loadRs485NodeConfig(rs485);
+  int irResult = loadIrNodeConfig(ir);
+  int cvResult = loadCvNodeConfig(cv);
+  int substationResult = loadSubstationConfig(substation);
+  int gatewayResult = loadGatewayConfig(gateway);
+  nvsUp();
+
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, rs485Result);
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, irResult);
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, cvResult);
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, substationResult);
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, gatewayResult);
+  TEST_ASSERT_EQUAL_UINT8(99, substation.espNowChannel);
+}
+
+/** With NVS unavailable the sequence counter fails, and works again once NVS is back. */
+void test_seq_fails_without_nvs() {
+  storeSeq(41);
+
+  nvsDown();
+  int downResult = seqCounterBegin();
+  nvsUp();
+
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, downResult);
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, seqCounterBegin());
+  TEST_ASSERT_EQUAL_UINT32(42, seqNext());
 }
 
 /** @} */
@@ -346,6 +445,9 @@ void setup() {
   RUN_TEST(test_gateway_loader_reads_nvs);
   RUN_TEST(test_seq_starts_at_one_and_saves);
   RUN_TEST(test_seq_resumes_from_nvs);
+  RUN_TEST(test_loaders_succeed_on_fresh_partition);
+  RUN_TEST(test_loaders_fail_without_nvs);
+  RUN_TEST(test_seq_fails_without_nvs);
   UNITY_END();
 }
 

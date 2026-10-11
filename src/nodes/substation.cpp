@@ -37,7 +37,10 @@ static unsigned long nextSendAt = 0;  ///< millis() before which no relay is att
 static bool ready = false;            ///< True once setup fully succeeded.
 
 void substationSetup() {
-  cfg = loadSubstationConfig();
+  if (loadSubstationConfig(cfg) != EXIT_SUCCESS) {
+    Serial.println("[Substation] NVS unavailable, idling");
+    return;
+  }
 
   radio = new LoRaModule(cfg.lora);
   loraLink = new LoRaLink(*radio, cfg.link);

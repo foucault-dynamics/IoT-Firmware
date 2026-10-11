@@ -6,6 +6,8 @@
 #include "nvs_config.h"
 #include "nvs_read.h"
 
+#include <cstdlib>
+
 #include "secrets.h"
 #include "esp_efuse.h"
 #include "esp_efuse_table.h"
@@ -29,10 +31,12 @@ const uint16_t IR_SIM_PORT = 5021;
 
 }  // namespace
 
-IrNodeConfig loadIrNodeConfig() {
-  prefs.begin(NVS_NAMESPACE, true);
+int loadIrNodeConfig(IrNodeConfig &cfg) {
+  if (openConfigNvs() != EXIT_SUCCESS) {
+    return EXIT_FAILURE;
+  }
 
-  IrNodeConfig cfg{};
+  cfg = IrNodeConfig{};
 
   // The UID is burned into eFuse at the factory, so it never comes from NVS.
 #if CONFIG_IDF_TARGET_ESP32C3
@@ -67,5 +71,5 @@ IrNodeConfig loadIrNodeConfig() {
   cfg.tcp.connectTimeoutMs = 3000;
 
   prefs.end();
-  return cfg;
+  return EXIT_SUCCESS;
 }

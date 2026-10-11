@@ -10,8 +10,15 @@
 
 #include <cstdint>
 
-/** Loads the last sequence number from NVS. Call once in setup(). */
-void seqCounterBegin();
+/**
+ * Opens the counter's NVS namespace and loads the last sequence number. Call
+ * once in setup().
+ *
+ * @retval EXIT_SUCCESS  Loaded, or 0 on a fresh board.
+ * @retval EXIT_FAILURE  NVS could not be opened. seqNext() must not be called,
+ *                       since its numbers would neither persist nor resume.
+ */
+int seqCounterBegin();
 
 /**
  * Increments the sequence number and saves it to NVS.

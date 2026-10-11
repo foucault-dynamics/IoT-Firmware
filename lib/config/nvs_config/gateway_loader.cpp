@@ -6,12 +6,16 @@
 #include "nvs_config.h"
 #include "nvs_read.h"
 
+#include <cstdlib>
+
 #include "secrets.h"
 
-GatewayConfig loadGatewayConfig() {
-  prefs.begin(NVS_NAMESPACE, true);
+int loadGatewayConfig(GatewayConfig &cfg) {
+  if (openConfigNvs() != EXIT_SUCCESS) {
+    return EXIT_FAILURE;
+  }
 
-  GatewayConfig cfg{};
+  cfg = GatewayConfig{};
   cfg.lora = loadLoRaConfig();
   cfg.link = loadLoRaLinkConfig();
 
@@ -26,5 +30,5 @@ GatewayConfig loadGatewayConfig() {
   readStr("mqtt_pass", SECRET_MQTT_PASSWORD, cfg.mqtt.password, sizeof(cfg.mqtt.password));
 
   prefs.end();
-  return cfg;
+  return EXIT_SUCCESS;
 }

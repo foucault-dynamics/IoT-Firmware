@@ -53,7 +53,11 @@ static Payload payload;  ///< Reading sent each cycle. Identity fields are set o
 
 void rs485NodeSetup() {
 
-  cfg = loadRs485NodeConfig();
+  if (loadRs485NodeConfig(cfg) != EXIT_SUCCESS) {
+    Serial.println("[RS485] NVS unavailable, idling");
+    readerReady = false;
+    return;
+  }
 
   // The simulator host joins this softAP to reach the TCP bus
   if ((cfg.readerType == ReaderType::ModbusTCP || cfg.readerType == ReaderType::DlmsTcp)
@@ -78,7 +82,11 @@ void rs485NodeSetup() {
   payload.community_id = cfg.communityId;
   payload.unit_id = cfg.unitId;
 
-  seqCounterBegin();
+  if (seqCounterBegin() != EXIT_SUCCESS) {
+    Serial.println("[RS485] NVS unavailable for the sequence counter, idling");
+    readerReady = false;
+    return;
+  }
 
   switch (cfg.readerType) {
   case ReaderType::ModbusRtu:{

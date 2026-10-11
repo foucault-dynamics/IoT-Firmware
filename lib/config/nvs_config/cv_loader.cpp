@@ -6,16 +6,19 @@
 #include "nvs_config.h"
 #include "nvs_read.h"
 
+#include <cstdlib>
 #include <cstring>
 
 #include "secrets.h"
 #include "esp_efuse.h"
 #include "esp_efuse_table.h"
 
-CvNodeConfig loadCvNodeConfig() {
-  prefs.begin(NVS_NAMESPACE, true);
+int loadCvNodeConfig(CvNodeConfig &cfg) {
+  if (openConfigNvs() != EXIT_SUCCESS) {
+    return EXIT_FAILURE;
+  }
 
-  CvNodeConfig cfg{};
+  cfg = CvNodeConfig{};
 
   // The UID is burned into eFuse at the factory, so it never comes from NVS.
 #if CONFIG_IDF_TARGET_ESP32C3
@@ -44,5 +47,5 @@ CvNodeConfig loadCvNodeConfig() {
   readStr("cam_flow", SECRET_CAM_FLOW_NAME, cfg.cam.flowName, sizeof(cfg.cam.flowName));
 
   prefs.end();
-  return cfg;
+  return EXIT_SUCCESS;
 }

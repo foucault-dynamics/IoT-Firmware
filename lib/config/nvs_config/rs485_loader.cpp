@@ -6,6 +6,7 @@
 #include "nvs_config.h"
 #include "nvs_read.h"
 
+#include <cstdlib>
 #include <cstring>
 
 #include "secrets.h"
@@ -63,10 +64,12 @@ const MeterModelEntry &lookupMeterModel(MeterModel model) {
 
 }  // namespace
 
-Rs485NodeConfig loadRs485NodeConfig() {
-  prefs.begin(NVS_NAMESPACE, true);
+int loadRs485NodeConfig(Rs485NodeConfig &cfg) {
+  if (openConfigNvs() != EXIT_SUCCESS) {
+    return EXIT_FAILURE;
+  }
 
-  Rs485NodeConfig cfg{};
+  cfg = Rs485NodeConfig{};
 
   // The UID is burned into eFuse at the factory, so it never comes from NVS.
 #if CONFIG_IDF_TARGET_ESP32C3
@@ -118,5 +121,5 @@ Rs485NodeConfig loadRs485NodeConfig() {
   cfg.tcp.connectTimeoutMs = 3000;
 
   prefs.end();
-  return cfg;
+  return EXIT_SUCCESS;
 }

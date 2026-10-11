@@ -38,7 +38,10 @@ static unsigned long lastPoll = 0;  ///< millis() of the last reading attempt.
 static bool readerReady = false;    ///< True once setup fully succeeded.
 
 void irNodeSetup() {
-  cfg = loadIrNodeConfig();
+  if (loadIrNodeConfig(cfg) != EXIT_SUCCESS) {
+    Serial.println("[IR] NVS unavailable, idling");
+    return;
+  }
 
   // TcpSim: the laptop running IrSimTCP.py joins this softAP, same as the
   // RS485 node's ModbusTCP mode.
@@ -61,7 +64,10 @@ void irNodeSetup() {
   payload.community_id = cfg.communityId;
   payload.unit_id = cfg.unitId;
 
-  seqCounterBegin();
+  if (seqCounterBegin() != EXIT_SUCCESS) {
+    Serial.println("[IR] NVS unavailable for the sequence counter, idling");
+    return;
+  }
 
   // Real hardware doesn't exist yet (EE team's UART to IR circuit), so
   // this defaults to simulated. See loadIrNodeConfig()'s "simulate" key.

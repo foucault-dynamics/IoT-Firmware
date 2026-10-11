@@ -257,7 +257,9 @@ there is one radio.
 
 The reading sequence number used by the meter nodes. `seqCounterBegin()` loads
 it from the `runtime` NVS namespace, and `seqNext()` increments it and writes it
-back, so it survives a reboot.
+back, so it survives a reboot. `seqCounterBegin()` returns `EXIT_FAILURE` if NVS
+cannot be opened, and the meter nodes then idle rather than hand out numbers
+that would repeat after the next reboot.
 
 ### `reading_buffer/`
 

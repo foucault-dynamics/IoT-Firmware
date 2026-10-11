@@ -113,7 +113,10 @@ static void loraRxTask(void *arg) {
 }
 
 void gatewaySetup() {
-  cfg = loadGatewayConfig();
+  if (loadGatewayConfig(cfg) != EXIT_SUCCESS) {
+    Serial.println("[Gateway] NVS unavailable, idling");
+    return;
+  }
 
   radio = new LoRaModule(cfg.lora);
   loraLink = new LoRaLink(*radio, cfg.link);

@@ -43,7 +43,10 @@ static unsigned long lastPoll = 0;  ///< millis() of the last reading attempt.
 static bool readerReady = false;    ///< True once setup fully succeeded.
 
 void cvNodeSetup() {
-  cfg = loadCvNodeConfig();
+  if (loadCvNodeConfig(cfg) != EXIT_SUCCESS) {
+    Serial.println("[CV] NVS unavailable, idling");
+    return;
+  }
 
   // Bring up the radio the cam and the substation link both share
   if (!wifiRadioStartAp(cfg.ap, cfg.espNow.channel)) {
@@ -81,7 +84,10 @@ void cvNodeSetup() {
   payload.community_id = cfg.communityId;
   payload.unit_id = cfg.unitId;
 
-  seqCounterBegin();
+  if (seqCounterBegin() != EXIT_SUCCESS) {
+    Serial.println("[CV] NVS unavailable for the sequence counter, idling");
+    return;
+  }
 
   readerReady = true;
 }

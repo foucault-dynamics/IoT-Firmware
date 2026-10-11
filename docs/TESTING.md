@@ -70,7 +70,7 @@ suite only needs the right folder name.
 | `test_qemu_dlms_frame` | HDLC FCS, addresses, building and parsing frames, the AARQ and AARE, GET requests and responses, A-XDR numbers, and scaler_unit |
 | `test_qemu_dlms_driver` | Reading HDLC frames off the bus, the 1000 ms timeout, SNRM and DISC, I-frame sequencing, and whole sessions through the getters, including DISC after a failure |
 | `test_qemu_iec62056` | The baud rate ID table, OBIS parsing, a full optical port session, and handshake failures |
-| `test_qemu_nvs` | NVS read helpers, the defaults and NVS overrides of every node's config loader, and the sequence counter resuming from NVS |
+| `test_qemu_nvs` | NVS read helpers, the defaults and NVS overrides of every node's config loader, the sequence counter resuming from NVS, and every loader and the counter on a never written partition and with NVS unavailable |
 | `test_qemu_payload` | The over the air packets: size, field offsets and byte image of Payload and AckPayload, and the UID helpers |
 | `test_qemu_cam_http` | The CV node's CamHttpReader: the request URL, a good read, every way the cam's JSON is rejected, and the unsupported registers |
 | `test_qemu_payload_json` | The gateway's MQTT JSON: the exact output for a known reading, `ts` before and after NTP sync, the `+10:00` offset, and buffer sizes |

@@ -10,6 +10,7 @@
 #include <Preferences.h>
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 const char *NVS_NAMESPACE = "config";
@@ -99,6 +100,10 @@ void processLine(char *line) {
 }
 
 }  // namespace
+
+int openConfigNvs() {
+  return prefs.begin(NVS_NAMESPACE, false) ? EXIT_SUCCESS : EXIT_FAILURE;
+}
 
 uint32_t readU32(const char *key, uint32_t fallback) {
   if (prefs.isKey(key)) {

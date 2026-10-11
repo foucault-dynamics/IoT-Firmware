@@ -23,6 +23,19 @@ extern const char *NVS_NAMESPACE;
 extern Preferences prefs;
 
 /**
+ * Opens #prefs on #NVS_NAMESPACE for a loader.
+ *
+ * Opens read write, not read only. A read only open of a namespace that was
+ * never written fails with NOT_FOUND, so every fresh board would look like it
+ * had no NVS. Read write creates the empty namespace instead, and fails only
+ * when NVS itself is unavailable.
+ *
+ * @retval EXIT_SUCCESS  Opened. The caller must call `prefs.end()`.
+ * @retval EXIT_FAILURE  NVS is unavailable.
+ */
+int openConfigNvs();
+
+/**
  * Reads a number from NVS.
  *
  * @param[in] key       NVS key, at most 15 chars.
