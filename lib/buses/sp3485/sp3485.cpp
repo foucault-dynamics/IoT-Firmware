@@ -24,7 +24,13 @@ Sp3485::Sp3485(Rs485Config config, HardwareSerial &serial){
 /** Time for RX to settle after its pull changes, in us. */
 static const uint32_t PULL_SETTLE_US = 50;
 
-/** Reads @p pin with the pull set by @p mode, once the level has settled. */
+/**
+ * Reads a pin with an internal pull applied, once the level has settled.
+ *
+ * @param[in] pin   GPIO to read.
+ * @param[in] mode  INPUT_PULLUP or INPUT_PULLDOWN.
+ * @return The pin's level, HIGH or LOW.
+ */
 static int readWithPull(uint8_t pin, uint8_t mode){
   pinMode(pin,mode);
   delayMicroseconds(PULL_SETTLE_US);
