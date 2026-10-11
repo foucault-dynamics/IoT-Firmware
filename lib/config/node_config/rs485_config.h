@@ -96,7 +96,6 @@ struct Rs485NodeConfig {
   ReaderType readerType;        ///< Which bus and reader to build.
   SoftApConfig ap;              ///< AP the simulator host joins, ModbusTCP only.
   EspNowConfig espNow;          ///< Uplink to the substation.
-  EspNowPeerConfig substation;  ///< Substation to send readings to.
   ModbusRtuConfig modbus;       ///< Reader settings.
   TcpBusConfig tcp;             ///< Simulator connection, ModbusTCP only.
   DlmsCosemConfig dlms;         ///< DLMS/COSEM reader settings.

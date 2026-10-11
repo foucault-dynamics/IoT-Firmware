@@ -86,7 +86,7 @@ these into the monitor:
 | Command | Does |
 |---|---|
 | `set poll_ms 5000` | Stores a number |
-| `set sub_mac "f0:24:f9:92:fb:c0"` | Stores a string, quotes required |
+| `set wifi_ssid "MyNetwork"` | Stores a string, quotes required |
 | `clear` | Wipes every setting back to the defaults |
 | `reboot` | Restarts the board |
 
@@ -95,11 +95,11 @@ once in setup. A number written to a key that is read as a string (or the other
 way round) is saved but never used, so check the type in
 [NVS config keys](../lib/config/nvs_config/NVS_KEYS.md), which lists every key and more information on NVS.
 
-Four settings have to agree between boards, or readings silently go nowhere:
+Three settings have to agree between boards, or readings silently go nowhere.
+End nodes need no substation address: they hear its beacon and join it at boot.
 
 | Setting | Rule |
 |---|---|
-| `sub_mac` on every end node | The MAC the substation prints at boot, `>>> MAC Address: ... <<<` |
 | `espnow_chan` | Same on the end node and the substation. Both default to 6, except the CV node which defaults to 1 |
 | `lora_*` keys | Same on the substation and the gateway, and `lora_band` legal in your region |
 | `lib/interfaces/shared/shared_payload.h` | Every board flashed from the same copy. Change it and reflash everything |
@@ -197,13 +197,15 @@ to check the radio side of the network.
 
 ### 5.2 Substation
 
-Flash the second LilyGo, open its monitor and press `4`. Copy the MAC it
-prints, you need it for the end node:
+Flash the second LilyGo, open its monitor and press `4`. It starts
+beaconing so end nodes can find it:
 
 ```text
 >>> MAC Address: F0:24:F9:92:FB:C0 <<<
-SUBSTATION: Ready to Relay
+SUBSTATION: Beaconing on channel 6, epoch 3A91C07E
 ```
+
+Each end node that joins shows up as a `[Substation] Joined UID: ...` line.
 
 ### 5.3 RS485 node and the Modbus simulator
 
@@ -221,7 +223,6 @@ default real meter mode and quietly fails to read, which is fine for now.
 Configure it for the simulator and reboot:
 
 ```text
-set sub_mac "F0:24:F9:92:FB:C0"
 set reader 3
 reboot
 ```
@@ -355,8 +356,8 @@ and each pair lives in its own file in `src/nodes/`.
 ### The three meter nodes
 
 All three end with the same step: fill the `Payload`, take the next sequence
-number with `seqNext()`, and send it to `sub_mac` with
-`EspNowUplink::sendPacket()`.
+number with `seqNext()`, and hand it to `SubstationLink::send()`, which joins
+the substation first if needed.
 
 **`rs485_node.cpp`** picks its bus and reader from the `reader` key:
 
@@ -460,7 +461,8 @@ a new test. [Commenting convention](COMMENTING.md) has the doc comment rules
 | Nothing on serial after flashing the C3 | The board is waiting for a monitor. Open one, or check `pio device list` for the right port |
 | `[BOOT] '1' is not 4 or 5` | The board has the other image. Flash `end_node` to a C3 and `lilygo_lora` to a LilyGo |
 | `set` seems to do nothing | You have not rebooted, or the value is the wrong type (strings need quotes) |
-| End node logs `ESP-NOW send failed.` | `sub_mac` is not the substation's MAC, `espnow_chan` differs, or the substation is off |
+| End node logs `[Link] No substation beacon heard` | `espnow_chan` differs, or the substation is off or out of range |
+| `[Substation] Dropped reading from unjoined MAC` | The node missed the join, it rejoins on its next reading. Persistent means the node runs an older image |
 | `[Substation] Relay FAILED` | Gateway off, `lora_*` settings differ between the two boards, or out of range. The reading is kept and retried after 30 s |
 | `[Error] Payload size mismatch!` | The boards were built from different versions of `shared_payload.h` |
 | `[WiFi] Connect Timeout!` on the gateway | Wrong `wifi_ssid` or `wifi_pass`, a 5 GHz only network, or a network that needs a username or sign in page. See [Gateway](#gs_gateway) |

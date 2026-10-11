@@ -134,54 +134,32 @@ void test_read_str_truncates() {
   TEST_ASSERT_EQUAL_STRING("Kaizen", out);
 }
 
-/** A MAC written as text reads back as bytes. */
-void test_read_mac_written_key() {
-  prefs.putString("sub_mac", "aa:bb:cc:01:02:03");
-  const uint8_t fallback[6] = {0};
-  uint8_t out[6];
-  readMac("sub_mac", fallback, out);
-  const uint8_t expected[6] = {0xAA, 0xBB, 0xCC, 0x01, 0x02, 0x03};
-  TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, out, 6);
-}
-
-/** An unset or malformed MAC gives the default. */
-void test_read_mac_falls_back() {
-  const uint8_t fallback[6] = {1, 2, 3, 4, 5, 6};
-  uint8_t out[6] = {0};
-  readMac("sub_mac", fallback, out);
-  TEST_ASSERT_EQUAL_HEX8_ARRAY(fallback, out, 6);
-
-  prefs.putString("sub_mac", "not a mac");
-  memset(out, 0, sizeof(out));
-  readMac("sub_mac", fallback, out);
-  TEST_ASSERT_EQUAL_HEX8_ARRAY(fallback, out, 6);
-}
-
 /** The substation loader uses a value set in NVS, and the default otherwise. */
 void test_substation_loader_reads_nvs() {
   SubstationConfig cfg;
   prefs.end();
   TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadSubstationConfig(cfg));
   TEST_ASSERT_EQUAL_UINT8(6, cfg.espNowChannel);
+  TEST_ASSERT_EQUAL_UINT32(100, cfg.espNowTimeoutMs);
 
   prefs.begin(NVS_NAMESPACE, false);
   prefs.putUInt("espnow_chan", 11);
+  prefs.putUInt("espnow_to_ms", 250);
   prefs.end();
   TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadSubstationConfig(cfg));
   TEST_ASSERT_EQUAL_UINT8(11, cfg.espNowChannel);
+  TEST_ASSERT_EQUAL_UINT32(250, cfg.espNowTimeoutMs);
   prefs.begin(NVS_NAMESPACE, false);
 }
 
-/** With NVS empty the RS485 loader gives Modbus RTU on the SP3485 pins and the secrets.h substation. */
+/** With NVS empty the RS485 loader gives Modbus RTU on the SP3485 pins. */
 void test_rs485_loader_defaults() {
   prefs.end();
   Rs485NodeConfig cfg;
   TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadRs485NodeConfig(cfg));
   prefs.begin(NVS_NAMESPACE, false);
 
-  const uint8_t expectedMac[6] = SECRET_MAC;
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ReaderType::ModbusRtu), static_cast<uint8_t>(cfg.readerType));
-  TEST_ASSERT_EQUAL_HEX8_ARRAY(expectedMac, cfg.substation.mac, 6);
   TEST_ASSERT_EQUAL_UINT8(6, cfg.espNow.channel);
   TEST_ASSERT_EQUAL_UINT32(100, cfg.espNow.sendTimeoutMs);
   TEST_ASSERT_EQUAL_UINT8(8, cfg.modbus.bus.rx);
@@ -198,7 +176,6 @@ void test_rs485_loader_defaults() {
 /** Every RS485 key set in NVS overrides its default. */
 void test_rs485_loader_reads_nvs() {
   prefs.putUInt("reader", static_cast<uint32_t>(ReaderType::DlmsCosem));
-  prefs.putString("sub_mac", "aa:bb:cc:01:02:03");
   prefs.putUInt("espnow_chan", 11);
   prefs.putUInt("baud", 19200);
   prefs.putUInt("slave_addr", 7);
@@ -209,9 +186,7 @@ void test_rs485_loader_reads_nvs() {
   TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadRs485NodeConfig(cfg));
   prefs.begin(NVS_NAMESPACE, false);
 
-  const uint8_t expectedMac[6] = {0xAA, 0xBB, 0xCC, 0x01, 0x02, 0x03};
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ReaderType::DlmsCosem), static_cast<uint8_t>(cfg.readerType));
-  TEST_ASSERT_EQUAL_HEX8_ARRAY(expectedMac, cfg.substation.mac, 6);
   TEST_ASSERT_EQUAL_UINT8(11, cfg.espNow.channel);
   TEST_ASSERT_EQUAL_UINT32(19200, cfg.modbus.bus.baudRate);
   TEST_ASSERT_EQUAL_UINT32(19200, cfg.dlms.bus.baudRate);
@@ -227,9 +202,7 @@ void test_ir_loader_defaults() {
   TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadIrNodeConfig(cfg));
   prefs.begin(NVS_NAMESPACE, false);
 
-  const uint8_t expectedMac[6] = SECRET_MAC;
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(IrHeadMode::Simulated), static_cast<uint8_t>(cfg.headMode));
-  TEST_ASSERT_EQUAL_HEX8_ARRAY(expectedMac, cfg.substation.mac, 6);
   TEST_ASSERT_EQUAL_UINT8(6, cfg.espNow.channel);
   TEST_ASSERT_EQUAL_UINT32(60000, cfg.iec.pollIntervalMs);
   TEST_ASSERT_EQUAL_UINT8(20, cfg.iec.bus.rx);
@@ -243,7 +216,6 @@ void test_ir_loader_defaults() {
 /** Every IR key set in NVS overrides its default. */
 void test_ir_loader_reads_nvs() {
   prefs.putUInt("simulate", static_cast<uint32_t>(IrHeadMode::Real));
-  prefs.putString("sub_mac", "aa:bb:cc:01:02:03");
   prefs.putUInt("espnow_chan", 11);
   prefs.putUInt("poll_ms", 15000);
   prefs.putUInt("ir_invert", 0);
@@ -252,9 +224,7 @@ void test_ir_loader_reads_nvs() {
   TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadIrNodeConfig(cfg));
   prefs.begin(NVS_NAMESPACE, false);
 
-  const uint8_t expectedMac[6] = {0xAA, 0xBB, 0xCC, 0x01, 0x02, 0x03};
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(IrHeadMode::Real), static_cast<uint8_t>(cfg.headMode));
-  TEST_ASSERT_EQUAL_HEX8_ARRAY(expectedMac, cfg.substation.mac, 6);
   TEST_ASSERT_EQUAL_UINT8(11, cfg.espNow.channel);
   TEST_ASSERT_EQUAL_UINT32(15000, cfg.iec.pollIntervalMs);
   TEST_ASSERT_FALSE(cfg.iec.bus.invert);
@@ -267,8 +237,6 @@ void test_cv_loader_defaults() {
   TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadCvNodeConfig(cfg));
   prefs.begin(NVS_NAMESPACE, false);
 
-  const uint8_t expectedMac[6] = SECRET_MAC;
-  TEST_ASSERT_EQUAL_HEX8_ARRAY(expectedMac, cfg.substation.mac, 6);
   TEST_ASSERT_EQUAL_UINT8(1, cfg.espNow.channel);
   TEST_ASSERT_EQUAL_UINT32(200, cfg.espNow.sendTimeoutMs);
   TEST_ASSERT_EQUAL_UINT32(30000, cfg.cam.pollIntervalMs);
@@ -279,7 +247,6 @@ void test_cv_loader_defaults() {
 
 /** Every CV key set in NVS overrides its default. */
 void test_cv_loader_reads_nvs() {
-  prefs.putString("sub_mac", "aa:bb:cc:01:02:03");
   prefs.putUInt("espnow_chan", 11);
   prefs.putUInt("poll_ms", 10000);
   prefs.putString("cam_host", "10.0.0.5");
@@ -289,8 +256,6 @@ void test_cv_loader_reads_nvs() {
   TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadCvNodeConfig(cfg));
   prefs.begin(NVS_NAMESPACE, false);
 
-  const uint8_t expectedMac[6] = {0xAA, 0xBB, 0xCC, 0x01, 0x02, 0x03};
-  TEST_ASSERT_EQUAL_HEX8_ARRAY(expectedMac, cfg.substation.mac, 6);
   TEST_ASSERT_EQUAL_UINT8(11, cfg.espNow.channel);
   TEST_ASSERT_EQUAL_UINT32(10000, cfg.cam.pollIntervalMs);
   TEST_ASSERT_EQUAL_STRING("10.0.0.5", cfg.cam.host);
@@ -432,8 +397,6 @@ void setup() {
   RUN_TEST(test_read_str_written_key);
   RUN_TEST(test_read_str_unset_key_gives_default);
   RUN_TEST(test_read_str_truncates);
-  RUN_TEST(test_read_mac_written_key);
-  RUN_TEST(test_read_mac_falls_back);
   RUN_TEST(test_substation_loader_reads_nvs);
   RUN_TEST(test_rs485_loader_defaults);
   RUN_TEST(test_rs485_loader_reads_nvs);

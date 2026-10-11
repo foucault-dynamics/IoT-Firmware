@@ -15,7 +15,7 @@ lib/
   config/      node_config, nvs_config, secrets
   buses/       sp3485, http_bus, tcp_bus, lora, ir_head
   protocols/   modbus_rtu, dlms_cosem, cam_http, iec62056_21, payload_json
-  links/       esp_now_uplink, lora_link, wifi_radio
+  links/       esp_now_uplink, substation_link, lora_link, wifi_radio
   buffering/   seq_counter, reading_buffer
 ```
 
@@ -246,7 +246,8 @@ unchanged by this split.
 `EspNowUplink : Transmitter`. ESP-NOW.
 
 Received frames are copied inside the ESP-NOW callback into a FreeRTOS queue
-(depth 4), so `receivePacket()` never runs in interrupt context. It returns the
+(depth 4, dropping the oldest frame when full), so `receivePacket()` never runs
+in interrupt context. It returns the
 frame length, `-1` when the queue is empty, or `-2` when the caller's buffer is
 too small. `sendPacket()` blocks on a binary semaphore that the send callback
 gives, so it returns only once the radio has confirmed delivery or the configured
@@ -257,7 +258,26 @@ class keeps a `static EspNowUplink *instance` that the callbacks trampoline
 through. That means one `EspNowUplink` per firmware, which is fine, since
 there is one radio.
 
-`addPeer()` registers a peer from an `EspNowPeerConfig`.
+`addPeer()` registers a peer from an `EspNowPeerConfig`, and succeeds if it is
+already registered. `removePeer()` unregisters one. Add `ESP_NOW_BROADCAST_MAC`
+as a peer to broadcast.
+
+### `substation_link/`
+
+`SubstationLink`, a meter node's connection to the substation, built on its own
+`EspNowUplink`. The node never knows the substation's MAC up front:
+
+1. The substation broadcasts a `LinkFrame` beacon every second, carrying a
+   random epoch picked at boot.
+2. `join()` waits up to 3 s for any beacon, then sends a `Join` with the node's
+   UID to that MAC and waits for the matching `JoinAck`, up to 3 tries.
+3. `send()` delivers a `Payload` to the joined substation, joining first if
+   needed. The substation drops readings from nodes that have not joined.
+
+The node forgets the substation and rejoins on its next `send()` when a beacon
+shows a new epoch (the substation rebooted and lost its joined table), or after
+3 failed sends in a row (it is gone). The nodes call `join()` once in setup and
+`send()` per reading.
 
 ### `seq_counter/`
 

@@ -17,6 +17,7 @@ int loadSubstationConfig(SubstationConfig &cfg) {
   cfg.lora = loadLoRaConfig();
   cfg.link = loadLoRaLinkConfig();
   cfg.espNowChannel = static_cast<uint8_t>(readU32("espnow_chan", 6));
+  cfg.espNowTimeoutMs = readU32("espnow_to_ms", 100);
 
   prefs.end();
   return EXIT_SUCCESS;

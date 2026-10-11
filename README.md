@@ -159,6 +159,7 @@ Project_Kaizen/
 │   │   └── iec62056_21/     IEC 62056-21 optical protocol
 │   ├── links/
 │   │   ├── esp_now_uplink/  ESP-NOW Transmitter
+│   │   ├── substation_link/ Substation discovery and join
 │   │   ├── lora_link/       LoRa Transmitter with ACKs
 │   │   └── wifi_radio/      Radio mode, channel and softAP
 │   └── buffering/

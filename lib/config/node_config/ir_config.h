@@ -59,7 +59,6 @@ struct IrNodeConfig {
   IrHeadMode headMode;
   SoftApConfig ap;              ///< SoftAP the laptop joins. IrHeadMode::TcpSim only.
   EspNowConfig espNow;          ///< Uplink to the substation.
-  EspNowPeerConfig substation;  ///< Substation to send readings to.
   Iec62056Config iec;           ///< Meter protocol settings.
   TcpBusConfig tcp;             ///< Where IrSimTCP.py runs. IrHeadMode::TcpSim only.
 };

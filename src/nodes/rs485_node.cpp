@@ -25,7 +25,7 @@
 #include "modbus_rtu.h"
 #include "dlms_cosem.h"
 #include "wifi_radio.h"
-#include "esp_now_uplink.h"
+#include "substation_link.h"
 
 /** Steps of the node's read, send, sleep cycle. */
 enum States {
@@ -35,7 +35,7 @@ enum States {
   REQUEST  ///< Unused.
 };
 
-static EspNowUplink *uplink;  ///< Link to the substation.
+static SubstationLink *substation;  ///< Link to the substation.
 
 static Module *bus;     ///< Sp3485 or TcpBus, picked by Rs485NodeConfig::readerType.
 static Reader *reader;  ///< ModbusRtuReader or DlmsCosemReader on top of #bus.
@@ -67,16 +67,14 @@ void rs485NodeSetup() {
     return;
   }
 
-  uplink = new EspNowUplink(cfg.espNow);
-  if (uplink->init() != EXIT_SUCCESS) {
+  substation = new SubstationLink(cfg.espNow, cfg.uid);
+  if (substation->init() != EXIT_SUCCESS) {
     readerReady = false;
     return;
   }
 
-  if (uplink->addPeer(cfg.substation) != EXIT_SUCCESS) {
-    readerReady = false;
-    return;
-  }
+  // Not fatal: send() joins on the first reading if no substation answers now
+  substation->join();
 
   memcpy(payload.uid,cfg.uid,sizeof(payload.uid));
   payload.community_id = cfg.communityId;
@@ -191,7 +189,7 @@ void rs485NodeLoop() {
     break;
   case SEND:
     payload.seq = seqNext();
-    if(uplink->sendPacket(cfg.substation.mac,reinterpret_cast<const uint8_t *>(&payload),sizeof(payload)) == EXIT_FAILURE){
+    if(substation->send(payload) == EXIT_FAILURE){
       Serial.printf("Error sending payload at sequence: %u\n",payload.seq);
       // return;
     }

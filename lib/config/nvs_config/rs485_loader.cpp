@@ -87,8 +87,6 @@ int loadRs485NodeConfig(Rs485NodeConfig &cfg) {
   cfg.espNow.channel = static_cast<uint8_t>(readU32("espnow_chan", 6));
   cfg.espNow.sendTimeoutMs = readU32("espnow_to_ms", 100);
 
-  uint8_t defaultMac[] = SECRET_MAC;
-  readMac("sub_mac", defaultMac, cfg.substation.mac);
 
   MeterModel model = static_cast<MeterModel>(readU32("meter_model", static_cast<uint32_t>(MeterModel::Simulated_Tcp)));
   const MeterModelEntry &entry = lookupMeterModel(model);

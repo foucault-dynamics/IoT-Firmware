@@ -34,8 +34,6 @@ int loadCvNodeConfig(CvNodeConfig &cfg) {
   cfg.espNow.channel = static_cast<uint8_t>(readU32("espnow_chan", 1));
   cfg.espNow.sendTimeoutMs = readU32("espnow_to_ms", 200);
 
-  uint8_t defaultMac[] = SECRET_MAC;
-  readMac("sub_mac", defaultMac, cfg.substation.mac);
 
   cfg.cam.pollIntervalMs = readU32("poll_ms", 30000);
   cfg.cam.bus.requestTimeoutMs = 5000;

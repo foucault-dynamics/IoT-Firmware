@@ -57,15 +57,6 @@ uint32_t readU32(const char *key, uint32_t fallback);
 void readStr(const char *key, const char *fallback, char *out, size_t outLen);
 
 /**
- * Reads a MAC address stored as text ("aa:bb:cc:dd:ee:ff") from NVS.
- *
- * @param[in]  key       NVS key, at most 15 chars.
- * @param[in]  fallback  MAC copied when the key is missing or malformed.
- * @param[out] out       Destination for the 6 byte MAC.
- */
-void readMac(const char *key, const uint8_t fallback[6], uint8_t out[6]);
-
-/**
  * Loads the LoRa radio parameters shared by the substation and gateway.
  *
  * @return Radio settings from NVS and defaults, with the LilyGo board's pins.

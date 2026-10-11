@@ -15,8 +15,8 @@ namespace {
 
 /** Readings held per node, matching READINGS_PER_NODE in reading_buffer.cpp. */
 constexpr uint32_t RING_SIZE = 288;
-/** Node slots, matching MAX_END_NODES in reading_buffer.cpp. */
-constexpr uint8_t SLOT_COUNT = 8;
+/** Node slots, from reading_buffer.h. */
+constexpr uint8_t SLOT_COUNT = READING_BUFFER_MAX_NODES;
 
 /**
  * Builds a payload for a test node.

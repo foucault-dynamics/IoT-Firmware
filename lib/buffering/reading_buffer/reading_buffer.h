@@ -14,6 +14,9 @@
 
 #include "shared_payload.h"
 
+/** Most meter nodes one substation can buffer for, one node slot each. */
+constexpr size_t READING_BUFFER_MAX_NODES = 8;
+
 /**
  * Stores a reading under its node's UID.
  *

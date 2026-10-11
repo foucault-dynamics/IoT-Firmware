@@ -10,6 +10,8 @@
 #include <Arduino.h>
 #include <unity.h>
 
+#include <cstring>
+
 #include "esp_now_uplink.h"
 #include "wifi_radio.h"
 
@@ -80,6 +82,28 @@ void test_send_rejects_bad_length() {
   TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, uplink.sendPacket(ABSENT_PEER.mac, oversized, 0));
 }
 
+/** Adding a peer that is already registered succeeds, so a rejoin needs no special case. */
+void test_add_peer_twice_succeeds() {
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, uplink.addPeer(ABSENT_PEER));
+}
+
+/** A broadcast is never acknowledged, so it counts as sent even with no board listening. */
+void test_broadcast_send_succeeds() {
+  EspNowPeerConfig broadcast{};
+  memcpy(broadcast.mac, ESP_NOW_BROADCAST_MAC, sizeof(broadcast.mac));
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, uplink.addPeer(broadcast));
+  const uint8_t packet[23] = {0};
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, uplink.sendPacket(ESP_NOW_BROADCAST_MAC, packet, sizeof(packet)));
+}
+
+/** A removed peer can no longer be sent to, and removing an unknown MAC is not an error. */
+void test_remove_peer() {
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, uplink.removePeer(ABSENT_PEER.mac));
+  const uint8_t packet[34] = {0};
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, uplink.sendPacket(ABSENT_PEER.mac, packet, sizeof(packet)));
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, uplink.removePeer(UNREGISTERED_MAC));
+}
+
 /** @} */
 
 /** Runs every test once the USB serial port is up. */
@@ -93,6 +117,9 @@ void setup() {
   RUN_TEST(test_send_to_absent_peer_fails);
   RUN_TEST(test_send_to_unregistered_peer_fails);
   RUN_TEST(test_send_rejects_bad_length);
+  RUN_TEST(test_add_peer_twice_succeeds);
+  RUN_TEST(test_broadcast_send_succeeds);
+  RUN_TEST(test_remove_peer);
   UNITY_END();
 }
 

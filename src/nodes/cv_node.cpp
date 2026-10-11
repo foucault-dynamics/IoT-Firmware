@@ -29,9 +29,9 @@
 #include "seq_counter.h"
 #include "shared_payload.h"
 #include "wifi_radio.h"
-#include "esp_now_uplink.h"
+#include "substation_link.h"
 
-static EspNowUplink *uplink = nullptr;  ///< Link to the substation.
+static SubstationLink *substation = nullptr;  ///< Link to the substation.
 
 static HttpBus *bus = nullptr;      ///< HTTP client the cam is reached through.
 static Reader *reader = nullptr;    ///< CamHttpReader on top of #bus.
@@ -69,16 +69,14 @@ void cvNodeSetup() {
   }
 
   // ESP-NOW runs on the station interface beside the AP, on the same channel
-  uplink = new EspNowUplink(cfg.espNow);
-  if (uplink->init() != EXIT_SUCCESS) {
+  substation = new SubstationLink(cfg.espNow, cfg.uid);
+  if (substation->init() != EXIT_SUCCESS) {
     Serial.println("[CV] ESP-NOW init failed.");
     return;
   }
 
-  if (uplink->addPeer(cfg.substation) != EXIT_SUCCESS) {
-    Serial.println("[CV] Failed to add substation peer.");
-    return;
-  }
+  // Not fatal: send() joins on the first reading if no substation answers now
+  substation->join();
 
   memcpy(payload.uid, cfg.uid, sizeof(payload.uid));
   payload.community_id = cfg.communityId;
@@ -112,7 +110,7 @@ void cvNodeLoop() {
 
   Serial.printf("[CV] reading=%.3f seq=%lu\n", reading, static_cast<unsigned long>(payload.seq));
 
-  if (uplink->sendPacket(cfg.substation.mac, (const uint8_t *)&payload, sizeof(payload)) != EXIT_SUCCESS) {
+  if (substation->send(payload) != EXIT_SUCCESS) {
     Serial.println("[CV] ESP-NOW send failed.");
   }
 }

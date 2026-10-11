@@ -54,8 +54,6 @@ int loadIrNodeConfig(IrNodeConfig &cfg) {
   cfg.espNow.channel = static_cast<uint8_t>(readU32("espnow_chan", 6));  // match substation's fixed listen channel
   cfg.espNow.sendTimeoutMs = readU32("espnow_to_ms", 100);
 
-  uint8_t defaultMac[] = SECRET_MAC;
-  readMac("sub_mac", defaultMac, cfg.substation.mac);
 
   cfg.iec.pollIntervalMs = readU32("poll_ms", 60000);
   cfg.iec.bus.rx = IR_RX_PIN;
