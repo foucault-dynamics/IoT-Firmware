@@ -21,10 +21,47 @@ Sp3485::Sp3485(Rs485Config config, HardwareSerial &serial){
   this->serial = &serial;
 }
 
+/** Time for RX to settle after its pull changes, in us. */
+static const uint32_t PULL_SETTLE_US = 50;
+
+/** Reads @p pin with the pull set by @p mode, once the level has settled. */
+static int readWithPull(uint8_t pin, uint8_t mode){
+  pinMode(pin,mode);
+  delayMicroseconds(PULL_SETTLE_US);
+  return digitalRead(pin);
+}
+
+
+int Sp3485::probe(){
+  pinMode(derePin,OUTPUT);
+
+  digitalWrite(derePin,LOW);
+  int up = readWithPull(RX,INPUT_PULLUP);
+  int down = readWithPull(RX,INPUT_PULLDOWN);
+  if(up != down){
+    Serial.println("[SP3485] RX not driven in receive, transceiver missing or miswired");
+    return EXIT_FAILURE;
+  }
+
+  digitalWrite(derePin,HIGH);
+  up = readWithPull(RX,INPUT_PULLUP);
+  down = readWithPull(RX,INPUT_PULLDOWN);
+  digitalWrite(derePin,LOW);
+  if(up != HIGH || down != LOW){
+    Serial.println("[SP3485] RX still driven with DE/RE high, DE/RE not wired");
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
+}
+
+
 int Sp3485::init(){
+  if(probe() != EXIT_SUCCESS){
+    return EXIT_FAILURE;
+  }
   serial->begin(baudRate,serialConfig,RX,TX);
   pinMode(derePin,OUTPUT);
-  digitalWrite(derePin,HIGH);
+  digitalWrite(derePin,LOW);
   return EXIT_SUCCESS;
 }
 
