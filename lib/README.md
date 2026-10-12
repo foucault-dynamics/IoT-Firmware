@@ -118,9 +118,11 @@ headers from `src/`.
 
 ### `shared/`
 
-`shared_payload.h`, the 26-byte packed `Payload` and 8-byte `AckPayload`. Every
-node in the network must be built from the same copy of this header; both the
-ESP-NOW and the LoRa receive paths reject frames on a `sizeof()` mismatch.
+`shared_payload.h`, the 34-byte packed `Payload`, the 20-byte `AckPayload` (both
+carry the 16-byte eFuse UID) and the 23-byte `LinkFrame` used for the ESP-NOW
+join handshake, plus the UID helpers. Every node in the network must be built
+from the same copy of this header; both the ESP-NOW and the LoRa receive paths
+reject frames on a `sizeof()` mismatch.
 
 ## Implementations
 
@@ -138,6 +140,14 @@ miswired SP3485 fails at boot rather than as timed out reads. It reads RX with
 the internal pull up and then the pull down. With DE/RE low the receiver drives
 RX and both reads agree; with DE/RE high its output floats and RX follows the
 pull. The probe cannot see the TX wire, since the SP3485's DI is an input.
+
+### `tcp_bus/`
+
+`TcpBus : Module`. The same raw byte stream as `Sp3485`, carried over a
+`WiFiClient` socket instead of RS485. It is configured by `TcpBusConfig` and
+built by the RS485 node when the reader is `ModbusTCP` or `DlmsTcp`, against
+`ModbusSim/ModbusSimTCP.py` or `DlmsSim/DlmsSimTCP.py`. This lets the RS485 node
+be developed with no transceiver and no meter on the desk.
 
 ### `modbus_rtu/`
 
@@ -319,25 +329,3 @@ caches the export for `get_export()`. `get_voltage()` always fails for now.
 
 Developed against `IrSim/` and `SimulatedIrHead`. Not yet tested against real
 hardware.
-
-## Work in progress
-
-Neither of these is included by any built source, so neither is compiled.
-
-### `tcp_bus/`
-
-`TcpBus : Module`. The same raw Modbus RTU byte stream as `Sp3485`, carried over
-a `WiFiClient` socket instead of RS485, matching `ModbusSim/ModbusSimTCP.py`.
-This lets the RS485 node be developed with no transceiver and no meter on the
-desk.
-
-The logic is written, but it needs `TcpBusConfig`, which exists on the `RS485`
-branch and not on `main`. It will not compile until that struct is merged.
-
-## Not started
-
-### `esp32cam/`
-
-Two includes and a TODO. Intended to read framed messages from an ESP32-CAM over
-a UART link and fill a `Payload` from an OCR'd meter face. Needs
-`cam_link_protocol.h`, which is on the `ir-module` branch and is itself unwritten.

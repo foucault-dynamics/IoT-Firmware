@@ -1,7 +1,7 @@
 # ModbusSim
 
 Python simulators that stand in for a Modbus meter, so the meter-reading
-firmware in `lib/modbus_rtu/` can be developed and debugged with no transceiver
+firmware in `lib/protocols/modbus_rtu/` can be developed and debugged with no transceiver
 and no meter on the desk.
 
 Both servers speak **RTU framing**, which is what the firmware speaks. The TCP
@@ -10,8 +10,8 @@ there is no MBAP header), the serial one puts them on a real serial port.
 
 | File | What it is |
 |---|---|
-| `ModbusSimTCP.py` | RTU-over-TCP server on `0.0.0.0:5020`. Talk to it from a laptop, or from firmware via `lib/tcp_bus/`. |
-| `ModbusSimSerial.py` | RTU server on a serial port, `PORT` hardcoded to `/dev/ttyUSB0`. Closest to the real RS485 wiring. |
+| `ModbusSimTCP.py` | RTU-over-TCP server on `0.0.0.0:5020`. Talk to it from a laptop, or from firmware via `lib/buses/tcp_bus/`. |
+| `ModbusSimSerial.py` | RTU server on a serial port. `PORT` is an optional argument and defaults to `/dev/cu.wchusbserial10`. Closest to the real RS485 wiring. |
 | `poll_test.py` | Minimal RTU-over-TCP client. Reads all three registers and prints them. Use it to confirm the server before pointing firmware at it. |
 
 ## Register map
@@ -23,8 +23,8 @@ and `count=2`.
 | Value | Address | Behaviour on each poll |
 |---|---|---|
 | Voltage | 0 | Sine wave around 230.0 V, `230 + 5*sin(t/10)`, encoded as an IEEE 754 float |
-| kWh export | 2 | Counter starting near 1000, increments by 1 |
-| kWh import | 4 | Counter starting near 100, increments by 1 |
+| kWh export | 2 | Counter starting at 1000, increments by 0.1 (`KWH_STEP`), encoded as an IEEE 754 float |
+| kWh import | 4 | Counter starting at 100, increments by 0.1 (`KWH_STEP`), encoded as an IEEE 754 float |
 
 The values are rewritten by `meter_action()` on every read, so two polls never
 return the same thing. That is deliberate: it makes a stale or cached read
@@ -32,27 +32,8 @@ obvious.
 
 These addresses match the `MeterModel::Simulated_Serial` and
 `MeterModel::Simulated_Tcp` rows of the `METER_MODELS` table in
-`lib/node_config/node_config.cpp`, so firmware pointed at either simulator needs
-no address changes.
-
-### Known quirk: the kWh encoding changes after the first poll
-
-`define_device()` seeds all three registers with `DataType.FLOAT32`, but
-`meter_action()` re-encodes the two kWh counters with `_encode_uint32()`. So the
-kWh registers hold a float only until the first read, and a raw integer
-afterwards. Voltage is a float throughout.
-
-Consequences, worth knowing before you chase a firmware bug that is not there:
-
-- `poll_test.py` decodes all three as float32, so its `kwh_export` and
-  `kwh_import` lines print nonsense (a denormal near zero) rather than ~1000 and
-  ~100. Voltage prints correctly.
-- The firmware's `RegisterFormat::ScaledInt`, which is what
-  `loadModbusRtuConfig()` currently sets, matches the post-poll integer encoding,
-  divided by 1000. `RegisterFormat::IEEE_754Float` matches only the seeded value.
-
-Fixing this means picking one encoding and using it in both `define_device()` and
-`meter_action()`.
+`lib/config/nvs_config/rs485_loader.cpp`, so firmware pointed at either
+simulator needs no address changes.
 
 ## Setup
 
@@ -94,8 +75,8 @@ pymodbus 3.15 client API (`device_id=`, not `slave=`).
 
 3. To point firmware at it, the ESP32 and the host running the simulator must be
    on the same network, and the simulator's host address goes into
-   `loadTcpBusConfig()`. That path lives on the `RS485` branch; see
-   `lib/tcp_bus/` for the current state.
+   NVS `tcp_host` (and `tcp_port` if it is not 5020), with the reader set to
+   `ModbusTCP`. See `lib/buses/tcp_bus/` and `lib/config/nvs_config/NVS_KEYS.md`.
 
 ## Testing ModbusSimSerial.py
 
@@ -109,11 +90,11 @@ pymodbus 3.15 client API (`device_id=`, not `slave=`).
    This prints two linked `/dev/ttys00X` paths. Anything written to one appears
    on the other.
 
-2. Edit `PORT` in `ModbusSimSerial.py` to the server's end of the link, then run
-   it:
+2. Run the server on the server's end of the link, passing the port (or edit
+   `PORT` in `ModbusSimSerial.py`):
 
    ```bash
-   python3 ModbusSimSerial.py
+   python3 ModbusSimSerial.py /dev/ttys003
    ```
 
 3. From another terminal, poll the other end:
@@ -131,7 +112,7 @@ derives its T3.5 inter-frame gap from the serial format.
 ## Wiring the ESP32 to the serial simulator
 
 To drive the real `Sp3485` path against this simulator rather than a meter, put a
-USB-to-RS485 adapter on the host, set `PORT` to it, and wire A and B to the
+USB-to-RS485 adapter on the host, pass its port to the server, and wire A and B to the
 transceiver on the node. The firmware side needs nothing changed: GPIO 8 RX,
 GPIO 9 TX, GPIO 10 DE/RE, 9600 `8N1`, slave address 1, all already set in
 `loadModbusRtuConfig()`.
