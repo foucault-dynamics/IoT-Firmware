@@ -69,7 +69,8 @@ The DLMS/COSEM OBIS codes are not NVS keys. They are the `DLMS_IMPORT_OBIS`,
 | `cam_user` | string | `SECRET_CAM_USER` | Camera HTTP basic auth user |
 | `cam_pass` | string | `SECRET_CAM_PASS` | Camera HTTP basic auth password |
 | `cam_host` | string | `SECRET_CAM_HOST` | Camera host |
-| `cam_flow` | string | `SECRET_CAM_FLOW_NAME` | Camera flow name |
+| `cam_flow` | string | `SECRET_CAM_FLOW_NAME` | Camera flow (number) name of the import reading |
+| `cam_flow_exp` | string | `SECRET_CAM_EXPORT_FLOW_NAME` | Camera flow name of the export reading. Empty (the default) means the cam reads import only and export goes out as 0 |
 
 Note: `ap_ssid`, `ap_pass`, `espnow_chan`, `espnow_to_ms`,
 `poll_ms`, `comm_id`, and `unit_id` are reused key names between the Rs485 and CV loaders, each with

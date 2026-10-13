@@ -22,6 +22,8 @@
 #define SECRET_CAM_HOST "192.168.4.2"
 // Matches the number name in the cam's config.ini (main.dig1 / main.ana1).
 #define SECRET_CAM_FLOW_NAME "main"
+// Number name of a second reading for export, empty if the cam only reads import.
+#define SECRET_CAM_EXPORT_FLOW_NAME ""
 #define SECRET_CAM_USER ""
 #define SECRET_CAM_PASS ""
 

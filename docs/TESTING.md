@@ -73,7 +73,7 @@ suite only needs the right folder name.
 | `test_qemu_iec62056` | The baud rate ID table, OBIS parsing, a full optical port session, and handshake failures |
 | `test_qemu_nvs` | NVS read helpers, the defaults and NVS overrides of every node's config loader, the sequence counter resuming from NVS, and every loader and the counter on a never written partition and with NVS unavailable |
 | `test_qemu_payload` | The over the air packets: size, field offsets and byte image of Payload and AckPayload, and the UID helpers |
-| `test_qemu_cam_http` | The CV node's CamHttpReader: the request URL, a good read, every way the cam's JSON is rejected, and the unsupported registers |
+| `test_qemu_cam_http` | The CV node's CamHttpReader: the request URL, good import and export reads, every way the cam's JSON is rejected, export with no flow configured, voltage, and the readiness `probe()` |
 | `test_qemu_payload_json` | The gateway's MQTT JSON: the exact output for a known reading, `ts` before and after NTP sync, the `+10:00` offset, and buffer sizes |
 | `test_board_radio` | Wi-Fi station start, channel conflicts, ESP-NOW init, adding a peer, and sends that fail: no ACK, unknown peer, bad length |
 | `test_board_sp3485` | The SP3485 probe in `init()`: passes with the transceiver fitted, fails with RX on an undriven pin |

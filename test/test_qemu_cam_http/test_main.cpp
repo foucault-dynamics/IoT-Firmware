@@ -155,7 +155,7 @@ void test_init_rejects_empty_flow() {
   TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, reader.init(bus));
 }
 
-/** The cam only reads digits, so export and voltage always fail without sending anything. */
+/** With no export flow configured, export fails without sending anything, and voltage always does. */
 void test_export_and_voltage_unsupported() {
   FakeBus bus;
   CamHttpReader reader(camConfig());
@@ -183,6 +183,78 @@ void test_consecutive_reads() {
   TEST_ASSERT_EQUAL_size_t(2, bus.sent.size());
 }
 
+/** With an export flow configured, export reads that flow and import still reads its own. */
+void test_export_flow_read() {
+  const char *body =
+      "{\"main\":{\"value\":\"100.5\",\"error\":\"no error\"},"
+      "\"export\":{\"value\":\"20.25\",\"error\":\"no error\"}}";
+  FakeBus bus;
+  bus.queueText(body);
+  bus.queueText(body);
+  CamHttpConfig cfg = camConfig();
+  strncpy(cfg.exportFlowName, "export", sizeof(cfg.exportFlowName) - 1);
+  CamHttpReader reader(cfg);
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, reader.init(bus));
+  float importVal = SENTINEL;
+  float exportVal = SENTINEL;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, reader.get_import(&importVal));
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, reader.get_export(&exportVal));
+  TEST_ASSERT_EQUAL_FLOAT(100.5f, importVal);
+  TEST_ASSERT_EQUAL_FLOAT(20.25f, exportVal);
+}
+
+/** An export flow the cam does not report fails and leaves the output alone. */
+void test_export_flow_missing_fails() {
+  FakeBus bus;
+  bus.queueText(GOOD_BODY);
+  CamHttpConfig cfg = camConfig();
+  strncpy(cfg.exportFlowName, "export", sizeof(cfg.exportFlowName) - 1);
+  CamHttpReader reader(cfg);
+  reader.init(bus);
+  float val = SENTINEL;
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, reader.get_export(&val));
+  TEST_ASSERT_EQUAL_FLOAT(SENTINEL, val);
+}
+
+/** probe() passes on a cam that names the flow but has not read the meter yet. */
+void test_probe_passes_before_first_reading() {
+  FakeBus bus;
+  bus.queueText("{\"main\":{\"value\":\"\",\"error\":\"no error\"}}");
+  CamHttpReader reader(camConfig());
+  reader.init(bus);
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, reader.probe());
+  TEST_ASSERT_EQUAL_size_t(1, bus.sent.size());
+}
+
+/** probe() fails when the cam does not answer. */
+void test_probe_fails_without_answer() {
+  FakeBus bus;
+  bus.queueSilence();
+  CamHttpReader reader(camConfig());
+  reader.init(bus);
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, reader.probe());
+}
+
+/** probe() fails when the cam does not report the import flow. */
+void test_probe_fails_on_missing_flow() {
+  FakeBus bus;
+  bus.queueText("{\"other\":{\"value\":\"42.5\",\"error\":\"no error\"}}");
+  CamHttpReader reader(camConfig());
+  reader.init(bus);
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, reader.probe());
+}
+
+/** probe() fails when an export flow is configured but the cam does not report it. */
+void test_probe_fails_on_missing_export_flow() {
+  FakeBus bus;
+  bus.queueText(GOOD_BODY);
+  CamHttpConfig cfg = camConfig();
+  strncpy(cfg.exportFlowName, "export", sizeof(cfg.exportFlowName) - 1);
+  CamHttpReader reader(cfg);
+  reader.init(bus);
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, reader.probe());
+}
+
 /** @} */
 
 /** Runs every test once the serial port is up. */
@@ -201,6 +273,12 @@ void setup() {
   RUN_TEST(test_init_rejects_empty_flow);
   RUN_TEST(test_export_and_voltage_unsupported);
   RUN_TEST(test_consecutive_reads);
+  RUN_TEST(test_export_flow_read);
+  RUN_TEST(test_export_flow_missing_fails);
+  RUN_TEST(test_probe_passes_before_first_reading);
+  RUN_TEST(test_probe_fails_without_answer);
+  RUN_TEST(test_probe_fails_on_missing_flow);
+  RUN_TEST(test_probe_fails_on_missing_export_flow);
   UNITY_END();
 }
 

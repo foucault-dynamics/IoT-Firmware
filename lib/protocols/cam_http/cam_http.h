@@ -7,6 +7,7 @@
 #define CAM_HTTP_H
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 
 #include "module.h"
 #include "cv_config.h"
@@ -19,16 +20,17 @@
  * it reports. Sits on top of any Module that can carry the request and hand
  * the response body back, HttpBus today and a wired UART link later.
  *
- * The cam only recognises digits, so it reports a single register: the
- * meter's import reading. get_export() and get_voltage() have nothing to
- * answer with and always fail.
+ * The cam only recognises digits. The import reading is one flow, and export
+ * is a second flow when the cam is set up to read one, for example a second
+ * register visible in the same frame. get_voltage() has nothing to answer
+ * with and always fails.
  */
 class CamHttpReader : public Reader {
  public:
   /**
    * Stores the config. Nothing is sent until a getter is called.
    *
-   * @param[in] config  Cam address, API path and flow name, copied.
+   * @param[in] config  Cam address, API path and flow names, copied.
    */
   CamHttpReader(const CamHttpConfig &config);
 
@@ -52,10 +54,12 @@ class CamHttpReader : public Reader {
   int get_import(float *val) override;
 
   /**
-   * Always fails, because the cam only reads the import register.
+   * Requests the configured export flow and parses its value.
    *
-   * @param[out] val  Untouched.
-   * @retval EXIT_FAILURE  Always.
+   * @param[out] val  The digits the cam read, as kWh.
+   * @retval EXIT_SUCCESS  @p val holds a fresh reading.
+   * @retval EXIT_FAILURE  No export flow is configured, so nothing was sent,
+   *                       or the read failed as for get_import().
    */
   int get_export(float *val) override;
 
@@ -67,8 +71,32 @@ class CamHttpReader : public Reader {
    */
   int get_voltage(float *val) override;
 
+  /**
+   * Checks the cam answers and reports every configured flow.
+   *
+   * The CV node calls this before declaring itself ready. It proves the AP,
+   * the cam, its HTTP API and the flow names all work, without needing the
+   * cam to have read the meter yet, so a flow with no value still passes.
+   *
+   * @retval EXIT_SUCCESS  The cam answered with valid JSON naming the import
+   *                       flow, and the export flow if one is configured.
+   * @retval EXIT_FAILURE  The request failed, the JSON was bad, or a
+   *                       configured flow is missing.
+   */
+  int probe();
+
  private:
-  CamHttpConfig config;  ///< Cam address, API path and flow name.
+  CamHttpConfig config;  ///< Cam address, API path and flow names.
+
+  /**
+   * Requests the cam's JSON and parses it.
+   *
+   * @param[out] doc  Parsed response.
+   * @retval EXIT_SUCCESS  @p doc holds the cam's JSON.
+   * @retval EXIT_FAILURE  The request failed, the body was empty, or it was
+   *                       not valid JSON.
+   */
+  int fetch(JsonDocument &doc);
 
   /**
    * Requests the cam's JSON and parses one flow's value.

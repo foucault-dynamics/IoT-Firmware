@@ -43,6 +43,7 @@ int loadCvNodeConfig(CvNodeConfig &cfg) {
   strncpy(cfg.cam.path, "/json", sizeof(cfg.cam.path) - 1);
   cfg.cam.path[sizeof(cfg.cam.path) - 1] = '\0';
   readStr("cam_flow", SECRET_CAM_FLOW_NAME, cfg.cam.flowName, sizeof(cfg.cam.flowName));
+  readStr("cam_flow_exp", SECRET_CAM_EXPORT_FLOW_NAME, cfg.cam.exportFlowName, sizeof(cfg.cam.exportFlowName));
 
   prefs.end();
   return EXIT_SUCCESS;

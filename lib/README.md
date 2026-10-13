@@ -255,9 +255,11 @@ body with ArduinoJson. The cam reports one object per flow (a "number" in its
           "error": "no error", "rate": "0.000", "timestamp": "2026-10-10T10:00:00+1000"}}
 ```
 
-The reader picks the object named by `cam_flow` and returns its `value`
-string, converted with `atof()`, as kWh. The read fails, and leaves the output
-untouched, when:
+`get_import()` picks the object named by `cam_flow` and returns its `value`
+string, converted with `atof()`, as kWh. `get_export()` does the same for
+`cam_flow_exp`, a second number set up on the cam, for example a second
+register visible in the same frame. Each getter sends its own request. A read
+fails, and leaves the output untouched, when:
 
 - the bus fails to send or returns an empty body,
 - the body is not valid JSON,
@@ -265,10 +267,19 @@ untouched, when:
 - its `error` is anything but empty or the literal `no error`,
 - its `value` is empty, as it is just after the cam boots.
 
-The cam only reads digits, so `get_export()` and `get_voltage()` always fail
-without sending anything, and the CV node sends import only. `init()` fails if
-`cam_host` or `cam_flow` is empty. The `/json` path is fixed in
-`cv_loader.cpp` and is not an NVS key.
+`cam_flow_exp` is empty by default, and then `get_export()` fails without
+sending anything and the CV node sends export as 0. `get_voltage()` always
+fails, because the cam only reads digits. `init()` fails if `cam_host` or
+`cam_flow` is empty. The `/json` path is fixed in `cv_loader.cpp` and is not an
+NVS key.
+
+`probe()` is the CV node's readiness check. It sends one request and passes
+when the cam answers with valid JSON that names `cam_flow`, and `cam_flow_exp`
+if set. It does not need a value yet, so it passes as soon as the cam is up,
+before its first round of recognition. The CV node retries it every 5 s from
+its loop instead of blocking setup, since the cam can take a minute or more to
+boot, and only reports `[CV] ... node ready.` and starts reading once it
+passes.
 
 Tested in QEMU (`test_qemu_cam_http`) against scripted response bodies, and run
 on hardware with an ESP32-CAM and a C3 SuperMini.

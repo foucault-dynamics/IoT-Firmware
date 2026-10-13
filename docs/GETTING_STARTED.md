@@ -380,8 +380,10 @@ READ ──all three getters ok──► SEND ──► SLEEP ──60 s passed�
 `Iec6205621Reader` on it. One optical session gives import and export together,
 so instead of a state machine it does one read and send per `poll_ms`.
 
-**`cv_node.cpp`** starts a softAP for the camera to join, puts an `HttpBus` and
-a `CamHttpReader` on it, and sends import only, once per `poll_ms`.
+**`cv_node.cpp`** starts a softAP for the camera to join and puts an `HttpBus`
+and a `CamHttpReader` on it. Its loop probes the camera every 5 s until it
+answers, then reads once per `poll_ms`. It sends import, plus export when
+`cam_flow_exp` names a second number on the camera, otherwise export is 0.
 
 ### The substation
 
