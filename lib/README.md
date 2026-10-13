@@ -33,7 +33,7 @@ feeds them. A node is assembled by picking one of each.
 ```text
 Reader        protocol meaning   (Modbus RTU registers -> floats)
    | holds a Module&
-Module        raw bytes on a bus (SP3485, TCP socket, IR head)
+Module        raw bytes on a bus (SP3485, TCP socket, IR head, HTTP client)
 
 Transmitter   whole packets to a peer address (ESP-NOW, LoRa)
 ```
@@ -229,6 +229,49 @@ Nodes that host a network (CV, RS485 in ModbusTCP or DlmsTcp mode) also call
 `HttpBus : Module`. HTTP client over the AP that `wifi_radio` hosts, for the
 ESP32-CAM (AI-on-the-edge-device). `send()` takes the request URL, performs
 the GET, and buffers the body for `readByte()`/`available()`.
+
+`send()` fails without making a request if the AP is down or nothing has
+joined it yet, so the CV node does not wait out the 5 s request timeout before
+the cam has joined. Basic auth is sent only when `cam_user` is set. Any status other than
+200 fails, and the previous body is always discarded first, so a failed GET can
+never hand back an old reading.
+
+### `cam_http/`
+
+`CamHttpReader : Reader`, for the CV node. It reads the meter's display through
+an ESP32-CAM running
+[AI-on-the-edge-device](https://github.com/jomjol/AI-on-the-edge-device), which
+does the digit recognition on the camera and publishes the result over HTTP.
+Configured by `CamHttpConfig`, and stacked on `HttpBus` today. It only uses
+the `Module` interface (`send()`, `available()`, `readByte()`), so the planned
+wired UART link can replace `HttpBus` without changing it.
+
+`get_import()` sends `http://<cam_host>/json` as the request and parses the
+body with ArduinoJson. The cam reports one object per flow (a "number" in its
+`config.ini`), keyed by the flow name:
+
+```json
+{"main": {"value": "12345.678", "raw": "12345.678", "pre": "12345.678",
+          "error": "no error", "rate": "0.000", "timestamp": "2026-10-10T10:00:00+1000"}}
+```
+
+The reader picks the object named by `cam_flow` and returns its `value`
+string, converted with `atof()`, as kWh. The read fails, and leaves the output
+untouched, when:
+
+- the bus fails to send or returns an empty body,
+- the body is not valid JSON,
+- the configured flow is not in it,
+- its `error` is anything but empty or the literal `no error`,
+- its `value` is empty, as it is just after the cam boots.
+
+The cam only reads digits, so `get_export()` and `get_voltage()` always fail
+without sending anything, and the CV node sends import only. `init()` fails if
+`cam_host` or `cam_flow` is empty. The `/json` path is fixed in
+`cv_loader.cpp` and is not an NVS key.
+
+Tested in QEMU (`test_qemu_cam_http`) against scripted response bodies, and run
+on hardware with an ESP32-CAM and a C3 SuperMini.
 
 ### `lora/`
 

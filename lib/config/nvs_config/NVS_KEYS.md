@@ -35,7 +35,7 @@ or the value will be written but silently unused / misread.
 |---|---|---|---|
 | `comm_id` | uint | `0` | Community code (goes out in the payload) |
 | `unit_id` | uint | `0` | Unit code (goes out in the payload) |
-| `reader` | uint | `ReaderType::ModbusTCP` | Reader backend, `0` Modbus RTU, `3` Modbus TCP, `5` DLMS/COSEM, `6` DLMS/COSEM over TCP |
+| `reader` | uint | `ReaderType::ModbusRtu` | Reader backend, `0` Modbus RTU, `3` Modbus TCP, `5` DLMS/COSEM, `6` DLMS/COSEM over TCP |
 | `ap_ssid` | string | `SECRET_AP_SSID` | SoftAP SSID (ModbusTCP and DlmsTcp modes only) |
 | `ap_pass` | string | `SECRET_AP_PASS` | SoftAP password (ModbusTCP and DlmsTcp modes only) |
 | `espnow_chan` | uint | `6` | Radio channel, shared by ESP-NOW and the softAP |

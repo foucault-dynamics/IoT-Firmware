@@ -366,6 +366,7 @@ the substation first if needed.
 | `0` Modbus RTU | `Sp3485` on `Serial1` | `ModbusRtuReader` |
 | `3` Modbus TCP | softAP, then `TcpBus` | `ModbusRtuReader` |
 | `5` DLMS/COSEM | `Sp3485` on `Serial1` | `DlmsCosemReader` |
+| `6` DLMS/COSEM over TCP | softAP, then `TcpBus` | `DlmsCosemReader` |
 
 Its loop is a small state machine, so each call does one step and returns:
 
