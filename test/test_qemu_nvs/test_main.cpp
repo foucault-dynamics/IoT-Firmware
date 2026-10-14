@@ -230,7 +230,7 @@ void test_ir_loader_reads_nvs() {
   TEST_ASSERT_FALSE(cfg.iec.bus.invert);
 }
 
-/** With NVS empty the CV loader gives the secrets.h camera and the /json path. */
+/** With NVS empty the CV loader gives the secrets.h camera, the /json path and a DHCP pool starting at .100. */
 void test_cv_loader_defaults() {
   prefs.end();
   CvNodeConfig cfg;
@@ -244,6 +244,7 @@ void test_cv_loader_defaults() {
   TEST_ASSERT_EQUAL_STRING("/json", cfg.cam.path);
   TEST_ASSERT_EQUAL_STRING(SECRET_CAM_FLOW_NAME, cfg.cam.flowName);
   TEST_ASSERT_EQUAL_STRING(SECRET_CAM_EXPORT_FLOW_NAME, cfg.cam.exportFlowName);
+  TEST_ASSERT_EQUAL_UINT8(100, cfg.ap.dhcpStart);
 }
 
 /** Every CV key set in NVS overrides its default. */

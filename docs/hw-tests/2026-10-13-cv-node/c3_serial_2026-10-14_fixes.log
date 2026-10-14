@@ -1,0 +1,30 @@
+--- 2026-10-14T18:26:46 port opened
+18:26:48.158  [BOOT] Select module to test:
+18:26:48.158    1: RS485 node
+18:26:48.158    2: IR node
+18:26:48.158    3: CV node
+18:26:50.776  >>> <key3>
+18:26:50.877  [BOOT] module type 3
+18:26:50.877  [CFG] cam_flow = main (NVS)
+18:26:50.877  [CFG] cam_flow_exp =  (NVS)
+18:26:50.877  [WifiRadio] AP started
+18:26:50.877  [WifiRadio] SSID: AMR_Base
+18:26:50.877  [WifiRadio] AP IP: 192.168.4.1
+18:26:50.877  [WifiRadio] Station started
+18:26:50.877  [WifiRadio] Channel: 1
+18:26:53.897  [Link] No substation beacon heard
+18:26:53.897  [CFG] seq = 1078 (NVS)
+18:26:53.897  [HttpBus] No station joined the AP yet, skipping request.
+18:26:59.234  [CV] Cam answered with every configured flow, node ready.
+18:26:59.637  [CV] import=531.111 export=0.000 seq=1079
+18:27:02.660  [Link] No substation beacon heard
+18:27:02.660  [CV] ESP-NOW send failed.
+18:27:29.560  [CV] import=531.111 export=0.000 seq=1080
+18:27:32.482  [Link] No substation beacon heard
+18:27:32.482  [CV] ESP-NOW send failed.
+18:27:59.851  [CV] import=531.151 export=0.000 seq=1081
+18:28:02.874  [Link] No substation beacon heard
+18:28:02.874  [CV] ESP-NOW send failed.
+18:28:29.467  [CV] import=531.151 export=0.000 seq=1082
+18:28:32.490  [Link] No substation beacon heard
+18:28:32.491  [CV] ESP-NOW send failed.

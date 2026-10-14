@@ -222,7 +222,11 @@ the one the radio is already on. `EspNowUplink::init()` starts the station
 itself on `EspNowConfig::channel` and always registers peers on the station
 interface, so ESP-NOW only nodes (IR, RS485 RTU) never touch this library.
 Nodes that host a network (CV, RS485 in ModbusTCP or DlmsTcp mode) also call
-`wifiRadioStartAp()` on that same channel.
+`wifiRadioStartAp()` on that same channel. The AP's DHCP server hands out 11
+addresses from `SoftApConfig::dhcpStart`, or from `192.168.4.2` when it is 0.
+The CV node starts at `.100`, so no laptop or phone that joins can take the
+camera's static `.2`. The RS485 and IR nodes keep `.2`, which is the default
+`tcp_host` for the simulators.
 
 ### `http_bus/`
 

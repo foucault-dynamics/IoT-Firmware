@@ -30,6 +30,10 @@ int loadCvNodeConfig(CvNodeConfig &cfg) {
 
   readStr("ap_ssid", SECRET_CAM_AP_SSID, cfg.ap.ssid, sizeof(cfg.ap.ssid));
   readStr("ap_pass", SECRET_CAM_AP_PASSWORD, cfg.ap.password, sizeof(cfg.ap.password));
+  // The cam sits on a static IP at the bottom of the subnet (SECRET_CAM_HOST),
+  // so DHCP starts well above it. Otherwise the first laptop or phone to join
+  // gets .2 and the cam becomes unreachable.
+  cfg.ap.dhcpStart = 100;
 
   cfg.espNow.channel = static_cast<uint8_t>(readU32("espnow_chan", 1));
   cfg.espNow.sendTimeoutMs = readU32("espnow_to_ms", 200);

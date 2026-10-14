@@ -116,6 +116,8 @@ void cvNodeLoop() {
     }
     camVerified = true;
     Serial.println("[CV] Cam answered with every configured flow, node ready.");
+    // Read straight away instead of waiting out a whole poll interval
+    lastPoll = millis() - cfg.cam.pollIntervalMs;
   }
 
   if ((millis() - lastPoll) < cfg.cam.pollIntervalMs) {

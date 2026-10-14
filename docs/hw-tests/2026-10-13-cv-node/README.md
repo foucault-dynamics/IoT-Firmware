@@ -97,10 +97,9 @@ round at 21:37:04. The same snapshot's processed image is the "After" image
 below: the demo photo for 530.21419, where the ×0.1 dial needle is just past 2
 but the camera read it as 1. The
 digit and dial windows were placed by hand from one frame (below) and have not
-been fine tuned. Tuning them in the camera's ROI editor is the first thing to
-try for better accuracy, starting with the ×0.1 dial: its window (kept from
-the original config) sits about 5 px below and right of the dial's hub, and
-every large error involves that dial.
+been fine tuned. Every large error involves the ×0.1 dial. The cause turned
+out to be the camera's dial model, not the windows, see
+[Tuning](#tuning-2026-10-14).
 
 ### R4 to R6 Probe failures and the export flow
 
@@ -155,6 +154,98 @@ camera was rebooted.
 |---|---|---|
 | ![Before](images/roi_before.jpg) | ![Planned](images/roi_planned.jpg) | ![After](images/roi_after_530.11512.jpg) |
 
+## Tuning, 2026-10-14
+
+The errors in R3 were traced and fixed on the camera, with no firmware change.
+After tuning, all 12 demo images read within ±0.005 (`accuracy_tuned.csv`):
+
+| True value | Before | After |
+|---|---|---|
+| 530.07077 | (not captured) | 530.071 |
+| 530.07325 | 530.074 | 530.074 |
+| 530.12067 | 530.112 | 530.122 |
+| 530.21419 | 530.115 | 530.214 |
+| 530.48435 | 530.478 | 530.489 |
+| 530.70265 | 530.715 | 530.704 |
+| 530.95675 | 531.757 | 530.957 |
+| 531.10877 | 531.111 | 531.111 |
+| 531.24108 | 531.151 | 531.241 |
+| 531.38301 | 531.475 | 531.383 |
+| 531.63071 | 531.641 | 531.631 |
+| 531.82235 | 532.711 | 531.822 |
+
+The 530.07077 reading is from the first tuned cycle (`AnalogToDigitTransitionStart`
+not yet set, which does not affect a ×0.1 value of 0.7). The rest are from the
+final config (`c3_serial_2026-10-14_tuning.log`). Final config:
+`camera/config.ini.tuned`.
+
+### How it was found
+
+To test changes without waiting a 12 minute cycle for each one, the camera's
+pipeline was rebuilt on the laptop: its alignment (InitialRotate, then the two
+reference marks), the same window crops, and its own `.tflite` models run with
+LiteRT. The rebuilt alignment matched the camera's own aligned frames to within
+3 to 4 grey levels, and the rebuilt readings reproduced the camera's (for
+example 530.1151 for the 530.21419 image, against the camera's 530.11512).
+
+### Cause 1: the dial model clips its output
+
+The configured dial model, `ana-cont_1400_s2_q.tflite`, outputs the sine and
+cosine of the needle angle, quantised to int8 with a range of −0.98 to
+**+0.057**. Neither output can go positive, so it only reads needles between 5
+and 7.5 correctly. Between 0 and 2.5 it always returns 1.25, and above or
+below that band the angle is squashed towards 4.9 or 7.6. That is why 2.14
+read as 1, and 9.57 as 7.
+
+Scored over all 12 images, mean error in dial divisions (×0.1 dial, ×0.01 dial):
+
+| Model on the camera's SD card | ×0.1 | ×0.01 |
+|---|---|---|
+| `ana-cont_1400_s2_q.tflite` (was configured) | 0.59 | 0.64 |
+| `ana-cont_1500_s2_q.tflite` | 0.16 | 0.15 |
+| `ana-cont_1300_s2.tflite` (float, now configured) | 0.11 | 0.14 |
+
+Moving or resizing the windows changed these by 0.05 at most, so the dial
+windows were only recentred on each hub, measured from the red hub pixels. The
+×0.001 and ×0.0001 windows moved 6 px and 4 px. The ×0.1 window was already
+centred. An earlier note in this record said it was about 5 px off; that was
+wrong.
+
+![Window crops for 530.21419, ×0.1 needle just past 2](images/window_crops_530.21419.png)
+
+### Cause 2: the last wheel rolls early
+
+![Last digit wheel across the 12 images](images/last_wheel_cycle.png)
+
+On this meter the last wheel is half way between digits when the ×0.1 dial is
+around 4 to 5, and already shows the next digit cleanly from about 7. At
+531.82 the wheel shows a clean 2, and the camera only expects a rolled wheel
+once the ×0.1 dial passes 9.2 (`AnalogToDigitTransitionStart` default), so it
+reported 532. Setting `main.AnalogToDigitTransitionStart = 7.5` fixed it
+without changing any other reading.
+
+### Camera changes
+
+```diff
+ [Analog]
+-Model = /config/ana-cont_1400_s2_q.tflite
++Model = /config/ana-cont_1300_s2.tflite
+-main.ana1 452 199 120 120 false
+-main.ana2 362 307 120 120 false
+-main.ana3 217 330 120 120 false
+-main.ana4 87 252 120 120 false
++main.ana1 453 200 120 120 false
++main.ana2 363 310 120 120 false
++main.ana3 215 336 120 120 false
++main.ana4 83 256 120 120 false
+ [PostProcessing]
+-;main.AnalogToDigitTransitionStart =
++main.AnalogToDigitTransitionStart = 7.5
+```
+
+The transition value is specific to this meter's wheel. A different meter
+needs its own, read off the same way.
+
 ## Not covered
 
 - **Substation, gateway and MQTT.** No LoRa boards were connected, so this run
@@ -168,23 +259,57 @@ camera was rebooted.
 1. **First reading waits for 30 s of uptime.** After the node is ready, the
    first reading only comes once `millis()` passes `poll_ms` (10 s after ready
    in R5), because `lastPoll` starts at 0. Harmless at the 30 s default.
+   *Fixed after this run:* the node now reads as soon as the probe passes.
+   Verified on 2026-10-14: first reading 0.4 s after `node ready`
+   (`c3_serial_2026-10-14_fixes.log`).
 2. **IP clash risk on the AP.** The camera's static IP, `192.168.4.2`, is also
    the first address the C3's AP hands out by DHCP. A laptop or phone that
    joins `AMR_Base` before the camera takes that address and the camera becomes
    unreachable. For this run the laptop joined with a static `192.168.4.50`.
-   Moving the camera to an address outside the DHCP pool, or documenting the
-   rule, would avoid it.
-3. **Camera serial output is garbled** through the ESP32-CAM-MB at 115200: the
-   same line repeats thousands of times. Not needed for this run, since the C3
-   log shows what the camera answers, but worth knowing when debugging the
-   camera.
+   *Fixed after this run:* the CV node's AP now hands out addresses from
+   `.100` to `.110` (`SoftApConfig::dhcpStart`), so `.2` is only ever the
+   camera. Verified on 2026-10-14: the laptop joined `AMR_Base` by DHCP, got
+   `192.168.4.100`, the camera still answered `/json` on `.2` with HTTP 200,
+   and the C3 kept reading every 30 s throughout.
+3. **Camera serial output is duplicated on the laptop**, not by the camera.
+   Retested on 2026-10-14 with the port opened and closed under control:
+
+   | Port closed before opening | Bytes in the next 8 s | Replay lasted |
+   |---|---|---|
+   | 10 s, camera printing meanwhile | 1,551,296 | 3.6 s |
+   | 0.2 s, straight after a clean session | 612 | none |
+   | 10 s, camera printing meanwhile | 516,717 | 1.9 s |
+
+   - **It is made on the host side.** Up to 208,896 bytes arrive in the first
+     half second after opening, when a 115200 baud line carries about 5,760.
+   - **It is the last USB packet, replayed.** The repeated unit is always the
+     tail of the last line the camera printed before the port was closed, for
+     example the 12 bytes `01, No AP)\r\n` thousands of times, or exactly 32
+     bytes, the CH340's USB packet size.
+   - **It is triggered by data arriving while no program has the port open.**
+     Reopening right after a clean session gives clean output. The DTR and
+     RTS settings make no difference, and once the burst ends the camera's
+     real output comes through intact.
+
+   The adapter is a CH340 (`1a86:7523`, revision 2.54) on the ESP32-CAM-MB,
+   reached through a USB 2.0 hub on bus 3, using the `ch341` driver on kernel
+   7.2.9. Which of those is at fault needs a swap test: the board straight
+   into a laptop port, a different ESP32-CAM-MB or USB to serial adapter, or
+   another computer.
+
+   Until then, any of these gives clean camera output:
+   - Open the monitor and ignore the first 5 s, or keep one monitor open
+     rather than reopening it.
+   - Reset the camera after the monitor is open, which gives a clean boot log.
+   - Use the camera's web UI (System, Log Viewer), which does not go through
+     USB at all.
 
 ## State left behind
 
-- **Camera:** demo config with nine windows, as above. To undo, upload
+- **Camera:** tuned demo config, `camera/config.ini.tuned`. To undo, upload
   `camera/config.ini.before` through the camera's file server and reboot it.
-- **C3:** CV node running, `cam_flow` set to `main` and `cam_flow_exp` set to
-  empty in NVS (the same as the defaults), `seq` at 37.
+- **C3:** CV node running (since 2026-10-14 the firmware with both fixes), `cam_flow` set to `main` and `cam_flow_exp` set to
+  empty in NVS (the same as the defaults). `seq` was 37 at the end of this run and 1082 on 2026-10-14.
 
 ## Evidence for KZN-TD-01
 
@@ -193,4 +318,4 @@ camera was rebooted.
 | DL-001 | The CV node checks NVS, the AP and ESP-NOW, then probes the camera, and only declares itself ready once the probe passes (R1, R4, R6) |
 | DL-006 | Import read from a test instance, with export read and sent when `cam_flow_exp` is set (R3, R5) |
 | DL-007 | One reading per `poll_ms` with a rising `seq` that survives reboots (R3, R7) |
-| DL-010 | The camera reads the demo meter face every round and the node forwards the value unchanged. Recognition is 7/12 within ±0.012 with untuned windows (R3) |
+| DL-010 | The camera reads the demo meter face every round and the node forwards the value unchanged. Recognition was 7/12 within ±0.012 as found (R3) and 12/12 within ±0.005 after tuning |
