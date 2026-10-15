@@ -243,8 +243,9 @@ never hand back an old reading.
 ### `uart_cam_bus/`
 
 `UartCamBus : Module`, the CV node's wired alternative to `HttpBus`, picked
-with `cam_link 1`. A prototype: unit tested and compiled, not yet run against
-a cam, and it needs a small addition to the cam's firmware. The protocol,
+with `cam_link 1`. A prototype: unit tested, and run on a C3 against a stand
+in cam, but not yet wired to a real one. It needs a small addition to the
+cam's firmware, on the cam fork's `wired-json-uart` branch. The protocol,
 wiring and cam side are in `docs/CV_WIRED_LINK.md`.
 
 `send()` takes the same URL `CamHttpReader` gives `HttpBus`, keeps only the

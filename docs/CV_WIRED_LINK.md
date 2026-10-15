@@ -111,8 +111,9 @@ request for another page (`GET /value?all=true`) needs no protocol change.
 Stock AI-on-the-edge-device never answers on its UART, so the cam runs a small
 addition: branch `wired-json-uart` of
 [foucault-dynamics/AI-on-the-edge-FD](https://github.com/foucault-dynamics/AI-on-the-edge-FD),
-described in that repo's `WIRED_JSON.md`. It compiles but has not yet run on a
-cam.
+described in that repo's `WIRED_JSON.md`. It has run on a cam on its own (step
+4 of [Bring-up](#cwl_bringup)), but not yet with a node on the other end of the
+wire.
 
 What it does:
 

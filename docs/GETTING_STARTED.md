@@ -323,7 +323,7 @@ real thing. The substation and gateway stay as they are.
 | IR node, built in simulated meter | Press `2` | Defaults to `simulate 1`, no wiring and no laptop |
 | IR node against IrSim | Press `2`, `set simulate 2`, `reboot` | Same softAP idea, run `IrSim/IrSimTCP.py`. See `IrSim/README.md` |
 | The CV node | Press `3`, and `set espnow_chan 6` | Needs an ESP32-CAM running AI-on-the-edge-device. See `lib/config/secrets/README.md` |
-| The CV node over a wire | Also `set cam_link 1` | Prototype. Run `CamSim/CamSimSerial.py` on a USB to serial adapter until the cam side exists. See [CV wired link](CV_WIRED_LINK.md) |
+| The CV node over a wire | Also `set cam_link 1` | Prototype. Needs a cam flashed from the `wired-json-uart` branch of the cam fork; until one is wired up, run `CamSim/CamSimSerial.py` on a USB to serial adapter in its place. See [CV wired link](CV_WIRED_LINK.md) |
 
 ## 6. How the code in src/ fits together {#gs_flow}
 

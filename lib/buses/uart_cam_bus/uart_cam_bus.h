@@ -15,7 +15,10 @@
  *
  * @warning Prototype. The cam's stock AI-on-the-edge-device firmware does not
  *          answer on its UART, so this needs the cam side described in
- *          docs/CV_WIRED_LINK.md. Not yet tested on hardware.
+ *          docs/CV_WIRED_LINK.md, on the cam fork's `wired-json-uart` branch.
+ *          Each side has run on hardware on its own (test_board_cam_uart on a
+ *          C3, the cam answering CamSim/cam_uart_poll.py), but the two have
+ *          not yet been wired to each other.
  */
 
 #ifndef UART_CAM_BUS_H

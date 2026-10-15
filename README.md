@@ -64,7 +64,7 @@ flowchart TD
 | Colour | Meaning |
 |---|---|
 | Green | Works (RS485 path tested, CV path run on an ESP32-CAM and C3 SuperMini, the IR readers tested over TCP against their simulators, ESP-NOW, LoRa and MQTT working) |
-| Yellow | Untested on hardware (Real IR head, and the CV node's wired cam link, see [`docs/CV_WIRED_LINK.md`](docs/CV_WIRED_LINK.md)) |
+| Yellow | Not proven on hardware (the real IR head is untested; the CV node's wired cam link has each side working on hardware but the two have never been wired together, see [`docs/CV_WIRED_LINK.md`](docs/CV_WIRED_LINK.md)) |
 
 ## Architecture
 
