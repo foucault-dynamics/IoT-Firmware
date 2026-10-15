@@ -90,7 +90,8 @@ node type's firmware image against its NVS namespace.
 | `poll_ms` | uint | `60000` | Meter poll interval (ms) |
 | `tcp_host` | string | `SECRET_MODBUS_SIM_HOST` | IR simulator host (`simulate 2` only) |
 | `tcp_port` | uint | `5021` | IR simulator port (`simulate 2` only) |
-| `ir_invert` | uint (bool) | `1` | Invert the IR UART's RX/TX. `1` for the IR circuit (light ON reads HIGH), `0` for a USB-serial adapter wired straight to the pins |
+| `ir_tx_inv` | uint (bool) | `0` | Invert the IR UART's TX. `0` for the PiggyMeter head (LED on when LOW) and a USB-serial adapter, `1` for a head whose LED is on when HIGH |
+| `ir_rx_inv` | uint (bool) | `0` | Invert the IR UART's RX. `0` for the PiggyMeter head (RX goes LOW with light) and a USB-serial adapter, `1` for a head that reads light ON as HIGH |
 
 Note: the optical port's bus pins, baud rate (300) and framing (7E1) are
 hardcoded in `loadIrNodeConfig()`, not NVS keys -- the starting baud and
