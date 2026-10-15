@@ -14,8 +14,8 @@ lib/
   interfaces/  module, reader, transmitter, shared
   config/      node_config, nvs_config, secrets
   buses/       sp3485, http_bus, tcp_bus, lora, ir_head
-  protocols/   modbus_rtu, cam_http, iec62056_21
-  links/       esp_now_uplink, lora_link, wifi_radio
+  protocols/   modbus_rtu, dlms_cosem, cam_http, iec62056_21, payload_json
+  links/       esp_now_uplink, substation_link, lora_link, wifi_radio
   buffering/   seq_counter, reading_buffer
 ```
 
@@ -57,7 +57,8 @@ bus. It knows its pins and its peripheral and nothing about what the bytes mean.
 through a `float*` and returning `EXIT_SUCCESS` or `EXIT_FAILURE`.
 
 Each concrete reader takes its config in its own constructor (`ModbusRtuReader(const
-ModbusRtuConfig&)`, `CamHttpReader(const CamHttpConfig&)`), storing it by value.
+ModbusRtuConfig&)`, `DlmsCosemReader(const DlmsCosemConfig&)`,
+`CamHttpReader(const CamHttpConfig&)`), storing it by value.
 That keeps every protocol's fields out of the shared base interface without an
 unchecked cast, at the cost of the caller in `src/nodes/` having to construct the
 right reader for its config.
@@ -80,7 +81,7 @@ more than one node uses:
 | Header | Structs |
 |---|---|
 | `networking_config.h` | `SoftApConfig`, `EspNowConfig`, `EspNowPeerConfig`, `LoRaConfig` and its `LoRaPins`, `LoRaLinkConfig` |
-| `rs485_config.h` | `ReaderType`, `MeterModel`, `RegisterFormat`, `Rs485Config`, `TcpBusConfig`, `ModbusRtuConfig`, `Rs485NodeConfig` |
+| `rs485_config.h` | `ReaderType`, `MeterModel`, `RegisterFormat`, `Rs485Config`, `TcpBusConfig`, `ModbusRtuConfig`, `DlmsCosemConfig`, `Rs485NodeConfig` |
 | `ir_config.h` | `IrConfig`, `Iec62056Config`, `IrNodeConfig` |
 | `cv_config.h` | `HttpBusConfig`, `CamHttpConfig`, `CvNodeConfig` |
 | `substation_config.h` | `SubstationConfig` |
@@ -99,7 +100,8 @@ Each node has its own loader file here (`rs485_loader.cpp`,
 `ir_loader.cpp`, `cv_loader.cpp`, `substation_loader.cpp`,
 `gateway_loader.cpp`) holding that node's defaults, NVS keys and board pins;
 `rs485_loader.cpp` also holds the `METER_MODELS` table mapping a `MeterModel`
-to its register addresses. A field is read from NVS if it was ever set there,
+to its register addresses, and the `DLMS_*_OBIS` constants naming the import,
+export and voltage Registers the DLMS/COSEM reader asks for. A field is read from NVS if it was ever set there,
 falling back to its firmware default otherwise, so a fresh board runs on
 defaults and a firmware update can still improve them. `lora_loader.cpp` holds
 the LoRa radio and link loaders shared by the substation and gateway loaders.
@@ -116,9 +118,11 @@ headers from `src/`.
 
 ### `shared/`
 
-`shared_payload.h`, the 26-byte packed `Payload` and 8-byte `AckPayload`. Every
-node in the network must be built from the same copy of this header; both the
-ESP-NOW and the LoRa receive paths reject frames on a `sizeof()` mismatch.
+`shared_payload.h`, the 34-byte packed `Payload`, the 20-byte `AckPayload` (both
+carry the 16-byte eFuse UID) and the 23-byte `LinkFrame` used for the ESP-NOW
+join handshake, plus the UID helpers. Every node in the network must be built
+from the same copy of this header; both the ESP-NOW and the LoRa receive paths
+reject frames on a `sizeof()` mismatch.
 
 ## Implementations
 
@@ -130,6 +134,20 @@ Half duplex, so the DE/RE pin has to be driven high to talk and dropped back low
 to listen, and only after the last bit has physically left the UART. `send()`
 drains stale RX bytes first so a late reply to a timed-out poll cannot desync the
 next frame, raises DE/RE, writes, flushes, then lowers DE/RE.
+
+`init()` probes the transceiver before starting the UART, so a missing or
+miswired SP3485 fails at boot rather than as timed out reads. It reads RX with
+the internal pull up and then the pull down. With DE/RE low the receiver drives
+RX and both reads agree; with DE/RE high its output floats and RX follows the
+pull. The probe cannot see the TX wire, since the SP3485's DI is an input.
+
+### `tcp_bus/`
+
+`TcpBus : Module`. The same raw byte stream as `Sp3485`, carried over a
+`WiFiClient` socket instead of RS485. It is configured by `TcpBusConfig` and
+built by the RS485 node when the reader is `ModbusTCP` or `DlmsTcp`, against
+`ModbusSim/ModbusSimTCP.py` or `DlmsSim/DlmsSimTCP.py`. This lets the RS485 node
+be developed with no transceiver and no meter on the desk.
 
 ### `modbus_rtu/`
 
@@ -147,6 +165,51 @@ interpreted as a scaled integer or an IEEE 754 float depending on
 
 Developed against `ModbusSim/`. Not yet tested against real hardware.
 
+### `dlms_cosem/`
+
+`DlmsCosemReader : Reader`, for DLMS/COSEM meters on the same `Sp3485` bus,
+selected by `reader = 5` (`ReaderType::DlmsCosem`). `reader = 6`
+(`ReaderType::DlmsTcp`) runs the same reader on a `TcpBus` instead, against
+`DlmsSim/DlmsSimTCP.py`, the way `ModbusTCP` runs against ModbusSim. Two files:
+
+- `hdlc.h` / `hdlc.cpp` are plain functions for the HDLC link layer (IEC
+  62056-46): the FCS (CRC16/X.25), encoding 1, 2 or 4 byte addresses, and
+  building and parsing type A frames with their HCS and FCS checks. They know
+  nothing about the bus, so the frame tests run on them directly.
+- `dlms_cosem.h` / `dlms_cosem.cpp` hold the reader, which drives the HDLC
+  link and speaks COSEM on top of it.
+
+The client uses no authentication and no ciphering, with Logical Name
+referencing, which is what the public client (SAP 16) gets on most meters.
+Every getter runs one whole session for its Register:
+
+1. SNRM, expecting UA. The I-frame counters V(S) and V(R) are reset only once
+   the meter accepts.
+2. AARQ in an I-frame, expecting an AARE that accepts the association with an
+   xDLMS InitiateResponse. A rejection logs its result source diagnostic.
+3. GET attribute 3, `scaler_unit`. The unit must be Wh for import and export,
+   V for voltage, so a misconfigured OBIS code fails instead of reporting the
+   wrong quantity.
+4. GET attribute 2, `value`, decoded from any A-XDR integer or float32 into a
+   `double` and multiplied by 10 to the power of the scaler.
+5. DISC, sent whenever the link came up, even after a failed step, so the
+   meter is never left holding an open link until its inactivity timeout.
+
+Import and export are divided by 1000 to give the kWh the `Reader` interface
+and the payload expect.
+
+`readFrame()` hunts for a flag followed by a type A format byte, skipping noise
+and repeated idle flags, then reads exactly as many bytes as the length field
+gives, within the 1000 ms `DLMS_TIMEOUT`. Every I-frame exchange checks N(S)
+and N(R) against the counters and the LLC header (`E6 E6 00` out, `E6 E7 00`
+back). Segmented replies and block transfers are rejected, which holds as long
+as every APDU fits the default 128 byte info field. Each GET failure decodes its
+data-access-result to serial.
+
+The client and server addresses come from NVS (`dlms_client`, `dlms_logical`,
+`dlms_physical`, `dlms_addr_len`), the OBIS codes from `rs485_loader.cpp`.
+Tested in QEMU against scripted frames. Not yet tested against a real meter.
+
 ### `wifi_radio/`
 
 Plain functions, not a class: `wifiRadioStartAp()`, `wifiRadioStartStation()`,
@@ -158,7 +221,7 @@ other, so they work in either order, and both refuse a channel different from
 the one the radio is already on. `EspNowUplink::init()` starts the station
 itself on `EspNowConfig::channel` and always registers peers on the station
 interface, so ESP-NOW only nodes (IR, RS485 RTU) never touch this library.
-Nodes that host a network (CV, RS485 in ModbusTCP mode) also call
+Nodes that host a network (CV, RS485 in ModbusTCP or DlmsTcp mode) also call
 `wifiRadioStartAp()` on that same channel.
 
 ### `http_bus/`
@@ -193,7 +256,8 @@ unchanged by this split.
 `EspNowUplink : Transmitter`. ESP-NOW.
 
 Received frames are copied inside the ESP-NOW callback into a FreeRTOS queue
-(depth 4), so `receivePacket()` never runs in interrupt context. It returns the
+(depth 4, dropping the oldest frame when full), so `receivePacket()` never runs
+in interrupt context. It returns the
 frame length, `-1` when the queue is empty, or `-2` when the caller's buffer is
 too small. `sendPacket()` blocks on a binary semaphore that the send callback
 gives, so it returns only once the radio has confirmed delivery or the configured
@@ -204,13 +268,34 @@ class keeps a `static EspNowUplink *instance` that the callbacks trampoline
 through. That means one `EspNowUplink` per firmware, which is fine, since
 there is one radio.
 
-`addPeer()` registers a peer from an `EspNowPeerConfig`.
+`addPeer()` registers a peer from an `EspNowPeerConfig`, and succeeds if it is
+already registered. `removePeer()` unregisters one. Add `ESP_NOW_BROADCAST_MAC`
+as a peer to broadcast.
+
+### `substation_link/`
+
+`SubstationLink`, a meter node's connection to the substation, built on its own
+`EspNowUplink`. The node never knows the substation's MAC up front:
+
+1. The substation broadcasts a `LinkFrame` beacon every second, carrying a
+   random epoch picked at boot.
+2. `join()` waits up to 3 s for any beacon, then sends a `Join` with the node's
+   UID to that MAC and waits for the matching `JoinAck`, up to 3 tries.
+3. `send()` delivers a `Payload` to the joined substation, joining first if
+   needed. The substation drops readings from nodes that have not joined.
+
+The node forgets the substation and rejoins on its next `send()` when a beacon
+shows a new epoch (the substation rebooted and lost its joined table), or after
+3 failed sends in a row (it is gone). The nodes call `join()` once in setup and
+`send()` per reading.
 
 ### `seq_counter/`
 
 The reading sequence number used by the meter nodes. `seqCounterBegin()` loads
 it from the `runtime` NVS namespace, and `seqNext()` increments it and writes it
-back, so it survives a reboot.
+back, so it survives a reboot. `seqCounterBegin()` returns `EXIT_FAILURE` if NVS
+cannot be opened, and the meter nodes then idle rather than hand out numbers
+that would repeat after the next reboot.
 
 ### `reading_buffer/`
 
@@ -244,25 +329,3 @@ caches the export for `get_export()`. `get_voltage()` always fails for now.
 
 Developed against `IrSim/` and `SimulatedIrHead`. Not yet tested against real
 hardware.
-
-## Work in progress
-
-Neither of these is included by any built source, so neither is compiled.
-
-### `tcp_bus/`
-
-`TcpBus : Module`. The same raw Modbus RTU byte stream as `Sp3485`, carried over
-a `WiFiClient` socket instead of RS485, matching `ModbusSim/ModbusSimTCP.py`.
-This lets the RS485 node be developed with no transceiver and no meter on the
-desk.
-
-The logic is written, but it needs `TcpBusConfig`, which exists on the `RS485`
-branch and not on `main`. It will not compile until that struct is merged.
-
-## Not started
-
-### `esp32cam/`
-
-Two includes and a TODO. Intended to read framed messages from an ESP32-CAM over
-a UART link and fill a `Payload` from an OCR'd meter face. Needs
-`cam_link_protocol.h`, which is on the `ir-module` branch and is itself unwritten.

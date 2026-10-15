@@ -13,10 +13,16 @@
 #include <freertos/queue.h>
 #include <freertos/semphr.h>
 
-/** Received frames held until receivePacket() takes them. Extra frames are dropped. */
+/**
+ * Received frames held until receivePacket() takes them. When full, the oldest
+ * frame is dropped to make room, so a slow reader still sees the latest ones.
+ */
 #define ESPNOW_RX_QUEUE_DEPTH 4
 /** Length of an ESP-NOW peer address (a MAC), in bytes. */
 #define ESP_NOW_ADDRESS_LEN ESP_NOW_ETH_ALEN
+
+/** The ESP-NOW broadcast address. Register it with addPeer() to send to every node in range. */
+const uint8_t ESP_NOW_BROADCAST_MAC[ESP_NOW_ADDRESS_LEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 /**
  * ESP-NOW link between meter nodes and the substation.
@@ -59,8 +65,8 @@ class EspNowUplink : public Transmitter {
   /**
    * ESP-NOW receive callback. Copies the frame into #rxQueue.
    *
-   * Runs on the Wi-Fi task, so it only copies and never blocks. A frame is
-   * dropped if the queue is full.
+   * Runs on the Wi-Fi task, so it only copies and never blocks. If the queue
+   * is full, the oldest frame is dropped to make room.
    *
    * @param[in] mac   Sender's MAC.
    * @param[in] data  Frame bytes.
@@ -89,13 +95,23 @@ class EspNowUplink : public Transmitter {
    * Registers a peer so packets can be sent to it.
    *
    * The peer follows the radio's current channel and is always on the station
-   * interface, even when a softAP runs beside it.
+   * interface, even when a softAP runs beside it. Adding a peer that is
+   * already registered succeeds, so a rejoin needs no special case.
    *
    * @param[in] peer  Peer's MAC.
-   * @retval EXIT_SUCCESS  Registered.
+   * @retval EXIT_SUCCESS  Registered, now or before.
    * @retval EXIT_FAILURE  ESP-NOW refused the peer.
    */
   int addPeer(EspNowPeerConfig peer);
+
+  /**
+   * Unregisters a peer, so packets can no longer be sent to it.
+   *
+   * @param[in] mac  Peer's 6 byte MAC.
+   * @retval EXIT_SUCCESS  Removed, or was never registered.
+   * @retval EXIT_FAILURE  ESP-NOW refused the removal.
+   */
+  int removePeer(const uint8_t *mac);
 
   /**
    * Sends one frame and waits for the peer to acknowledge it.

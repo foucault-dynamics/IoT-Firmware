@@ -1,6 +1,6 @@
 /**
  * @file
- * Config structs and enums for the RS485 (Modbus) node.
+ * Config structs and enums for the RS485 node, Modbus RTU and DLMS/COSEM.
  */
 
 #ifndef RS485_CONFIG_H
@@ -16,7 +16,9 @@ enum class ReaderType : uint8_t {
     Iec62056 = 1,  ///< IEC 62056-21. Not handled by the RS485 node.
     IEMS = 2,  ///< IEMS reader. Not implemented on this branch.
     ModbusTCP = 3,  ///< Modbus RTU frames over TCP, for ModbusSim testing.
-    CamHttp = 4  ///< ESP32-CAM over HTTP. Not handled by the RS485 node.
+    CamHttp = 4,  ///< ESP32-CAM over HTTP. Not handled by the RS485 node.
+    DlmsCosem = 5,  ///< DLMS/COSEM over HDLC on the SP3485 RS485 transceiver.
+    DlmsTcp = 6  ///< DLMS/COSEM HDLC frames over TCP, for DlmsSim testing.
 };
 /**
  * Which meter a reader node is attached to.
@@ -73,6 +75,19 @@ struct ModbusRtuConfig {
   ///@}
 };
 
+/** DLMS/COSEM reader settings: who the node is, which meter, which objects. */
+struct DlmsCosemConfig {
+  Rs485Config bus;          ///< Transceiver settings.
+  uint8_t clientSap;        ///< Client address, 16 for the public client.
+  uint16_t serverLogical;   ///< Server logical device, 1 for management.
+  uint16_t serverPhysical;  ///< Meter's physical address on the bus.
+  uint8_t serverAddrLen;    ///< Server address size in bytes, 1, 2 or 4.
+  /** OBIS codes A.B.C.D.E.F of the import, export and voltage registers. */
+  ///@{
+  uint8_t importObis[6], exportObis[6], voltageObis[6];
+  ///@}
+};
+
 /** Everything the RS485 node needs, filled in by loadRs485NodeConfig(). */
 struct Rs485NodeConfig {
   uint8_t uid[16];              ///< This board's eFuse UID.
@@ -81,9 +96,9 @@ struct Rs485NodeConfig {
   ReaderType readerType;        ///< Which bus and reader to build.
   SoftApConfig ap;              ///< AP the simulator host joins, ModbusTCP only.
   EspNowConfig espNow;          ///< Uplink to the substation.
-  EspNowPeerConfig substation;  ///< Substation to send readings to.
   ModbusRtuConfig modbus;       ///< Reader settings.
   TcpBusConfig tcp;             ///< Simulator connection, ModbusTCP only.
+  DlmsCosemConfig dlms;         ///< DLMS/COSEM reader settings.
 };
 
 #endif

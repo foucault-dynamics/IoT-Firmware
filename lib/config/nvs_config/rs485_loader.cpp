@@ -6,6 +6,9 @@
 #include "nvs_config.h"
 #include "nvs_read.h"
 
+#include <cstdlib>
+#include <cstring>
+
 #include "secrets.h"
 #include "esp_efuse.h"
 #include "esp_efuse_table.h"
@@ -18,6 +21,13 @@ const uint8_t RS485_RX_PIN = 8;
 const uint8_t RS485_TX_PIN = 9;
 /** GPIO driving the SP3485's DE/RE pins. Board wiring, never an NVS key. */
 const uint8_t RS485_DERE_PIN = 10;
+
+/** OBIS code of total imported active energy, 1.0.1.8.0.255. */
+const uint8_t DLMS_IMPORT_OBIS[6] = {1, 0, 1, 8, 0, 255};
+/** OBIS code of total exported active energy, 1.0.2.8.0.255. */
+const uint8_t DLMS_EXPORT_OBIS[6] = {1, 0, 2, 8, 0, 255};
+/** OBIS code of the phase 1 instantaneous voltage, 1.0.32.7.0.255. */
+const uint8_t DLMS_VOLTAGE_OBIS[6] = {1, 0, 32, 7, 0, 255};
 
 /** Register map of one supported meter model. */
 struct MeterModelEntry {
@@ -54,10 +64,12 @@ const MeterModelEntry &lookupMeterModel(MeterModel model) {
 
 }  // namespace
 
-Rs485NodeConfig loadRs485NodeConfig() {
-  prefs.begin(NVS_NAMESPACE, true);
+int loadRs485NodeConfig(Rs485NodeConfig &cfg) {
+  if (openConfigNvs() != EXIT_SUCCESS) {
+    return EXIT_FAILURE;
+  }
 
-  Rs485NodeConfig cfg{};
+  cfg = Rs485NodeConfig{};
 
   // The UID is burned into eFuse at the factory, so it never comes from NVS.
 #if CONFIG_IDF_TARGET_ESP32C3
@@ -75,8 +87,6 @@ Rs485NodeConfig loadRs485NodeConfig() {
   cfg.espNow.channel = static_cast<uint8_t>(readU32("espnow_chan", 6));
   cfg.espNow.sendTimeoutMs = readU32("espnow_to_ms", 100);
 
-  uint8_t defaultMac[] = SECRET_MAC;
-  readMac("sub_mac", defaultMac, cfg.substation.mac);
 
   MeterModel model = static_cast<MeterModel>(readU32("meter_model", static_cast<uint32_t>(MeterModel::Simulated_Tcp)));
   const MeterModelEntry &entry = lookupMeterModel(model);
@@ -95,10 +105,19 @@ Rs485NodeConfig loadRs485NodeConfig() {
   cfg.modbus.import_address = entry.import_energy;
   cfg.modbus.export_address = entry.export_energy;
 
+  cfg.dlms.bus = cfg.modbus.bus;
+  cfg.dlms.clientSap = static_cast<uint8_t>(readU32("dlms_client", 16));
+  cfg.dlms.serverLogical = static_cast<uint16_t>(readU32("dlms_logical", 1));
+  cfg.dlms.serverPhysical = static_cast<uint16_t>(readU32("dlms_physical", 0));
+  cfg.dlms.serverAddrLen = static_cast<uint8_t>(readU32("dlms_addr_len", 1));
+  memcpy(cfg.dlms.importObis, DLMS_IMPORT_OBIS, sizeof(DLMS_IMPORT_OBIS));
+  memcpy(cfg.dlms.exportObis, DLMS_EXPORT_OBIS, sizeof(DLMS_EXPORT_OBIS));
+  memcpy(cfg.dlms.voltageObis, DLMS_VOLTAGE_OBIS, sizeof(DLMS_VOLTAGE_OBIS));
+
   readStr("tcp_host", SECRET_MODBUS_SIM_HOST, cfg.tcp.host, sizeof(cfg.tcp.host));
   cfg.tcp.port = static_cast<uint16_t>(readU32("tcp_port", SECRET_MODBUS_SIM_PORT));
   cfg.tcp.connectTimeoutMs = 3000;
 
   prefs.end();
-  return cfg;
+  return EXIT_SUCCESS;
 }

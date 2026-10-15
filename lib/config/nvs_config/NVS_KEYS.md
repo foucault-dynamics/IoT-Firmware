@@ -14,7 +14,7 @@ Value type sent over serial:
 - `set key 123` → stored as uint (`putUInt`)
 - `set key "text"` → stored as string (`putString`)
 
-It must match how the key is read back (`readU32` vs `readStr`/`readMac`),
+It must match how the key is read back (`readU32` vs `readStr`),
 or the value will be written but silently unused / misread.
 
 ## Shared (LoRa: substation + gateway)
@@ -35,18 +35,25 @@ or the value will be written but silently unused / misread.
 |---|---|---|---|
 | `comm_id` | uint | `0` | Community code (goes out in the payload) |
 | `unit_id` | uint | `0` | Unit code (goes out in the payload) |
-| `reader` | uint | `ReaderType::ModbusTCP` | Reader backend |
-| `ap_ssid` | string | `SECRET_AP_SSID` | SoftAP SSID (ModbusTCP mode only) |
-| `ap_pass` | string | `SECRET_AP_PASS` | SoftAP password (ModbusTCP mode only) |
+| `reader` | uint | `ReaderType::ModbusTCP` | Reader backend, `0` Modbus RTU, `3` Modbus TCP, `5` DLMS/COSEM, `6` DLMS/COSEM over TCP |
+| `ap_ssid` | string | `SECRET_AP_SSID` | SoftAP SSID (ModbusTCP and DlmsTcp modes only) |
+| `ap_pass` | string | `SECRET_AP_PASS` | SoftAP password (ModbusTCP and DlmsTcp modes only) |
 | `espnow_chan` | uint | `6` | Radio channel, shared by ESP-NOW and the softAP |
 | `espnow_to_ms` | uint | `100` | ESP-NOW send timeout (ms) |
-| `sub_mac` | string (MAC) | `SECRET_MAC` | Substation MAC, `aa:bb:cc:dd:ee:ff` |
 | `meter_model` | uint | `MeterModel::Simulated_Tcp` | Meter model (selects registers) |
 | `poll_ms` | uint | `1000` | Meter poll interval (ms) |
-| `baud` | uint | `9600` | RS485 baud rate |
+| `baud` | uint | `9600` | RS485 baud rate, Modbus RTU and DLMS/COSEM |
 | `slave_addr` | uint | `1` | Modbus slave address |
-| `tcp_host` | string | `SECRET_MODBUS_SIM_HOST` | Modbus TCP simulator host |
-| `tcp_port` | uint | `SECRET_MODBUS_SIM_PORT` | Modbus TCP simulator port |
+| `dlms_client` | uint | `16` | DLMS client SAP, 16 is the public client |
+| `dlms_logical` | uint | `1` | DLMS server logical device, 1 is the management device |
+| `dlms_physical` | uint | `0` | DLMS server physical address on the bus |
+| `dlms_addr_len` | uint | `1` | DLMS server address size in bytes, `1`, `2` or `4` |
+| `tcp_host` | string | `SECRET_MODBUS_SIM_HOST` | TCP simulator host, ModbusSim or DlmsSim |
+| `tcp_port` | uint | `SECRET_MODBUS_SIM_PORT` | TCP simulator port, set `5022` for `DlmsSim/DlmsSimTCP.py` |
+
+The DLMS/COSEM OBIS codes are not NVS keys. They are the `DLMS_IMPORT_OBIS`,
+`DLMS_EXPORT_OBIS` and `DLMS_VOLTAGE_OBIS` constants in `rs485_loader.cpp`,
+1.0.1.8.0.255, 1.0.2.8.0.255 and 1.0.32.7.0.255.
 
 ## CV (camera) node (`loadCvNodeConfig`)
 
@@ -58,14 +65,13 @@ or the value will be written but silently unused / misread.
 | `ap_pass` | string | `SECRET_CAM_AP_PASSWORD` | SoftAP password |
 | `espnow_chan` | uint | `1` | Radio channel, shared by ESP-NOW and the softAP |
 | `espnow_to_ms` | uint | `200` | ESP-NOW send timeout (ms) |
-| `sub_mac` | string (MAC) | `SECRET_MAC` | Substation MAC |
 | `poll_ms` | uint | `30000` | Camera poll interval (ms) |
 | `cam_user` | string | `SECRET_CAM_USER` | Camera HTTP basic auth user |
 | `cam_pass` | string | `SECRET_CAM_PASS` | Camera HTTP basic auth password |
 | `cam_host` | string | `SECRET_CAM_HOST` | Camera host |
 | `cam_flow` | string | `SECRET_CAM_FLOW_NAME` | Camera flow name |
 
-Note: `ap_ssid`, `ap_pass`, `espnow_chan`, `espnow_to_ms`, `sub_mac`,
+Note: `ap_ssid`, `ap_pass`, `espnow_chan`, `espnow_to_ms`,
 `poll_ms`, `comm_id`, and `unit_id` are reused key names between the Rs485 and CV loaders, each with
 their own defaults. This is fine as long as a given board only ever runs one
 node type's firmware image against its NVS namespace.
@@ -81,7 +87,6 @@ node type's firmware image against its NVS namespace.
 | `ap_pass` | string | `SECRET_AP_PASS` | SoftAP password (`simulate 2` only) |
 | `espnow_chan` | uint | `6` | ESP-NOW channel |
 | `espnow_to_ms` | uint | `100` | ESP-NOW send timeout (ms) |
-| `sub_mac` | string (MAC) | `SECRET_MAC` | Substation MAC |
 | `poll_ms` | uint | `60000` | Meter poll interval (ms) |
 | `tcp_host` | string | `SECRET_MODBUS_SIM_HOST` | IR simulator host (`simulate 2` only) |
 | `tcp_port` | uint | `5021` | IR simulator port (`simulate 2` only) |
@@ -113,7 +118,11 @@ The shared LoRa keys above, plus:
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `espnow_chan` | uint | `6` | WiFi channel ESP-NOW listens on, must match the sending node's `espnow_chan` |
+| `espnow_chan` | uint | `6` | WiFi channel ESP-NOW beacons and listens on, must match the sending node's `espnow_chan` |
+| `espnow_to_ms` | uint | `100` | How long a beacon or JoinAck send waits for the radio (ms) |
+
+End nodes have no substation address key. They find the substation from its
+beacon and join it at boot, see `SubstationLink`.
 
 ## Runtime namespace (`seq_counter.cpp`)
 

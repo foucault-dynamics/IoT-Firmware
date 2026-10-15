@@ -10,6 +10,7 @@
 #include <Preferences.h>
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 const char *NVS_NAMESPACE = "config";
@@ -17,25 +18,6 @@ const char *NVS_NAMESPACE = "config";
 Preferences prefs;
 
 namespace {
-
-/**
- * Parses a MAC address written as "aa:bb:cc:dd:ee:ff".
- *
- * @param[in]  text  Text to parse.
- * @param[out] out   Destination for the 6 bytes. Partially written on failure.
- * @retval true   Parsed all 6 bytes.
- * @retval false  Text was not a MAC address.
- */
-bool parseMac(const String &text, uint8_t out[6]) {
-  unsigned int bytes[6];
-  if (sscanf(text.c_str(), "%x:%x:%x:%x:%x:%x", &bytes[0], &bytes[1], &bytes[2], &bytes[3], &bytes[4], &bytes[5]) != 6) {
-    return false;
-  }
-  for (int i = 0; i < 6; i++) {
-    out[i] = static_cast<uint8_t>(bytes[i]);
-  }
-  return true;
-}
 
 /** Longest key NVS accepts. */
 const size_t NVS_MAX_KEY_LEN = 15;
@@ -100,6 +82,10 @@ void processLine(char *line) {
 
 }  // namespace
 
+int openConfigNvs() {
+  return prefs.begin(NVS_NAMESPACE, false) ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
 uint32_t readU32(const char *key, uint32_t fallback) {
   if (prefs.isKey(key)) {
     uint32_t value = prefs.getUInt(key, fallback);
@@ -119,18 +105,6 @@ void readStr(const char *key, const char *fallback, char *out, size_t outLen) {
   }
   strncpy(out, fallback, outLen - 1);
   out[outLen - 1] = '\0';
-}
-
-void readMac(const char *key, const uint8_t fallback[6], uint8_t out[6]) {
-  if (prefs.isKey(key)) {
-    String value = prefs.getString(key, "");
-    if (parseMac(value, out)) {
-      Serial.printf("[CFG] %s = %s (NVS)\n", key, value.c_str());
-      return;
-    }
-    Serial.printf("[CFG] %s malformed in NVS, using default\n", key);
-  }
-  memcpy(out, fallback, 6);
 }
 
 void nvsConfigPollSerial() {

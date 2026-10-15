@@ -2,6 +2,12 @@
  * @file
  * Substation node: relays meter readings from ESP-NOW to LoRa.
  *
+ * Meter nodes find the substation through a beacon it broadcasts every
+ * BEACON_INTERVAL_MS, then join with a Join it answers with a JoinAck (see
+ * LinkFrame). Only readings from joined nodes are accepted. Each beacon
+ * carries a random epoch picked at boot, so a joined node notices a reboot
+ * (which empties the joined table) and joins again.
+ *
  * Readings arriving over ESP-NOW go into the reading buffer straight away.
  * One buffered reading at a time is then relayed over LoRa, whose ACK and
  * retry scheme lives in LoRaLink. A reading only leaves the buffer once the
@@ -11,6 +17,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <esp_random.h>
 
 #include <cstdlib>
 #include <cstring>
@@ -26,18 +33,41 @@
 
 static LoRaModule *radio = nullptr;     ///< LoRa radio.
 static LoRaLink *loraLink = nullptr;    ///< ACK layer on top of #radio, toward the gateway.
-static EspNowUplink *uplink = nullptr;  ///< ESP-NOW receiver for the meter nodes.
+static EspNowUplink *uplink = nullptr;  ///< ESP-NOW link to the meter nodes.
 
 static SubstationConfig cfg;  ///< Config loaded at setup.
 
 /** Wait after a failed relay before trying again, in ms. */
 static constexpr unsigned long RETRY_BACKOFF_MS = 30UL * 1000UL;
 
-static unsigned long nextSendAt = 0;  ///< millis() before which no relay is attempted.
-static bool ready = false;            ///< True once setup fully succeeded.
+/** Time between discovery beacons, in ms. */
+static constexpr unsigned long BEACON_INTERVAL_MS = 1000;
+
+/** A meter node that completed the discovery handshake. */
+struct JoinedNode {
+  uint8_t mac[ESP_NOW_ADDRESS_LEN];  ///< Node's station MAC, the address readings arrive from.
+  uint8_t uid[UID_LEN];              ///< UID the node joined with.
+};
+
+/** Joined nodes, capped at the reading buffer's node slots so every joined node can be buffered. */
+static JoinedNode joined[READING_BUFFER_MAX_NODES];
+static size_t joinedCount = 0;  ///< Valid entries at the start of #joined.
+
+static uint32_t epoch = 0;              ///< Random per boot epoch, sent in every beacon.
+static unsigned long nextBeaconAt = 0;  ///< millis() at which the next beacon is due.
+static unsigned long nextSendAt = 0;    ///< millis() before which no relay is attempted.
+static bool ready = false;              ///< True once setup fully succeeded.
+
+/** printf format for a MAC address, used with MAC_ARGS(). */
+#define MAC_FMT "%02X:%02X:%02X:%02X:%02X:%02X"
+/** Expands a 6 byte MAC into the six arguments MAC_FMT expects. */
+#define MAC_ARGS(m) (m)[0], (m)[1], (m)[2], (m)[3], (m)[4], (m)[5]
 
 void substationSetup() {
-  cfg = loadSubstationConfig();
+  if (loadSubstationConfig(cfg) != EXIT_SUCCESS) {
+    Serial.println("[Substation] NVS unavailable, idling");
+    return;
+  }
 
   radio = new LoRaModule(cfg.lora);
   loraLink = new LoRaLink(*radio, cfg.link);
@@ -47,29 +77,124 @@ void substationSetup() {
     return;
   }
 
-  // Receive only, so the send timeout is never used
-  uplink = new EspNowUplink(EspNowConfig{cfg.espNowChannel, 0});
+  uplink = new EspNowUplink(EspNowConfig{cfg.espNowChannel, cfg.espNowTimeoutMs});
   if (uplink->init() != EXIT_SUCCESS) {
     Serial.println("[Substation] ESP-NOW init failed, idling");
     return;
   }
 
-  // Meter nodes need this MAC as their sub_mac setting
+  EspNowPeerConfig broadcast{};
+  memcpy(broadcast.mac, ESP_NOW_BROADCAST_MAC, ESP_NOW_ADDRESS_LEN);
+  if (uplink->addPeer(broadcast) != EXIT_SUCCESS) {
+    Serial.println("[Substation] Broadcast peer failed, idling");
+    return;
+  }
+
+  epoch = esp_random();
+
   Serial.println(">>> MAC Address: " + WiFi.macAddress() + " <<<");
-  Serial.println("SUBSTATION: Ready to Relay");
+  Serial.printf("SUBSTATION: Beaconing on channel %u, epoch %08lX\n", cfg.espNowChannel, static_cast<unsigned long>(epoch));
 
   ready = true;
 }
 
-/** Moves every reading waiting in the ESP-NOW queue into the reading buffer. */
-static void bufferIncoming() {
-  Payload incoming;
+/**
+ * Looks up a node in the joined table.
+ *
+ * @param[in] mac  Node's MAC.
+ * @return Index into #joined, or -1 if the node has not joined.
+ */
+static int findJoined(const uint8_t *mac) {
+  for (size_t i = 0; i < joinedCount; i++) {
+    if (memcmp(joined[i].mac, mac, ESP_NOW_ADDRESS_LEN) == 0) {
+      return static_cast<int>(i);
+    }
+  }
+  return -1;
+}
+
+/** Broadcasts a discovery beacon once BEACON_INTERVAL_MS has passed since the last. */
+static void beaconIfDue() {
+  // Signed difference so the check still works when millis() wraps
+  if (static_cast<long>(millis() - nextBeaconAt) < 0) {
+    return;
+  }
+  nextBeaconAt = millis() + BEACON_INTERVAL_MS;
+
+  LinkFrame beacon = linkFrameMake(LinkFrameType::Beacon, epoch, nullptr);
+  uplink->sendPacket(ESP_NOW_BROADCAST_MAC, reinterpret_cast<const uint8_t *>(&beacon), sizeof(beacon));
+}
+
+/**
+ * Answers a node's Join: adds it to the joined table, or refreshes it if it
+ * rejoined after a reboot, then sends a JoinAck.
+ *
+ * Joins carrying another epoch answered an old beacon and are ignored, as are
+ * new nodes once the table is full. Either way the node gets no JoinAck and
+ * keeps looking.
+ *
+ * @param[in] mac    Node's MAC.
+ * @param[in] frame  The parsed Join.
+ */
+static void handleJoin(const uint8_t *mac, const LinkFrame &frame) {
+  if (frame.epoch != epoch) {
+    return;
+  }
+
+  char uidHex[UID_HEX_LEN];
+  int index = findJoined(mac);
+  if (index < 0) {
+    if (joinedCount == READING_BUFFER_MAX_NODES) {
+      Serial.printf("[Substation] Join refused, table full | UID: %s | MAC: " MAC_FMT "\n", uidToHex(frame.uid, uidHex), MAC_ARGS(mac));
+      return;
+    }
+    index = static_cast<int>(joinedCount++);
+    memcpy(joined[index].mac, mac, ESP_NOW_ADDRESS_LEN);
+  }
+  memcpy(joined[index].uid, frame.uid, UID_LEN);
+
+  EspNowPeerConfig peer{};
+  memcpy(peer.mac, mac, ESP_NOW_ADDRESS_LEN);
+  if (uplink->addPeer(peer) != EXIT_SUCCESS) {
+    return;
+  }
+
+  // A lost JoinAck is fine, the node sends its Join again and gets another
+  LinkFrame ack = linkFrameMake(LinkFrameType::JoinAck, epoch, frame.uid);
+  uplink->sendPacket(mac, reinterpret_cast<const uint8_t *>(&ack), sizeof(ack));
+
+  Serial.printf("[Substation] Joined UID: %s | MAC: " MAC_FMT " | Nodes: %u/%u\n", uidToHex(frame.uid, uidHex), MAC_ARGS(mac), joinedCount, READING_BUFFER_MAX_NODES);
+}
+
+/**
+ * Handles every frame waiting in the ESP-NOW queue: readings from joined
+ * nodes go into the reading buffer, Joins are answered.
+ */
+static void handleIncoming() {
+  uint8_t mac[ESP_NOW_ADDRESS_LEN];
+  uint8_t buf[ESP_NOW_MAX_DATA_LEN];
   int len;
-  while ((len = uplink->receivePacket(nullptr, reinterpret_cast<uint8_t *>(&incoming), sizeof(incoming))) != -1) {
+  while ((len = uplink->receivePacket(mac, buf, sizeof(buf))) != -1) {
+    LinkFrame frame;
+    if (linkFrameParse(buf, len, frame)) {
+      if (frame.type == static_cast<uint8_t>(LinkFrameType::Join)) {
+        handleJoin(mac, frame);
+      }
+      continue;
+    }
+
     if (len != static_cast<int>(sizeof(Payload))) {
       Serial.println("[Error] Payload size mismatch!");
       continue;
     }
+
+    if (findJoined(mac) < 0) {
+      Serial.printf("[Substation] Dropped reading from unjoined MAC: " MAC_FMT "\n", MAC_ARGS(mac));
+      continue;
+    }
+
+    Payload incoming;
+    memcpy(&incoming, buf, sizeof(incoming));
     char uidHex[UID_HEX_LEN];
     readingBufferPush(incoming);
     Serial.printf("[Substation] Buffered UID: %s | SEQ: %u | Total: %u\n", uidToHex(incoming.uid, uidHex), incoming.seq, readingBufferCount());
@@ -81,7 +206,8 @@ void substationLoop() {
     return;
   }
 
-  bufferIncoming();
+  beaconIfDue();
+  handleIncoming();
 
   // Signed difference so the check still works when millis() wraps
   if (static_cast<long>(millis() - nextSendAt) < 0) {

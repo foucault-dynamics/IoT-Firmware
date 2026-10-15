@@ -128,6 +128,13 @@ void setUp() {}
 /** Nothing to clean up. */
 void tearDown() {}
 
+/**
+ * @defgroup test_qemu_iec62056 IEC 62056-21
+ * @ingroup tests
+ * Tests in test_qemu_iec62056/test_main.cpp.
+ * @{
+ */
+
 /** IDs '0' to '6' map to the standard's Table 6 rates. */
 void test_baud_ids_map_to_table_6() {
   assertBaud('0', 300);
@@ -293,6 +300,8 @@ void test_voltage_unsupported() {
   TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, reader.get_voltage(&voltage));
   TEST_ASSERT_EQUAL_FLOAT(SENTINEL, voltage);
 }
+
+/** @} */
 
 /** Runs every test once the serial port is up. */
 void setup() {

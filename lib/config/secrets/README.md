@@ -32,7 +32,6 @@ serial instead, so they live in NVS on the device.
 
 | Macro | NVS key | Purpose |
 |---|---|---|
-| `SECRET_MAC` | `sub_mac` | MAC address of the substation, which the IR, CV and RS485 nodes send their ESP-NOW frames to |
 | `SECRET_LORA_BAND` | `lora_band` | LoRa frequency in Hz. 433E6 or 915E6, and it must match on the substation and gateway and be legal in your region |
 
 ### CV node (ESP32-CAM meter reading)
@@ -60,5 +59,3 @@ serial instead, so they live in NVS on the device.
 - `ap_ssid` and `ap_pass` are the same NVS keys on the CV and RS485 nodes. Each
   node only reads its own default (`SECRET_CAM_AP_*` or `SECRET_AP_*`), so the two
   macro sets never collide.
-- `SECRET_MAC` is the substation's address, not the node's own. If the substation
-  board changes, update this default or set `sub_mac` over serial on each node.

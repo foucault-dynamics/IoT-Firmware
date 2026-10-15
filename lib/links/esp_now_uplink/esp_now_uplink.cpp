@@ -28,9 +28,12 @@ void EspNowUplink::onSent(const uint8_t *mac, esp_now_send_status_t status){
     return;
   }
   instance->deliverySuccess = (status == ESP_NOW_SEND_SUCCESS);
-  Serial.printf("[EspNowUplink] Sent to %02X:%02X:%02X:%02X:%02X:%02X, status: %s\n",
-                mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
-                instance->deliverySuccess ? "SUCCESS" : "FAIL");
+  // Broadcasts are never acknowledged, and the substation beacons every second
+  if(memcmp(mac,ESP_NOW_BROADCAST_MAC,ESP_NOW_ADDRESS_LEN) != 0){
+    Serial.printf("[EspNowUplink] Sent to %02X:%02X:%02X:%02X:%02X:%02X, status: %s\n",
+                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
+                  instance->deliverySuccess ? "SUCCESS" : "FAIL");
+  }
   xSemaphoreGive(instance->sendDone);
 }
 
@@ -47,8 +50,13 @@ void EspNowUplink::onReceived(const uint8_t *mac, const uint8_t *data, int len){
     static_cast<size_t>(len);
   memcpy(frame.data,data,copyLen);
   frame.len = copyLen;
-  // Zero wait: blocking inside the Wi-Fi task would stall the radio
-  xQueueSend(instance->rxQueue,&frame,0);
+  // Zero wait: blocking inside the Wi-Fi task would stall the radio.
+  // When full, drop the oldest frame so a slow reader sees the newest ones
+  if(xQueueSend(instance->rxQueue,&frame,0) != pdTRUE){
+    RxFrame oldest;
+    xQueueReceive(instance->rxQueue,&oldest,0);
+    xQueueSend(instance->rxQueue,&frame,0);
+  }
 }
 
 int EspNowUplink::init(){
@@ -96,13 +104,24 @@ int EspNowUplink::addPeer(EspNowPeerConfig peer){
   // Always the station, the softAP (if any) sits beside it.
   info.ifidx = WIFI_IF_STA;
 
-  if(esp_now_add_peer(&info) != ESP_OK){
+  esp_err_t err = esp_now_add_peer(&info);
+  if(err != ESP_OK && err != ESP_ERR_ESPNOW_EXIST){
     Serial.println("[EspNowUplink] Failed to add peer");
     return EXIT_FAILURE;
   }
 
   return EXIT_SUCCESS;
 
+}
+
+int EspNowUplink::removePeer(const uint8_t *mac){
+  esp_err_t err = esp_now_del_peer(mac);
+  if(err != ESP_OK && err != ESP_ERR_ESPNOW_NOT_FOUND){
+    Serial.println("[EspNowUplink] Failed to remove peer");
+    return EXIT_FAILURE;
+  }
+
+  return EXIT_SUCCESS;
 }
 
 int EspNowUplink::sendPacket(const void *address, const uint8_t *buf, size_t len){

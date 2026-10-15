@@ -1,6 +1,6 @@
 /**
  * @file
- * RS485 meter node: polls a Modbus RTU meter and sends readings to the
+ * RS485 meter node: polls a Modbus RTU or DLMS/COSEM meter and sends readings to the
  * substation.
  *
  * The bus is an Sp3485 for a real meter, or a TcpBus for ModbusSim testing,
@@ -23,8 +23,9 @@
 #include "reader.h"
 #include "seq_counter.h"
 #include "modbus_rtu.h"
+#include "dlms_cosem.h"
 #include "wifi_radio.h"
-#include "esp_now_uplink.h"
+#include "substation_link.h"
 
 /** Steps of the node's read, send, sleep cycle. */
 enum States {
@@ -34,10 +35,10 @@ enum States {
   REQUEST  ///< Unused.
 };
 
-static EspNowUplink *uplink;  ///< Link to the substation.
+static SubstationLink *substation;  ///< Link to the substation.
 
 static Module *bus;     ///< Sp3485 or TcpBus, picked by Rs485NodeConfig::readerType.
-static Reader *reader;  ///< ModbusRtuReader on top of #bus.
+static Reader *reader;  ///< ModbusRtuReader or DlmsCosemReader on top of #bus.
 
 static Rs485NodeConfig cfg;  ///< Config loaded at setup.
 
@@ -52,32 +53,38 @@ static Payload payload;  ///< Reading sent each cycle. Identity fields are set o
 
 void rs485NodeSetup() {
 
-  cfg = loadRs485NodeConfig();
+  if (loadRs485NodeConfig(cfg) != EXIT_SUCCESS) {
+    Serial.println("[RS485] NVS unavailable, idling");
+    readerReady = false;
+    return;
+  }
 
   // The simulator host joins this softAP to reach the TCP bus
-  if (cfg.readerType == ReaderType::ModbusTCP
+  if ((cfg.readerType == ReaderType::ModbusTCP || cfg.readerType == ReaderType::DlmsTcp)
       && !wifiRadioStartAp(cfg.ap, cfg.espNow.channel)) {
     Serial.println("[RS485] SoftAP bring-up failed, idling");
     readerReady = false;
     return;
   }
 
-  uplink = new EspNowUplink(cfg.espNow);
-  if (uplink->init() != EXIT_SUCCESS) {
+  substation = new SubstationLink(cfg.espNow, cfg.uid);
+  if (substation->init() != EXIT_SUCCESS) {
     readerReady = false;
     return;
   }
 
-  if (uplink->addPeer(cfg.substation) != EXIT_SUCCESS) {
-    readerReady = false;
-    return;
-  }
+  // Not fatal: send() joins on the first reading if no substation answers now
+  substation->join();
 
   memcpy(payload.uid,cfg.uid,sizeof(payload.uid));
   payload.community_id = cfg.communityId;
   payload.unit_id = cfg.unitId;
 
-  seqCounterBegin();
+  if (seqCounterBegin() != EXIT_SUCCESS) {
+    Serial.println("[RS485] NVS unavailable for the sequence counter, idling");
+    readerReady = false;
+    return;
+  }
 
   switch (cfg.readerType) {
   case ReaderType::ModbusRtu:{
@@ -88,6 +95,22 @@ void rs485NodeSetup() {
     }
 
     reader = new ModbusRtuReader(cfg.modbus);
+    if (reader->init(*bus) == EXIT_SUCCESS) {
+      readerReady = true;
+    } else {
+      delete reader;
+      reader = nullptr;
+    }
+    break;
+  }
+  case ReaderType::DlmsCosem:{
+    bus = new Sp3485(cfg.dlms.bus, Serial1);
+    if (bus->init() != EXIT_SUCCESS) {
+      Serial.println("[RS485] Sp3485 init failed.");
+      break;
+    }
+
+    reader = new DlmsCosemReader(cfg.dlms);
     if (reader->init(*bus) == EXIT_SUCCESS) {
       readerReady = true;
     } else {
@@ -111,6 +134,22 @@ void rs485NodeSetup() {
     }
 
     reader = new ModbusRtuReader(cfg.modbus);
+    if (reader->init(*bus) == EXIT_SUCCESS) {
+      readerReady = true;
+    } else {
+      delete reader;
+      reader = nullptr;
+    }
+    break;
+  }
+  case ReaderType::DlmsTcp: {
+    bus = new TcpBus(cfg.tcp);
+    while(true){
+      if(bus->init() == EXIT_SUCCESS) break;
+      Serial.println("[RS485] TcpBus init failed.");
+    }
+
+    reader = new DlmsCosemReader(cfg.dlms);
     if (reader->init(*bus) == EXIT_SUCCESS) {
       readerReady = true;
     } else {
@@ -150,7 +189,7 @@ void rs485NodeLoop() {
     break;
   case SEND:
     payload.seq = seqNext();
-    if(uplink->sendPacket(cfg.substation.mac,reinterpret_cast<const uint8_t *>(&payload),sizeof(payload)) == EXIT_FAILURE){
+    if(substation->send(payload) == EXIT_FAILURE){
       Serial.printf("Error sending payload at sequence: %u\n",payload.seq);
       // return;
     }

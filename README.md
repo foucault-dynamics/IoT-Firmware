@@ -1,11 +1,15 @@
 # Focault Dynamics IoT Firmware
 Firmware for the Focault Dynamics IoT metering network, a QUT capstone project.
-The repository began as a fork of [NEXTGEN_IEMS](https://github.com/kahoQUT/NEXTGEN_IEMS),
-. The goal of this repository is to move every node onto the
+The repository began as a fork of [NEXTGEN_IEMS](https://github.com/kahoQUT/NEXTGEN_IEMS).
+The goal of this repository is to move every node onto the
 ESP32-C3 SuperMini and give each one a swappable meter-reading module (RS485,
 IR optical head, or camera) chosen by its role in the network.
 
 ## Documentation
+
+New to the codebase? Start with [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md),
+which covers installing, flashing, a first end to end run, testing, and how the
+code in `src/` flows.
 
 API docs for every class, function and config struct are published at
 **https://foucault-dynamics.github.io/IoT-Firmware/**, rebuilt from the code on
@@ -27,12 +31,15 @@ flowchart TD
         direction TB
         A["Sp3485 (Module)"] --> R1["ModbusRtuReader"]
         B["TcpBus (Module)"] --> R1
+        A --> R4["DlmsCosemReader"]
+        B --> R4
     end
 
     subgraph ir["IR node (ESP32-C3)"]
         direction TB
         C["RealIRHead (Module)"] --> R2["Iec6205621Reader"]
         D["SimulatedIRHead (Module)"] --> R2
+        T["TcpIrHead (Module)"] --> R2
     end
 
     subgraph cv["CV node (ESP32-C3)"]
@@ -49,14 +56,14 @@ flowchart TD
     classDef working fill:#d4edda,stroke:#28a745,color:#000
     classDef untested fill:#fff3cd,stroke:#e0a800,color:#000
 
-    class A,B,R1,E,R3,S,G,M working
-    class C,D,R2 untested
+    class A,B,R1,R4,D,T,R2,E,R3,S,G,M working
+    class C untested
 ```
 
 | Colour | Meaning |
 |---|---|
-| Green | Works (RS485 and CV paths tested, ESP-NOW, LoRa and MQTT working) |
-| Yellow | Untested (IR path) |
+| Green | Works (RS485 and CV paths tested, the IR readers tested over TCP against their simulators, ESP-NOW, LoRa and MQTT working) |
+| Yellow | Untested on hardware (Real IR head and CV) |
 
 ## Architecture
 
@@ -148,10 +155,13 @@ Project_Kaizen/
 │   │   └── ir_head/         Optical probe Module
 │   ├── protocols/
 │   │   ├── modbus_rtu/      Modbus RTU Reader
+│   │   ├── dlms_cosem/      DLMS/COSEM Reader over HDLC
 │   │   ├── cam_http/        ESP32-CAM Reader
+│   │   ├── payload_json/    Gateway's MQTT JSON
 │   │   └── iec62056_21/     IEC 62056-21 optical protocol
 │   ├── links/
 │   │   ├── esp_now_uplink/  ESP-NOW Transmitter
+│   │   ├── substation_link/ Substation discovery and join
 │   │   ├── lora_link/       LoRa Transmitter with ACKs
 │   │   └── wifi_radio/      Radio mode, channel and softAP
 │   └── buffering/
@@ -178,6 +188,16 @@ Project_Kaizen/
 │   ├── ir_poll_test.py
 │   ├── native/
 │   └── README.md
+├── DlmsSim/
+│   ├── dlms_meter.py
+│   ├── DlmsSimSerial.py
+│   ├── DlmsSimTCP.py
+│   ├── dlms_poll_test.py
+│   └── README.md
+├── docs/
+│   ├── GETTING_STARTED.md
+│   ├── COMMENTING.md
+│   └── TESTING.md
 ├── test/
 │   ├── support/             FakeBus, shared by the driver tests
 │   ├── test_qemu_*/         unit tests run in QEMU
@@ -220,29 +240,34 @@ board talks to the computer through a USB to UART bridge chip.
 
 ## Payload Format
 
-Defined in `lib/interfaces/shared/shared_payload.h`, packed to 26 bytes:
+Defined in `lib/interfaces/shared/shared_payload.h`. `Payload` is packed to 34
+bytes and `AckPayload` to 20:
 
 ```cpp
 #pragma pack(push, 1)
-struct Payload {
-    uint32_t uid;           // Node/Device ID
-    uint32_t seq;           // Sequence number for deduplication
-    float kwh_import;       // 1.8.0 value
-    float kwh_export;       // 2.8.0 value
-    float voltage;          // Grid voltage
+struct Payload {            // 34 bytes
+    uint8_t uid[UID_LEN];   // 16 byte eFuse UID of the sending node
+    uint32_t seq;           // Per node sequence number, deduplicates retries
+    float kwh_import;       // OBIS 1.8.0
+    float kwh_export;       // OBIS 2.8.0
+    float voltage;          // Grid voltage in volts
     uint8_t community_id;
     uint8_t unit_id;
 };
 
-struct AckPayload {
-    uint32_t uid;
+struct AckPayload {         // 20 bytes
+    uint8_t uid[UID_LEN];
     uint32_t seq;
 };
 #pragma pack(pop)
 ```
 
-Every device must use the same struct. Both the ESP-NOW receive path and the LoRa
-receive path reject frames on a `sizeof()` mismatch, so if you change this file,
+The same header also defines `LinkFrame` (23 bytes), the ESP-NOW join handshake
+between a meter node and the substation. It starts with the magic bytes `KZ`.
+
+Every device must use the same structs. The ESP-NOW and LoRa receive paths tell
+frames apart by length and reject any other size (`Payload` and `LinkFrame` on
+ESP-NOW, `Payload` and `AckPayload` on LoRa), so if you change this file,
 rebuild and reflash all environments together.
 
 
@@ -257,7 +282,8 @@ values that change on every poll. These addresses match the
 
 - `ModbusSimTCP.py` serves RTU-over-TCP on `0.0.0.0:5020`. This is what
   `lib/buses/tcp_bus/` talks to.
-- `ModbusSimSerial.py` serves RTU on a serial port, hardcoded to `/dev/ttyUSB0`.
+- `ModbusSimSerial.py` serves RTU on a serial port. The port is an optional
+  argument and defaults to `/dev/cu.wchusbserial10`.
 - `poll_test.py` is a minimal RTU-over-TCP client that reads all three registers
   and decodes them, useful for confirming the server before pointing firmware at
   it.
@@ -281,3 +307,19 @@ Python, with import and export kWh that go up on every read.
   and runs it against fake meters, no board needed.
 
 See `IrSim/README.md` for each way of testing, from laptop only up to the PCB.
+
+## DLMS Simulator
+
+`DlmsSim/` is a fake DLMS/COSEM meter built on the independent
+[Gurux.DLMS.Python](https://github.com/Gurux/Gurux.DLMS.Python) library, so a
+session that works against it shows the firmware's `DlmsCosemReader`
+interoperates with a second implementation of the standard.
+
+- `DlmsSimTCP.py` serves HDLC over TCP on `0.0.0.0:5022`. The RS485 node reaches
+  it through `TcpBus` with `reader = 6`.
+- `DlmsSimSerial.py` serves HDLC on a serial port at 9600 `8N1`. The RS485 node
+  reaches it through the `Sp3485` with `reader = 5`.
+- `dlms_poll_test.py` reads the import, export and voltage Registers from either
+  one with Gurux's client.
+
+See `DlmsSim/README.md` for the register map, setup and the Gurux workarounds.

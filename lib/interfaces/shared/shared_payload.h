@@ -3,9 +3,9 @@
  * Over the air packet formats shared by every node, plus UID helpers.
  *
  * Every node in the network must be built from the same copy of this header.
- * Both the ESP-NOW and LoRa receive paths reject frames whose size does not
- * match `sizeof(Payload)`, so changing a struct here means reflashing every
- * board.
+ * The receive paths tell frames apart by size (Payload and LinkFrame on
+ * ESP-NOW, Payload and AckPayload on LoRa) and reject any other size, so
+ * changing a struct here means reflashing every board.
  */
 
 #ifndef SHARED_PAYLOAD_H
@@ -45,7 +45,77 @@ struct AckPayload {
     uint8_t uid[UID_LEN];  ///< UID copied from the acknowledged Payload.
     uint32_t seq;          ///< Sequence number copied from the acknowledged Payload.
 };
+
+/**
+ * Discovery handshake frame between a meter node and the substation over
+ * ESP-NOW.
+ *
+ * Kept apart from Payload, which also crosses LoRa to the gateway, and told
+ * apart from it by length and #magic. Its size differs from both Payload and
+ * AckPayload so a length check alone never confuses them.
+ */
+struct LinkFrame {
+    uint8_t magic[2];      ///< LINK_FRAME_MAGIC, so stray ESP-NOW traffic is ignored.
+    uint8_t type;          ///< A LinkFrameType.
+    uint32_t epoch;        ///< Substation's random per boot epoch. A change means it rebooted.
+    uint8_t uid[UID_LEN];  ///< Join: the node's UID. JoinAck: echoes it. Beacon: all zero.
+};
 #pragma pack(pop)
+
+/** Bytes every LinkFrame starts with, "KZ". */
+const uint8_t LINK_FRAME_MAGIC[2] = {'K', 'Z'};
+
+/** What a LinkFrame asks or answers. */
+enum class LinkFrameType : uint8_t {
+    Beacon = 1,   ///< Substation to broadcast: "I am here, on this epoch".
+    Join = 2,     ///< Node to substation: "add me", carrying the node's UID.
+    JoinAck = 3,  ///< Substation to node: "you are joined", echoing the UID.
+};
+
+/**
+ * Builds a LinkFrame.
+ *
+ * @param[in] type   What the frame is.
+ * @param[in] epoch  Substation's boot epoch. Nodes send back the one they heard.
+ * @param[in] uid    UID_LEN bytes, or nullptr for all zero.
+ * @return The frame, ready to send.
+ */
+inline LinkFrame linkFrameMake(LinkFrameType type, uint32_t epoch, const uint8_t *uid) {
+    LinkFrame f{};
+    memcpy(f.magic, LINK_FRAME_MAGIC, sizeof(f.magic));
+    f.type = static_cast<uint8_t>(type);
+    f.epoch = epoch;
+    if (uid != nullptr) {
+        memcpy(f.uid, uid, UID_LEN);
+    }
+    return f;
+}
+
+/**
+ * Checks received bytes are a LinkFrame and copies them out.
+ *
+ * @param[in]  buf  Received bytes.
+ * @param[in]  len  Number of bytes in @p buf.
+ * @param[out] out  The frame. Untouched on failure.
+ * @retval true   @p buf is exactly one LinkFrame with the magic and a known type.
+ * @retval false  Wrong length, wrong magic or unknown type.
+ */
+inline bool linkFrameParse(const uint8_t *buf, int len, LinkFrame &out) {
+    if (len != static_cast<int>(sizeof(LinkFrame))) {
+        return false;
+    }
+    LinkFrame f;
+    memcpy(&f, buf, sizeof(f));
+    if (memcmp(f.magic, LINK_FRAME_MAGIC, sizeof(f.magic)) != 0) {
+        return false;
+    }
+    if (f.type < static_cast<uint8_t>(LinkFrameType::Beacon)
+        || f.type > static_cast<uint8_t>(LinkFrameType::JoinAck)) {
+        return false;
+    }
+    out = f;
+    return true;
+}
 
 /** Buffer size for uidToHex(): two hex digits per byte plus the terminator. */
 const size_t UID_HEX_LEN = UID_LEN * 2 + 1;

@@ -23,10 +23,10 @@
 #include "reader.h"
 #include "seq_counter.h"
 #include "iec62056_21.h"
-#include "esp_now_uplink.h"
+#include "substation_link.h"
 #include "wifi_radio.h"
 
-static EspNowUplink *uplink = nullptr;  ///< Link to the substation.
+static SubstationLink *substation = nullptr;  ///< Link to the substation.
 
 static Module *bus = nullptr;     ///< IR head, real or simulated.
 static Reader *reader = nullptr;  ///< Iec6205621Reader on top of #bus.
@@ -38,7 +38,10 @@ static unsigned long lastPoll = 0;  ///< millis() of the last reading attempt.
 static bool readerReady = false;    ///< True once setup fully succeeded.
 
 void irNodeSetup() {
-  cfg = loadIrNodeConfig();
+  if (loadIrNodeConfig(cfg) != EXIT_SUCCESS) {
+    Serial.println("[IR] NVS unavailable, idling");
+    return;
+  }
 
   // TcpSim: the laptop running IrSimTCP.py joins this softAP, same as the
   // RS485 node's ModbusTCP mode.
@@ -48,20 +51,22 @@ void irNodeSetup() {
     return;
   }
 
-  uplink = new EspNowUplink(cfg.espNow);
-  if (uplink->init() != EXIT_SUCCESS) {
+  substation = new SubstationLink(cfg.espNow, cfg.uid);
+  if (substation->init() != EXIT_SUCCESS) {
     return;
   }
 
-  if (uplink->addPeer(cfg.substation) != EXIT_SUCCESS) {
-    return;
-  }
+  // Not fatal: send() joins on the first reading if no substation answers now
+  substation->join();
 
   memcpy(payload.uid, cfg.uid, sizeof(payload.uid));
   payload.community_id = cfg.communityId;
   payload.unit_id = cfg.unitId;
 
-  seqCounterBegin();
+  if (seqCounterBegin() != EXIT_SUCCESS) {
+    Serial.println("[IR] NVS unavailable for the sequence counter, idling");
+    return;
+  }
 
   // Real hardware doesn't exist yet (EE team's UART to IR circuit), so
   // this defaults to simulated. See loadIrNodeConfig()'s "simulate" key.
@@ -129,9 +134,7 @@ void irNodeLoop() {
   Serial.printf("[IR] import=%.3f export=%.3f seq=%lu\n", payload.kwh_import,
                 payload.kwh_export, static_cast<unsigned long>(payload.seq));
 
-  if (uplink->sendPacket(cfg.substation.mac,
-                         reinterpret_cast<const uint8_t *>(&payload),
-                         sizeof(payload)) != EXIT_SUCCESS) {
+  if (substation->send(payload) != EXIT_SUCCESS) {
     Serial.println("[IR] ESP-NOW send failed.");
   }
 }

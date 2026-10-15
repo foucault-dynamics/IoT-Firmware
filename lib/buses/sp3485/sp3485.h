@@ -32,6 +32,21 @@ class Sp3485 : public Module {
   void flush();
   /** Discards every byte waiting in the RX buffer. */
   void drainRX();
+  /**
+   * Checks the transceiver is fitted and DE/RE reaches it, before the UART
+   * claims the RX pin.
+   *
+   * Reads RX once with the internal pull up and once with the pull down. With
+   * DE/RE low the receiver drives RX, so both reads agree. With DE/RE high its
+   * output goes high impedance, so RX follows the pull. Comparing reads, not
+   * expecting a fixed level, keeps this independent of the bus state.
+   *
+   * @retval EXIT_SUCCESS  RX is driven in receive and floats when DE/RE is high.
+   * @retval EXIT_FAILURE  RX floats in receive (transceiver missing, unpowered
+   *                       or RO not wired to RX), or stays driven with DE/RE
+   *                       high (DE/RE not wired).
+   */
+  int probe();
 
  public:
   /**
@@ -44,9 +59,11 @@ class Sp3485 : public Module {
   Sp3485(Rs485Config config, HardwareSerial &serial);
 
   /**
-   * Starts the UART and sets up the DE/RE pin as an output, driven high.
+   * Probes the transceiver, then starts the UART and sets up the DE/RE pin as
+   * an output, driven low so the node idles listening.
    *
-   * @retval EXIT_SUCCESS  Always.
+   * @retval EXIT_SUCCESS  The probe passed and the UART is started.
+   * @retval EXIT_FAILURE  The probe failed, see probe(). The UART is not started.
    */
   int init() override;
 

@@ -34,7 +34,6 @@ struct CvNodeConfig {
   uint8_t unitId;                ///< Unit within the community. Set from NVS, not hardware.
   SoftApConfig ap;               ///< AP the cam joins.
   EspNowConfig espNow;           ///< Uplink to the substation.
-  EspNowPeerConfig substation;   ///< Substation to send readings to.
   CamHttpConfig cam;             ///< Cam reader settings.
 };
 

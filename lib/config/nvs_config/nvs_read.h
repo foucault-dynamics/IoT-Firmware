@@ -23,6 +23,19 @@ extern const char *NVS_NAMESPACE;
 extern Preferences prefs;
 
 /**
+ * Opens #prefs on #NVS_NAMESPACE for a loader.
+ *
+ * Opens read write, not read only. A read only open of a namespace that was
+ * never written fails with NOT_FOUND, so every fresh board would look like it
+ * had no NVS. Read write creates the empty namespace instead, and fails only
+ * when NVS itself is unavailable.
+ *
+ * @retval EXIT_SUCCESS  Opened. The caller must call `prefs.end()`.
+ * @retval EXIT_FAILURE  NVS is unavailable.
+ */
+int openConfigNvs();
+
+/**
  * Reads a number from NVS.
  *
  * @param[in] key       NVS key, at most 15 chars.
@@ -42,15 +55,6 @@ uint32_t readU32(const char *key, uint32_t fallback);
  * @param[in]  outLen    Size of @p out in bytes.
  */
 void readStr(const char *key, const char *fallback, char *out, size_t outLen);
-
-/**
- * Reads a MAC address stored as text ("aa:bb:cc:dd:ee:ff") from NVS.
- *
- * @param[in]  key       NVS key, at most 15 chars.
- * @param[in]  fallback  MAC copied when the key is missing or malformed.
- * @param[out] out       Destination for the 6 byte MAC.
- */
-void readMac(const char *key, const uint8_t fallback[6], uint8_t out[6]);
 
 /**
  * Loads the LoRa radio parameters shared by the substation and gateway.

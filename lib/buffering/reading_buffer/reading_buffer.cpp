@@ -11,8 +11,6 @@
 
 namespace {
 
-/** Most meter nodes one substation can buffer for. */
-constexpr size_t MAX_END_NODES = 8;
 /** Readings held per node. */
 constexpr uint16_t READINGS_PER_NODE = 288;
 
@@ -35,7 +33,7 @@ struct NodeSlot {
   uint16_t count;                  ///< Number of readings held.
 };
 
-NodeSlot slots[MAX_END_NODES]; ///< Every node slot.
+NodeSlot slots[READING_BUFFER_MAX_NODES]; ///< Every node slot.
 size_t nextSlot = 0;           ///< Slot the next peek starts searching from.
 int peekedSlot = -1;           ///< Slot of the last peeked reading, or -1.
 
@@ -98,8 +96,8 @@ bool readingBufferPush(const Payload &p) {
 }
 
 bool readingBufferPeek(Payload &out) {
-  for (size_t i = 0; i < MAX_END_NODES; i++) {
-    size_t index = (nextSlot + i) % MAX_END_NODES;
+  for (size_t i = 0; i < READING_BUFFER_MAX_NODES; i++) {
+    size_t index = (nextSlot + i) % READING_BUFFER_MAX_NODES;
     const NodeSlot &slot = slots[index];
     if (!slot.used || slot.count == 0) {
       continue;
@@ -132,7 +130,7 @@ void readingBufferPop() {
   if (slot.count == 0) {
     slot.used = false;
   }
-  nextSlot = (peekedSlot + 1) % MAX_END_NODES;
+  nextSlot = (peekedSlot + 1) % READING_BUFFER_MAX_NODES;
   peekedSlot = -1;
 }
 

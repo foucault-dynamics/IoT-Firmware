@@ -11,6 +11,8 @@ ModBusSim/__pycache__
 ModBusSim/.venv
 IrSim/__pycache__
 IrSim/.venv
+DlmsSim/__pycache__
+DlmsSim/.venv
 
 # Doxygen output
 build/

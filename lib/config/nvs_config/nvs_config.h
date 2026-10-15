@@ -5,7 +5,8 @@
  * Each loader fills its node's config struct, reading every field from NVS if
  * it was ever set there and falling back to the firmware default otherwise. A
  * fresh board therefore runs on defaults, and a firmware update can still
- * improve them. The node's `*_loader.cpp` holds its keys and defaults, so that
+ * improve them. A loader fails only when NVS itself cannot be opened, and the
+ * node then idles rather than run on defaults it never checked. The node's `*_loader.cpp` holds its keys and defaults, so that
  * is the file to check for what a given board is actually running. NVS_KEYS.md
  * lists every key.
  *
@@ -24,38 +25,51 @@
 /**
  * Loads the RS485 node's config.
  *
- * @return Config from NVS and defaults, with the UID read from eFuse and the
- *         register addresses looked up from the configured MeterModel.
+ * @param[out] cfg  Filled with the config from NVS and defaults, with the UID
+ *                  read from eFuse and the register addresses looked up from
+ *                  the configured MeterModel.
+ * @retval EXIT_SUCCESS  Loaded.
+ * @retval EXIT_FAILURE  NVS could not be opened. @p cfg is unchanged.
  */
-Rs485NodeConfig loadRs485NodeConfig();
+int loadRs485NodeConfig(Rs485NodeConfig &cfg);
 
 /**
  * Loads the IR node's config.
  *
- * @return Config from NVS and defaults, with the UID read from eFuse.
+ * @param[out] cfg  Filled with the config from NVS and defaults, with the UID
+ *                  read from eFuse.
+ * @retval EXIT_SUCCESS  Loaded.
+ * @retval EXIT_FAILURE  NVS could not be opened. @p cfg is unchanged.
  */
-IrNodeConfig loadIrNodeConfig();
+int loadIrNodeConfig(IrNodeConfig &cfg);
 
 /**
  * Loads the CV node's config.
  *
- * @return Config from NVS and defaults, with the UID read from eFuse.
+ * @param[out] cfg  Filled with the config from NVS and defaults, with the UID
+ *                  read from eFuse.
+ * @retval EXIT_SUCCESS  Loaded.
+ * @retval EXIT_FAILURE  NVS could not be opened. @p cfg is unchanged.
  */
-CvNodeConfig loadCvNodeConfig();
+int loadCvNodeConfig(CvNodeConfig &cfg);
 
 /**
  * Loads the substation's config.
  *
- * @return Config from NVS and defaults.
+ * @param[out] cfg  Filled with the config from NVS and defaults.
+ * @retval EXIT_SUCCESS  Loaded.
+ * @retval EXIT_FAILURE  NVS could not be opened. @p cfg is unchanged.
  */
-SubstationConfig loadSubstationConfig();
+int loadSubstationConfig(SubstationConfig &cfg);
 
 /**
  * Loads the gateway's config.
  *
- * @return Config from NVS and defaults.
+ * @param[out] cfg  Filled with the config from NVS and defaults.
+ * @retval EXIT_SUCCESS  Loaded.
+ * @retval EXIT_FAILURE  NVS could not be opened. @p cfg is unchanged.
  */
-GatewayConfig loadGatewayConfig();
+int loadGatewayConfig(GatewayConfig &cfg);
 
 /**
  * Handles serial config commands, without blocking. Call at the top of loop().

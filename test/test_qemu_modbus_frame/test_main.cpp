@@ -112,6 +112,13 @@ void setUp() {}
 /** Nothing to clean up. */
 void tearDown() {}
 
+/**
+ * @defgroup test_qemu_modbus_frame Modbus RTU framing
+ * @ingroup tests
+ * Tests in test_qemu_modbus_frame/test_main.cpp.
+ * @{
+ */
+
 /** CRC of 01 03 00 00 00 01 is 84 0A. */
 void test_crc_read_one_register_at_0() {
   const uint8_t frame[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01};
@@ -186,6 +193,8 @@ void test_init_rejects_invalid_stop_bits() {
   SerialConfig noStopBits = static_cast<SerialConfig>(SERIAL_8N1 & ~STOP_MASK);
   TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, initWith(9600, noStopBits, t35Us));
 }
+
+/** @} */
 
 /** Runs every test once the serial port is up. */
 void setup() {

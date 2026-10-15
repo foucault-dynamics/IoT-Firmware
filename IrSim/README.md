@@ -33,7 +33,7 @@ reads never return the same thing and a stale reading is obvious.
 |---|---|---|---|
 | 1 | Laptop only | none | The fake meter and the protocol, from Python |
 | 2 | ESP32 only | `SimulatedIrHead` (`1`) | The firmware's parser, with canned replies |
-| 3 | ESP32 + laptop on WiFi | `TcpIrHead` (`2`) | The whole IR node against a live, changing meter. Seiji's ModbusSim way. |
+| 3 | ESP32 + laptop on WiFi | `TcpIrHead` (`2`) | The whole IR node against a live, changing meter. The same approach as ModbusSim. |
 | 4 | ESP32 + USB-to-serial adapter | `RealIrHead` (`0`) | Everything in 3, plus the real UART, 7E1 and the baud switch |
 | 5 | The PCB + a real meter | `RealIrHead` (`0`) | The IR circuit itself |
 
@@ -77,11 +77,11 @@ baud), and the same meter with IR echo. Expect `3/3 ok` for all three.
 ### 2. ESP32 only
 
 Nothing new. `SimulatedIrHead` is the default (`simulate 1`). Flash the
-`unified` environment, open the serial monitor, press `2` for IR node.
+`end_node` environment, open the serial monitor, press `2` for IR node.
 
 ### 3. ESP32 + laptop on WiFi
 
-1. Flash `unified`, open the serial monitor, then set the mode and reboot:
+1. Flash `end_node`, open the serial monitor, then set the mode and reboot:
 
    ```text
    set simulate 2

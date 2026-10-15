@@ -15,8 +15,8 @@ namespace {
 
 /** Readings held per node, matching READINGS_PER_NODE in reading_buffer.cpp. */
 constexpr uint32_t RING_SIZE = 288;
-/** Node slots, matching MAX_END_NODES in reading_buffer.cpp. */
-constexpr uint8_t SLOT_COUNT = 8;
+/** Node slots, from reading_buffer.h. */
+constexpr uint8_t SLOT_COUNT = READING_BUFFER_MAX_NODES;
 
 /**
  * Builds a payload for a test node.
@@ -58,6 +58,13 @@ void setUp() {
 
 /** Nothing to clean up. */
 void tearDown() {}
+
+/**
+ * @defgroup test_qemu_reading_buffer Reading buffer
+ * @ingroup tests
+ * Tests in test_qemu_reading_buffer/test_main.cpp.
+ * @{
+ */
 
 /** Readings from one node come out in the order they went in. */
 void test_fifo_within_one_node() {
@@ -196,6 +203,8 @@ void test_drained_slot_is_freed_for_new_uid() {
 
   TEST_ASSERT_TRUE_MESSAGE(readingBufferPush(makePayload(SLOT_COUNT + 1, 1)), "drained slot was not freed for a new UID");
 }
+
+/** @} */
 
 /** Runs every test once the serial port is up. */
 void setup() {

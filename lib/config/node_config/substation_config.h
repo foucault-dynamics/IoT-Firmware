@@ -11,9 +11,10 @@
 
 /** Everything the substation needs, filled in by loadSubstationConfig(). */
 struct SubstationConfig {
-  LoRaConfig lora;        ///< Radio parameters.
-  LoRaLinkConfig link;    ///< ACK and retry behaviour.
-  uint8_t espNowChannel;  ///< Wi-Fi channel meter nodes send on. Must match theirs.
+  LoRaConfig lora;           ///< Radio parameters.
+  LoRaLinkConfig link;       ///< ACK and retry behaviour.
+  uint8_t espNowChannel;     ///< Wi-Fi channel meter nodes send on. Must match theirs.
+  uint32_t espNowTimeoutMs;  ///< How long a beacon or join reply waits for the radio, in ms.
 };
 
 #endif

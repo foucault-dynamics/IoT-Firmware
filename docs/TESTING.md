@@ -27,7 +27,7 @@ brew install libgcrypt glib pixman sdl2 libslirp
 |---|---|
 | `pio test -e test_c3 --without-uploading -f test_qemu_nvs` | Runs one suite |
 | `pio test -e test_c3 --without-uploading -v` | Also shows the firmware's serial output, including crash dumps |
-| `pio test -e end_node -f test_board_radio` | Runs the real board suite on a connected C3 |
+| `pio test -e end_node -f test_board_radio` | Runs one real board suite on a connected C3 |
 | `pio test -e end_node --without-uploading --without-testing` | Only builds the board suites, no board needed |
 
 ## Layout
@@ -39,9 +39,15 @@ test/
 ├── test_qemu_reading_buffer/     run in QEMU by test_c3
 ├── test_qemu_modbus_frame/
 ├── test_qemu_modbus_driver/
+├── test_qemu_dlms_frame/
+├── test_qemu_dlms_driver/
 ├── test_qemu_iec62056/
 ├── test_qemu_nvs/
-└── test_board_radio/             needs a real C3, run by end_node
+├── test_qemu_payload/
+├── test_qemu_cam_http/
+├── test_qemu_payload_json/
+├── test_board_radio/             needs a real C3, run by end_node
+└── test_board_sp3485/            needs a real C3 with the SP3485 wired
 ```
 
 Every folder starting with `test_` is a suite: its own firmware image with its
@@ -62,9 +68,20 @@ suite only needs the right folder name.
 | `test_qemu_reading_buffer` | The substation's store and forward buffer: FIFO order, overflow, the slot limit, node rotation, and peek without pop |
 | `test_qemu_modbus_frame` | Modbus CRC16 vectors, request frames, and the T3.5 gap for each baud rate and frame format |
 | `test_qemu_modbus_driver` | Decoding both register formats, every way a response is rejected, the 500 ms timeout, replies split across reads, and recovery after a failure |
+| `test_qemu_dlms_frame` | HDLC FCS, addresses, building and parsing frames, the AARQ and AARE, GET requests and responses, A-XDR numbers, and scaler_unit |
+| `test_qemu_dlms_driver` | Reading HDLC frames off the bus, the 1000 ms timeout, SNRM and DISC, I-frame sequencing, and whole sessions through the getters, including DISC after a failure |
 | `test_qemu_iec62056` | The baud rate ID table, OBIS parsing, a full optical port session, and handshake failures |
-| `test_qemu_nvs` | NVS read helpers, the substation loader, and the sequence counter resuming from NVS |
-| `test_board_radio` | Wi-Fi station start, channel conflicts, ESP-NOW init and adding a peer |
+| `test_qemu_nvs` | NVS read helpers, the defaults and NVS overrides of every node's config loader, the sequence counter resuming from NVS, and every loader and the counter on a never written partition and with NVS unavailable |
+| `test_qemu_payload` | The over the air packets: size, field offsets and byte image of Payload and AckPayload, and the UID helpers |
+| `test_qemu_cam_http` | The CV node's CamHttpReader: the request URL, a good read, every way the cam's JSON is rejected, and the unsupported registers |
+| `test_qemu_payload_json` | The gateway's MQTT JSON: the exact output for a known reading, `ts` before and after NTP sync, the `+10:00` offset, and buffer sizes |
+| `test_board_radio` | Wi-Fi station start, channel conflicts, ESP-NOW init, adding a peer, and sends that fail: no ACK, unknown peer, bad length |
+| `test_board_sp3485` | The SP3485 probe in `init()`: passes with the transceiver fitted, fails with RX on an undriven pin |
+
+The DLMS suites check the reader against frames written for the tests. To check
+it against an independent implementation, run it against `DlmsSim/`, a Gurux
+based meter, over TCP (`reader = 6`) or RS485 (`reader = 5`). See
+`DlmsSim/README.md`.
 
 ## How a QEMU run works
 
@@ -117,8 +134,26 @@ Save it as `test/test_qemu_<name>/test_main.cpp`. Libraries are found from
 their `#include`, as in the firmware. `src/` is never built into tests, so the
 suite's `setup()` does not clash with the firmware entry files.
 
-`test/` is outside the Doxygen input, but test code follows
-[`COMMENTING.md`](COMMENTING.md).
+Test code follows [`COMMENTING.md`](COMMENTING.md). Each test's comment says
+what it checks, and the tests sit inside a Doxygen group named after the
+suite, so the generated docs list every suite's tests under Topics > Tests:
+
+```cpp
+/**
+ * @defgroup test_qemu_<name> <Title>
+ * @ingroup tests
+ * Tests in test_qemu_<name>/test_main.cpp.
+ * @{
+ */
+
+/** One line saying what the test checks. */
+void test_something() { ... }
+
+/** @} */
+```
+
+Open the group after `tearDown()` and close it before `setup()`, so only the
+tests join it.
 
 ### Reaching private functions
 
@@ -192,3 +227,6 @@ The cache is keyed on that file, so CI downloads the new release.
 | Suite shows `ERRORED` with no test results | Same as above, rerun with `-v` |
 | QEMU fails to start on macOS with a missing `.dylib` | Install the Homebrew libraries listed in the quick start |
 | A board suite prints nothing | Give USB serial time to enumerate. Board suites wait 2 s in `setup()` |
+
+@defgroup tests Tests
+@brief Every test suite, one group per suite.
