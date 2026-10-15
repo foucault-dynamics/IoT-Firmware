@@ -308,6 +308,10 @@ needs its own, read off the same way.
 
 - **Camera:** tuned demo config, `camera/config.ini.tuned`. To undo, upload
   `camera/config.ini.before` through the camera's file server and reboot it.
+  Firmware during this run was `fix/json-null-deref-before-flow-init`
+  (`204547b+`). On 2026-10-15 the camera was reflashed from `wired-json-uart`
+  for the wired link, so its firmware no longer matches what this run
+  recorded.
 - **C3:** CV node running (since 2026-10-14 the firmware with both fixes), `cam_flow` set to `main` and `cam_flow_exp` set to
   empty in NVS (the same as the defaults). `seq` was 37 at the end of this run and 1082 on 2026-10-14.
 

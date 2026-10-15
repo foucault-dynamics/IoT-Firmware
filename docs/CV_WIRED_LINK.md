@@ -61,13 +61,13 @@ A UART link needs three wires, crossed over, plus power for the cam:
 
 Both boards use 3.3 V logic, so no level shifting is needed.
 
-Things to check against the bench photo (`IMG_6347.jpg`). It shows the C3 on
-a breadboard and the cam's adapter board joined to it by two wires, red and
-yellow, running to the breadboard's right hand side. The photo does not show
-which C3 pins they reach. Two wires are enough for power (5V, GND) or for one
-direction of data, but the request and reply need TX, RX and a shared GND.
-Confirm the wiring against the table, or set `cam_rx` and `cam_tx` to match
-the custom board.
+**Confirm every wire against the table before powering either board.** The
+bench wiring has never been checked against it. What was there last was two
+wires between the C3's breadboard and the cam's adapter board, which is enough
+for power (5V and GND), or for one direction of data, but not for a request
+and a reply: those need TX, RX and a shared GND, three wires besides power.
+Trace each wire end to end, then either rewire to the table or set `cam_rx`
+and `cam_tx` to the pins the board actually uses.
 
 - **Take the cam off the ESP32-CAM-MB programmer board** for the wired link.
   The MB board's CH340 drives the cam's U0RXD too, and two outputs on one pin
@@ -115,6 +115,15 @@ described in that repo's `WIRED_JSON.md`. It has run on a cam on its own (step
 4 of [Bring-up](#cwl_bringup)), but not yet with a node on the other end of the
 wire.
 
+**Check what the cam is actually flashed with before testing.** The branch has
+to include the `getJSON()` null guard (`Handle JSON retrieval before flow
+initialization`, cherry-picked onto `wired-json-uart` on 2026-10-15). Without
+it the cam dereferences a null pointer when `/json` is asked for after the
+flow task exists but before the flow is initialized, and the C3 probes every
+5 s from cold boot, so it lands in that window on every start. `git log
+--oneline -3` on the cam's branch should show the guard above the wired JSON
+commit.
+
 What it does:
 
 1. Installs the UART0 driver (the console UART, 115200 8N1) and reads bytes
@@ -134,10 +143,27 @@ If a log line still lands inside a frame, the JSON fails to parse on the C3,
 which logs `JSON parse failed` and tries again on its next poll. Lowering the
 cam's console log level, or moving the link to a UART of its own, stops that.
 
+**Seeing the cam's own log once it is on the wire.** With `cam_link 1` the C3
+never starts `AMR_Base`, so a cam configured for that AP has no network, and
+its console goes to the C3 instead of a laptop. The cam is built with
+`ENABLE_SOFTAP`, so once the join fails it raises an AP of its own: join that
+from a laptop and the web UI's System, Log Viewer page shows the cam's log
+without touching the wire. Without it the cam is debugged blind.
+
 ## Bring-up, one step at a time {#cwl_bringup}
 
 Each step can be done without the hardware the later steps need. Status on
 2026-10-15: steps 1, 2 and 4 pass, 3 and 5 still to do.
+
+Before step 5, confirm three things: the wiring against [Wiring](#cwl_wiring);
+the cam's branch, including the null guard (see [The cam side](#cwl_cam)); and
+the C3's own firmware. `UartCamBus` only arrived in `d99eb2a` on 2026-10-15,
+after the build the bench C3 has been running since 2026-10-14, so the C3 needs
+reflashing from the branch tip or `set cam_link 1` changes nothing:
+
+```sh
+pio run -e end_node -t upload
+```
 
 - Step 2: 5 of 5 on a C3 SuperMini.
 - Step 4: the cam, flashed from `wired-json-uart`, answered every
@@ -168,6 +194,7 @@ the MB board's CH340 already reaches the cam's UART, so no extra wiring.
 | `[Cam HTTP Reader] JSON parse failed` now and then | A cam log line landed inside the frame. See the end of the cam side section |
 | `[UartCamBus] Reply longer than 2048 bytes, dropped.` | A frame never closed with ETX and the log text after it filled the buffer, or the cam sent more than `/json` |
 | `Flow "main" not present in response.` | The link works. `cam_flow` does not match the cam's number name, same as over HTTP |
+| The cam resets, or goes quiet, soon after the C3 starts probing | Cam firmware without the `getJSON()` null guard. See [The cam side](#cwl_cam) |
 | `[CV] Cam link: HTTP over the AP` after `set cam_link 1` | Not rebooted yet, or the value was sent quoted (`"1"` stores a string, which is never read as a number) |
 
 ## Serial port gotchas {#cwl_gotchas}
