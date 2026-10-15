@@ -45,9 +45,11 @@ test/
 ├── test_qemu_nvs/
 ├── test_qemu_payload/
 ├── test_qemu_cam_http/
+├── test_qemu_cam_uart/
 ├── test_qemu_payload_json/
 ├── test_board_radio/             needs a real C3, run by end_node
-└── test_board_sp3485/            needs a real C3 with the SP3485 wired
+├── test_board_sp3485/            needs a real C3 with the SP3485 wired
+└── test_board_cam_uart/          needs a real C3, nothing wired
 ```
 
 Every folder starting with `test_` is a suite: its own firmware image with its
@@ -76,6 +78,8 @@ suite only needs the right folder name.
 | `test_qemu_cam_http` | The CV node's CamHttpReader: the request URL, good import and export reads, every way the cam's JSON is rejected, export with no flow configured, voltage, and the readiness `probe()` |
 | `test_qemu_payload_json` | The gateway's MQTT JSON: the exact output for a known reading, `ts` before and after NTP sync, the `+10:00` offset, and buffer sizes |
 | `test_board_radio` | Wi-Fi station start, channel conflicts, ESP-NOW init, adding a peer, and sends that fail: no ACK, unknown peer, bad length |
+| `test_qemu_cam_uart` | The CV node's wired cam link: the request line built from a URL, and picking the reply frame out of log text, cut off frames, restarts and overflow |
+| `test_board_cam_uart` | `UartCamBus` on the real UART in internal loopback: a framed reply, log text skipped, the timeout, a missing ETX, and `CamHttpReader` reading through it |
 | `test_board_sp3485` | The SP3485 probe in `init()`: passes with the transceiver fitted, fails with RX on an undriven pin |
 
 The DLMS suites check the reader against frames written for the tests. To check

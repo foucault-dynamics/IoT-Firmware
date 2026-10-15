@@ -23,7 +23,7 @@ the same image, and picks its role at boot from a serial menu.
 | Tool | Needed for | Install |
 |---|---|---|
 | PlatformIO Core | Building, flashing, serial monitor, tests | `brew install platformio`, or `pipx install platformio` |
-| Python 3 | ModbusSim and IrSim | Usually already installed. Each simulator uses its own venv |
+| Python 3 | The simulators (ModbusSim, IrSim, DlmsSim, CamSim) | Usually already installed. Each simulator uses its own venv |
 | Espressif QEMU | The unit tests | `tools/setup_qemu.sh`, see [Running the tests](#gs_tests) |
 | Doxygen 1.18.0 and Graphviz | Building this site locally | `brew install doxygen graphviz` |
 | A USB-C data cable | Flashing | For flashing the ESP32-C3 supermini or LilyGo board (subject to hardware)|
@@ -323,6 +323,7 @@ real thing. The substation and gateway stay as they are.
 | IR node, built in simulated meter | Press `2` | Defaults to `simulate 1`, no wiring and no laptop |
 | IR node against IrSim | Press `2`, `set simulate 2`, `reboot` | Same softAP idea, run `IrSim/IrSimTCP.py`. See `IrSim/README.md` |
 | The CV node | Press `3`, and `set espnow_chan 6` | Needs an ESP32-CAM running AI-on-the-edge-device. See `lib/config/secrets/README.md` |
+| The CV node over a wire | Also `set cam_link 1` | Prototype. Run `CamSim/CamSimSerial.py` on a USB to serial adapter until the cam side exists. See [CV wired link](CV_WIRED_LINK.md) |
 
 ## 6. How the code in src/ fits together {#gs_flow}
 
@@ -380,8 +381,10 @@ READ ──all three getters ok──► SEND ──► SLEEP ──60 s passed�
 `Iec6205621Reader` on it. One optical session gives import and export together,
 so instead of a state machine it does one read and send per `poll_ms`.
 
-**`cv_node.cpp`** starts a softAP for the camera to join and puts an `HttpBus`
-and a `CamHttpReader` on it. Its loop probes the camera every 5 s until it
+**`cv_node.cpp`** picks its bus from the `cam_link` key: `0` starts a softAP for
+the camera to join and uses an `HttpBus`, `1` uses a `UartCamBus` over a wire
+(a prototype, see [CV wired link](CV_WIRED_LINK.md)). Either way a
+`CamHttpReader` sits on the bus. Its loop probes the camera every 5 s until it
 answers, then reads once per `poll_ms`. It sends import, plus export when
 `cam_flow_exp` names a second number on the camera, otherwise export is 0.
 

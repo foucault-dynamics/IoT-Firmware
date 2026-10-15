@@ -61,14 +61,18 @@ The DLMS/COSEM OBIS codes are not NVS keys. They are the `DLMS_IMPORT_OBIS`,
 |---|---|---|---|
 | `comm_id` | uint | `0` | Community code (goes out in the payload) |
 | `unit_id` | uint | `0` | Unit code (goes out in the payload) |
-| `ap_ssid` | string | `SECRET_CAM_AP_SSID` | SoftAP SSID the cam joins |
-| `ap_pass` | string | `SECRET_CAM_AP_PASSWORD` | SoftAP password |
+| `cam_link` | uint | `0` | How the node reaches the cam: `0` HTTP over the softAP, `1` UART over a wire (prototype, see `docs/CV_WIRED_LINK.md`). Any other value means HTTP |
+| `cam_rx` | uint | `20` | C3 GPIO wired to the cam's TX (`cam_link 1` only) |
+| `cam_tx` | uint | `21` | C3 GPIO wired to the cam's RX (`cam_link 1` only) |
+| `cam_baud` | uint | `115200` | Wire baud rate, 8N1, must match the cam (`cam_link 1` only) |
+| `ap_ssid` | string | `SECRET_CAM_AP_SSID` | SoftAP SSID the cam joins (`cam_link 0` only) |
+| `ap_pass` | string | `SECRET_CAM_AP_PASSWORD` | SoftAP password (`cam_link 0` only) |
 | `espnow_chan` | uint | `1` | Radio channel, shared by ESP-NOW and the softAP |
 | `espnow_to_ms` | uint | `200` | ESP-NOW send timeout (ms) |
 | `poll_ms` | uint | `30000` | Camera poll interval (ms) |
-| `cam_user` | string | `SECRET_CAM_USER` | Camera HTTP basic auth user |
-| `cam_pass` | string | `SECRET_CAM_PASS` | Camera HTTP basic auth password |
-| `cam_host` | string | `SECRET_CAM_HOST` | Camera host |
+| `cam_user` | string | `SECRET_CAM_USER` | Camera HTTP basic auth user (`cam_link 0` only) |
+| `cam_pass` | string | `SECRET_CAM_PASS` | Camera HTTP basic auth password (`cam_link 0` only) |
+| `cam_host` | string | `SECRET_CAM_HOST` | Camera host (`cam_link 0` only, but must not be empty) |
 | `cam_flow` | string | `SECRET_CAM_FLOW_NAME` | Camera flow (number) name of the import reading |
 | `cam_flow_exp` | string | `SECRET_CAM_EXPORT_FLOW_NAME` | Camera flow name of the export reading. Empty (the default) means the cam reads import only and export goes out as 0 |
 

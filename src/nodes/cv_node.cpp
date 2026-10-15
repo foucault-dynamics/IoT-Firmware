@@ -2,21 +2,23 @@
  * @file
  * CV (camera) meter node: reads the meter's display with an ESP32-CAM.
  *
- * Hosts its own Wi-Fi AP so the ESP32-CAM (AI-on-the-edge-device) can join it
- * directly, with no router or internet needed at the meter site. That matches
- * why the rest of this network uses ESP-NOW and LoRa instead of relying on
- * Wi-Fi. wifi_radio.h owns the AP, HttpBus is the Module on top of it, and
- * CamHttpReader reads the cam's "/json" API on top of that. Readings go to the
- * substation over ESP-NOW on the same radio, through its station interface
- * beside the AP.
+ * The cam (AI-on-the-edge-device) is reached one of two ways, picked by the
+ * `cam_link` NVS key (CvNodeConfig::camLink):
+ *
+ * - HTTP (0, the default): the node hosts its own Wi-Fi AP and the cam joins
+ *   it directly, with no router or internet needed at the meter site.
+ *   wifi_radio.h owns the AP and HttpBus is the Module on top of it.
+ * - UART (1): a wire to the cam, through UartCamBus. No AP. A prototype, see
+ *   docs/CV_WIRED_LINK.md.
+ *
+ * Either way CamHttpReader reads the cam's "/json" reply on top of the bus.
+ * Readings go to the substation over ESP-NOW, through the radio's station
+ * interface.
  *
  * Setup checks NVS, the AP and ESP-NOW. The cam can take a minute or more to
  * boot and join, so instead of blocking setup on it, the loop probes it every
  * CAM_PROBE_RETRY_MS and only declares the node ready, and starts reading,
  * once it answers with every configured flow.
- *
- * @todo Replace HttpBus with a wired UART link once the boards are physically
- *       connected. The reader above it stays unchanged.
  */
 
 #include <Arduino.h>
@@ -27,6 +29,7 @@
 
 #include "cam_http.h"
 #include "http_bus.h"
+#include "uart_cam_bus.h"
 #include "cv_config.h"
 #include "nvs_config.h"
 #include "nodes.h"
@@ -38,7 +41,7 @@
 
 static SubstationLink *substation = nullptr;  ///< Link to the substation.
 
-static HttpBus *bus = nullptr;              ///< HTTP client the cam is reached through.
+static Module *bus = nullptr;               ///< HttpBus or UartCamBus, picked by CvNodeConfig::camLink.
 static CamHttpReader *reader = nullptr;     ///< Reader on top of #bus.
 
 static CvNodeConfig cfg;  ///< Config loaded at setup.
@@ -59,15 +62,21 @@ void cvNodeSetup() {
     return;
   }
 
-  // Bring up the radio the cam and the substation link both share
-  if (!wifiRadioStartAp(cfg.ap, cfg.espNow.channel)) {
-    Serial.println("[CV] Cannot continue without the AP up.");
-    return;
+  if (cfg.camLink == CamLink::Uart) {
+    Serial.println("[CV] Cam link: UART (wired)");
+    // Serial is the C3's own USB, so Serial1 is free for the cam
+    bus = new UartCamBus(cfg.camUart, Serial1);
+  } else {
+    Serial.println("[CV] Cam link: HTTP over the AP");
+    // Bring up the radio the cam and the substation link both share
+    if (!wifiRadioStartAp(cfg.ap, cfg.espNow.channel)) {
+      Serial.println("[CV] Cannot continue without the AP up.");
+      return;
+    }
+    bus = new HttpBus(cfg.cam.bus);
   }
-
-  bus = new HttpBus(cfg.cam.bus);
   if (bus->init() != EXIT_SUCCESS) {
-    Serial.println("[CV] HTTP bus init failed.");
+    Serial.println("[CV] Cam bus init failed.");
     return;
   }
 
@@ -79,7 +88,7 @@ void cvNodeSetup() {
     return;
   }
 
-  // ESP-NOW runs on the station interface beside the AP, on the same channel
+  // ESP-NOW runs on the station interface, beside the AP in HTTP mode
   substation = new SubstationLink(cfg.espNow, cfg.uid);
   if (substation->init() != EXIT_SUCCESS) {
     Serial.println("[CV] ESP-NOW init failed.");

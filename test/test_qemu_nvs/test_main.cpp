@@ -245,6 +245,10 @@ void test_cv_loader_defaults() {
   TEST_ASSERT_EQUAL_STRING(SECRET_CAM_FLOW_NAME, cfg.cam.flowName);
   TEST_ASSERT_EQUAL_STRING(SECRET_CAM_EXPORT_FLOW_NAME, cfg.cam.exportFlowName);
   TEST_ASSERT_EQUAL_UINT8(100, cfg.ap.dhcpStart);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(CamLink::Http), static_cast<uint8_t>(cfg.camLink));
+  TEST_ASSERT_EQUAL_UINT8(20, cfg.camUart.rx);
+  TEST_ASSERT_EQUAL_UINT8(21, cfg.camUart.tx);
+  TEST_ASSERT_EQUAL_UINT32(115200, cfg.camUart.baud);
 }
 
 /** Every CV key set in NVS overrides its default. */
@@ -254,6 +258,10 @@ void test_cv_loader_reads_nvs() {
   prefs.putString("cam_host", "10.0.0.5");
   prefs.putString("cam_flow", "meter");
   prefs.putString("cam_flow_exp", "export");
+  prefs.putUInt("cam_link", 1);
+  prefs.putUInt("cam_rx", 4);
+  prefs.putUInt("cam_tx", 5);
+  prefs.putUInt("cam_baud", 57600);
   prefs.end();
   CvNodeConfig cfg;
   TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadCvNodeConfig(cfg));
@@ -264,6 +272,21 @@ void test_cv_loader_reads_nvs() {
   TEST_ASSERT_EQUAL_STRING("10.0.0.5", cfg.cam.host);
   TEST_ASSERT_EQUAL_STRING("meter", cfg.cam.flowName);
   TEST_ASSERT_EQUAL_STRING("export", cfg.cam.exportFlowName);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(CamLink::Uart), static_cast<uint8_t>(cfg.camLink));
+  TEST_ASSERT_EQUAL_UINT8(4, cfg.camUart.rx);
+  TEST_ASSERT_EQUAL_UINT8(5, cfg.camUart.tx);
+  TEST_ASSERT_EQUAL_UINT32(57600, cfg.camUart.baud);
+}
+
+/** A cam_link value other than 0 or 1 falls back to HTTP rather than stranding the node. */
+void test_cv_loader_bad_link_is_http() {
+  prefs.putUInt("cam_link", 7);
+  prefs.end();
+  CvNodeConfig cfg;
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadCvNodeConfig(cfg));
+  prefs.begin(NVS_NAMESPACE, false);
+
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(CamLink::Http), static_cast<uint8_t>(cfg.camLink));
 }
 
 /** With NVS empty the gateway loader enables TLS MQTT to the secrets.h broker, with 3 LoRa tries of 1500 ms. */
@@ -408,6 +431,7 @@ void setup() {
   RUN_TEST(test_ir_loader_reads_nvs);
   RUN_TEST(test_cv_loader_defaults);
   RUN_TEST(test_cv_loader_reads_nvs);
+  RUN_TEST(test_cv_loader_bad_link_is_http);
   RUN_TEST(test_gateway_loader_defaults);
   RUN_TEST(test_gateway_loader_reads_nvs);
   RUN_TEST(test_seq_starts_at_one_and_saves);
