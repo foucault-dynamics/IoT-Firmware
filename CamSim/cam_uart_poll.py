@@ -51,7 +51,13 @@ def main():
     p.add_argument("--settle", type=float, default=5, help="seconds to discard input after opening (default 5)")
     a = p.parse_args()
 
-    port = serial.Serial(a.port, a.baud, timeout=0.05)
+    port = serial.Serial()
+    port.port, port.baudrate, port.timeout = a.port, a.baud, 0.05
+    # Released before opening. On an ESP32-CAM-MB, DTR pulls the cam's IO0 low (a reset
+    # then lands in download mode, and IO0 is the camera's clock pin) and RTS drives EN.
+    port.dtr = False
+    port.rts = False
+    port.open()
     end = time.time() + a.settle
     while time.time() < end:
         port.read(4096)

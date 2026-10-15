@@ -66,7 +66,8 @@ export too.
 ## cam_uart_poll.py, a fake C3
 
 Sends `GET /json` the way the C3 does and prints what comes back. Point it at
-the cam once its firmware has the wired JSON addition. With the cam on its
+the cam once it runs the `wired-json-uart` branch of the cam fork
+(AI-on-the-edge-FD, see its `WIRED_JSON.md`). With the cam on its
 ESP32-CAM-MB board, the MB board's CH340 already reaches the cam's UART, so no
 extra wiring:
 

@@ -5,13 +5,13 @@ The CV node can reach the ESP32-CAM two ways, and one NVS key picks which:
 | `cam_link` | Link | Status |
 |---|---|---|
 | `0` (default) | HTTP over the C3's own Wi-Fi AP, `HttpBus` | Tested on hardware, the demo setup |
-| `1` | UART over a wire, `UartCamBus` | **Prototype.** Unit tested and compiled, not yet run against a cam |
+| `1` | UART over a wire, `UartCamBus` | **Prototype.** Each side tested on hardware on its own, not yet wired together (see [Bring-up](#cwl_bringup)) |
 
 Everything above the link is shared. `CamHttpReader`, the readiness probe,
 `cam_flow`, `cam_flow_exp`, `poll_ms` and the ESP-NOW uplink work the same on
 both, so a demo can switch between them with two serial commands.
 
-The wired link needs a small addition to the cam's firmware. Stock
+The wired link needs a small addition to the cam's firmware, on the `wired-json-uart` branch of the cam fork. Stock
 AI-on-the-edge-device has no way to answer over its UART, so read
 [The cam side](#cwl_cam) before expecting a reading.
 
@@ -108,44 +108,26 @@ request for another page (`GET /value?all=true`) needs no protocol change.
 
 ## The cam side {#cwl_cam}
 
-Stock AI-on-the-edge-device never answers on its UART, so the wired link
-needs a small addition to the cam's firmware, the same branch the cam already
-runs. What it must do:
+Stock AI-on-the-edge-device never answers on its UART, so the cam runs a small
+addition: branch `wired-json-uart` of
+[foucault-dynamics/AI-on-the-edge-FD](https://github.com/foucault-dynamics/AI-on-the-edge-FD),
+described in that repo's `WIRED_JSON.md`. It compiles but has not yet run on a
+cam.
 
-1. Read its UART (UART0 at 115200, or whichever UART the custom board wires),
-   collecting bytes into a line until `\n`. Ignore `\r`.
-2. On the line `GET /json`, build the same JSON the `/json` HTTP handler
-   returns and write `0x02`, the JSON, `0x03`.
-3. On any other `GET` line, write `0x02 0x03`, an empty reply.
-4. Never write `0x02` or `0x03` anywhere else. ESP-IDF log text never
-   contains them.
+What it does:
 
-A sketch for ESP-IDF, to adapt rather than paste. The function that builds the
-JSON differs between branches: use whatever your `/json` HTTP handler calls,
-upstream that is `ClassFlowControll::getJSON()` in `server_main.cpp`.
+1. Installs the UART0 driver (the console UART, 115200 8N1) and reads bytes
+   into a line until `\n`, ignoring `\r`.
+2. On `GET /json`, writes `0x02`, the JSON from `flowctrl.getJSON()` (exactly
+   what the `/json` web handler sends), then `0x03`, in one write.
+3. On any other `GET` line, or before the flow has started, writes `0x02 0x03`,
+   an empty reply.
+4. Ignores anything that is not a `GET` line.
 
-```cpp
-#include "driver/uart.h"
-
-static void wiredJsonTask(void *) {
-  const uart_port_t port = UART_NUM_0;
-  uart_driver_install(port, 1024, 0, 0, nullptr, 0);  // UART0 is already configured as the console
-  std::string line;
-  uint8_t b;
-  while (true) {
-    if (uart_read_bytes(port, &b, 1, portMAX_DELAY) != 1) continue;
-    if (b == '\r') continue;
-    if (b != '\n') { if (line.size() < 64) line += (char)b; continue; }
-    std::string body = (line == "GET /json") ? flowctrl.getJSON() : "";
-    std::string frame = "\x02" + body + "\x03";
-    uart_write_bytes(port, frame.data(), frame.size());  // one write keeps log lines out of the frame
-    line.clear();
-  }
-}
-
-// After the flow is set up:
-// xTaskCreate(wiredJsonTask, "wiredJson", 4096, nullptr, 5, nullptr);
-```
+It is switched on by `-D ENABLE_WIRED_JSON` in the cam's `platformio.ini`, and
+every line of it sits inside `#ifdef ENABLE_WIRED_JSON`. GPIO 1 and 3 then
+belong to the link, so leave `IO1` and `IO3` off in the `[GPIO]` section of the
+cam's `config.ini`.
 
 If a log line still lands inside a frame, the JSON fails to parse on the C3,
 which logs `JSON parse failed` and tries again on its next poll. Lowering the
@@ -153,14 +135,20 @@ cam's console log level, or moving the link to a UART of its own, stops that.
 
 ## Bring-up, one step at a time {#cwl_bringup}
 
-Each step can be done without the hardware the later steps need.
+Each step can be done without the hardware the later steps need. Status on
+2026-10-15: steps 1, 2 and 4 pass, 3 and 5 still to do.
+
+- Step 2: 5 of 5 on a C3 SuperMini.
+- Step 4: the cam, flashed from `wired-json-uart`, answered every
+  `GET /json` with a 189 byte frame in about 50 ms, values matching its demo
+  cycle (`main='530.07429'`, then `main='530.12246'`).
 
 | Step | Needs | Run | Expect |
 |---|---|---|---|
 | 1 Unit tests | Nothing | `pio test -e test_c3 --without-uploading -f test_qemu_cam_uart` | 13 tests pass. Also runs in CI |
 | 2 C3 UART, no wires | The C3 on USB | `pio test -e end_node -f test_board_cam_uart` | 5 tests pass. UART1 in internal loopback, a task plays the cam |
 | 3 C3 against a fake cam | The C3, a 3.3 V USB to serial adapter, 3 jumpers | `python CamSim/CamSimSerial.py /dev/ttyUSB0` on the laptop, `set cam_link 1` on the C3 | `[CV] Cam answered with every configured flow, node ready.`, then `[CV] import=530.071 ...` |
-| 4 Cam on its own | The cam with the wired JSON addition, on its MB board | `python CamSim/cam_uart_poll.py /dev/ttyUSB0` | `#1: 374 byte frame in .. ms: main='531.82235' (no error)` |
+| 4 Cam on its own | The cam flashed from `wired-json-uart`, on its MB board | `python CamSim/cam_uart_poll.py /dev/ttyUSB0` | `#1: 374 byte frame in .. ms: main='531.82235' (no error)` |
 | 5 Together | Both boards wired | `set cam_link 1`, `reboot`, `3` | As step 3, with the cam's real values |
 
 For step 3, wire the adapter's TX to C3 GPIO 20, the adapter's RX to C3 GPIO
@@ -181,9 +169,24 @@ the MB board's CH340 already reaches the cam's UART, so no extra wiring.
 | `Flow "main" not present in response.` | The link works. `cam_flow` does not match the cam's number name, same as over HTTP |
 | `[CV] Cam link: HTTP over the AP` after `set cam_link 1` | Not rebooted yet, or the value was sent quoted (`"1"` stores a string, which is never read as a number) |
 
+## Serial port gotchas {#cwl_gotchas}
+
+Found during bring-up, and worth knowing before scripting either board:
+
+- **Open ports with DTR and RTS released** (`dtr = False`, `rts = False`
+  before `open()` in pyserial). On the ESP32-CAM-MB, DTR pulls the cam's IO0
+  low, so any reset while the port is held lands in download mode, and IO0 is
+  also the camera's clock pin. On the C3's own USB, DTR forces GPIO 9 low
+  during a reset, with the same result. `cam_uart_poll.py` does this.
+- **The ESP32-CAM-MB in use cannot reset the cam by itself.** Its RTS line
+  does not reach EN, so esptool cannot enter the bootloader. To flash: hold
+  IO0, tap RST on the cam, release IO0, flash, then tap RST again with no
+  program holding DTR.
+
 ## Known limits of the prototype {#cwl_limits}
 
-- Not yet run against a real cam, and the cam side is a sketch.
+- The C3 and the cam have each been tested on hardware, but never wired to
+  each other.
 - The reply has no checksum. JSON parsing catches corrupt replies in practice,
   and the node retries every poll.
 - The C3 blocks for up to 2 s waiting for a reply, the same as an HTTP request
