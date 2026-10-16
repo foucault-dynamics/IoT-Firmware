@@ -5,16 +5,30 @@
 
 #include "nvs_read.h"
 
+#include "sdkconfig.h"
 #include "secrets.h"
 
 namespace {
 
+#if CONFIG_IDF_TARGET_ESP32C3
 /**
- * LoRa SPI pins for the LilyGo TTGO LoRa32 v2.1 (classic ESP32).
+ * LoRa SPI pins for an ESP32-C3 SuperMini wired to an SX1276 breakout.
+ *
+ * Board wiring, never an NVS key. SCK, MISO, MOSI and SS are the C3's default
+ * SPI pins. RST and DIO0 avoid the strapping pins (2, 8, 9), because DIO0 idles
+ * low and would change the boot mode, and the USB pins (18, 19).
+ *
+ * @todo Replace with the LoRa PCB pinout once it exists.
+ */
+const LoRaPins LORA_PINS = {/*sck*/ 8, /*miso*/ 9, /*mosi*/ 10, /*ss*/ 6, /*rst*/ 04, /*dio0*/ 03};
+#else
+/**
+ * LoRa SPI pins fo/r the LilyGo TTGO LoRa32 v2.1 (classic ESP32).
  *
  * Board wiring, never an NVS key.
  */
 const LoRaPins LORA_PINS = {/*sck*/ 5, /*miso*/ 19, /*mosi*/ 27, /*ss*/ 18, /*rst*/ 23, /*dio0*/ 26};
+#endif
 
 }  // namespace
 

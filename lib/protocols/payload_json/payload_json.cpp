@@ -7,6 +7,28 @@
 
 #include <ArduinoJson.h>
 
+namespace {
+
+/**
+ * Names a node type for the JSON.
+ *
+ * @param[in] type  Raw Payload::node_type.
+ * @return "rs485", "cv" or "ir", or nullptr for a value no NodeType has.
+ */
+const char *nodeTypeName(uint8_t type) {
+  switch (static_cast<NodeType>(type)) {
+  case NodeType::Rs485:
+    return "rs485";
+  case NodeType::Cv:
+    return "cv";
+  case NodeType::Ir:
+    return "ir";
+  }
+  return nullptr;
+}
+
+}  // namespace
+
 bool formatTimestamp(time_t now, char *out, size_t outLen) {
   if (now < MIN_VALID_EPOCH) {
     return false;
@@ -41,6 +63,12 @@ size_t buildPayloadJson(const Payload &p, int rssi, float snr, time_t now, char 
   doc["voltage"] = p.voltage;
   doc["community_id"] = p.community_id;
   doc["unit_id"] = p.unit_id;
+  const char *type = nodeTypeName(p.node_type);
+  if (type != nullptr) {
+    doc["node_type"] = type;
+  } else {
+    doc["node_type"] = nullptr;
+  }
   doc["rssi"] = rssi;
   doc["snr"] = snr;
   return serializeJson(doc, out, outLen);

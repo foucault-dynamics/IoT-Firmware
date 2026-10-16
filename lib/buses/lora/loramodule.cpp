@@ -19,8 +19,11 @@ int LoRaModule::init() {
   SPI.begin(config.pins.sck, config.pins.miso, config.pins.mosi, config.pins.ss);
   LoRa.setPins(config.pins.ss, config.pins.rst, config.pins.dio0);
 
+  Serial.printf("SPI = sck:%d, miso:%d, mosi:%d, ss:%d, rst:%d, dio:%d\n",config.pins.sck,config.pins.miso,config.pins.mosi,config.pins.ss,config.pins.rst,config.pins.dio0);
+
   if (!LoRa.begin(config.band)) {
     Serial.println("[LoRaModule] LoRa.begin failed");
+    LoRa.dumpRegisters(Serial);
     return EXIT_FAILURE;
   }
 

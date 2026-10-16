@@ -28,6 +28,7 @@ struct NodeSlot {
   uint8_t uid[UID_LEN];            ///< Node this slot belongs to.
   uint8_t community_id;            ///< Latest community ID the node sent.
   uint8_t unit_id;                 ///< Latest unit ID the node sent.
+  uint8_t node_type;               ///< Latest NodeType the node sent.
   Reading ring[READINGS_PER_NODE]; ///< Readings, oldest at #head.
   uint16_t head;                   ///< Index of the oldest reading in #ring.
   uint16_t count;                  ///< Number of readings held.
@@ -74,6 +75,7 @@ bool readingBufferPush(const Payload &p) {
 
   slot->community_id = p.community_id;
   slot->unit_id = p.unit_id;
+  slot->node_type = p.node_type;
 
   //Full ring drops its oldest reading when full
   if (slot->count == READINGS_PER_NODE) {
@@ -111,6 +113,7 @@ bool readingBufferPeek(Payload &out) {
     out.voltage = r.voltage;
     out.community_id = slot.community_id;
     out.unit_id = slot.unit_id;
+    out.node_type = slot.node_type;
     peekedSlot = static_cast<int>(index);
     return true;
   }

@@ -37,8 +37,8 @@ flowchart TD
 
     subgraph ir["IR node (ESP32-C3)"]
         direction TB
-        C["RealIRHead (Module)"] --> R2["Iec6205621Reader"]
-        D["SimulatedIRHead (Module)"] --> R2
+        C["RealIrHead (Module)"] --> R2["Iec6205621Reader"]
+        D["SimulatedIrHead (Module)"] --> R2
         T["TcpIrHead (Module)"] --> R2
     end
 
@@ -219,13 +219,14 @@ nodes that PCB runs. `test_c3` builds the unit tests instead, see
 |---|---|---|
 | `end_node` (default) | `esp32-c3-devkitm-1` | **Builds.** The end node image, `end_node_main.cpp` with the RS485, IR and CV nodes. |
 | `lilygo_lora` | `ttgo-lora32-v21` | **Builds.** The LoRa PCB image, `lora_main.cpp` with the substation and gateway nodes, on the LilyGo LoRa board. |
+| `lora_c3` | `esp32-c3-devkitm-1` | **Builds.** The same LoRa PCB image on an ESP32-C3 SuperMini wired to an SX1276 breakout. |
 | `test_c3` | `esp32-c3-devkitm-1` | Unit tests in emulated ESP32-C3, `pio test -e test_c3 --without-uploading`. |
 
-There is no C3 build of the LoRa image yet, because the LoRa pins in
-`lib/config/nvs_config/lora_loader.cpp` are the LilyGo pins. It gets added once
-the LoRa PCB pinout exists.
+`lora_c3` picks its LoRa pins in `lib/config/nvs_config/lora_loader.cpp` through
+`CONFIG_IDF_TARGET_ESP32C3`: SCK 4, MISO 5, MOSI 6, SS 7, RST 3, DIO0 10. These
+are placeholders until the LoRa PCB pinout exists.
 
-**Note**:` end_node` sets `ARDUINO_USB_MODE` and `ARDUINO_USB_CDC_ON_BOOT` so serial output
+**Note**: `end_node` and `lora_c3` set `ARDUINO_USB_MODE` and `ARDUINO_USB_CDC_ON_BOOT` so serial output
 appears over the C3's native USB. `lilygo_lora` does not need them, because that
 board talks to the computer through a USB to UART bridge chip.
 
@@ -240,12 +241,12 @@ board talks to the computer through a USB to UART bridge chip.
 
 ## Payload Format
 
-Defined in `lib/interfaces/shared/shared_payload.h`. `Payload` is packed to 34
+Defined in `lib/interfaces/shared/shared_payload.h`. `Payload` is packed to 35
 bytes and `AckPayload` to 20:
 
 ```cpp
 #pragma pack(push, 1)
-struct Payload {            // 34 bytes
+struct Payload {            // 35 bytes
     uint8_t uid[UID_LEN];   // 16 byte eFuse UID of the sending node
     uint32_t seq;           // Per node sequence number, deduplicates retries
     float kwh_import;       // OBIS 1.8.0
@@ -253,6 +254,7 @@ struct Payload {            // 34 bytes
     float voltage;          // Grid voltage in volts
     uint8_t community_id;
     uint8_t unit_id;
+    uint8_t node_type;      // NodeType: 0 RS485, 1 CV, 2 IR
 };
 
 struct AckPayload {         // 20 bytes
@@ -261,6 +263,9 @@ struct AckPayload {         // 20 bytes
 };
 #pragma pack(pop)
 ```
+
+The gateway publishes `node_type` in its MQTT JSON as `"rs485"`, `"cv"` or
+`"ir"`, or `null` for a value it does not recognise.
 
 The same header also defines `LinkFrame` (23 bytes), the ESP-NOW join handshake
 between a meter node and the substation. It starts with the magic bytes `KZ`.

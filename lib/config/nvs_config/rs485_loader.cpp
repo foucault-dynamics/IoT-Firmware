@@ -15,8 +15,11 @@
 
 namespace {
 
-/** UART RX GPIO for the SP3485. Board wiring, never an NVS key. */
-const uint8_t RS485_RX_PIN = 8;
+/**
+ * UART RX GPIO for the SP3485. Board wiring, never an NVS key. Not GPIO 8: the
+ * Supermini's onboard LED pulls it high, which defeats the SP3485 probe.
+ */
+const uint8_t RS485_RX_PIN = 1;
 /** UART TX GPIO for the SP3485. Board wiring, never an NVS key. */
 const uint8_t RS485_TX_PIN = 9;
 /** GPIO driving the SP3485's DE/RE pins. Board wiring, never an NVS key. */

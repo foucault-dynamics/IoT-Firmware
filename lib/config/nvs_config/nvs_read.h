@@ -59,7 +59,7 @@ void readStr(const char *key, const char *fallback, char *out, size_t outLen);
 /**
  * Loads the LoRa radio parameters shared by the substation and gateway.
  *
- * @return Radio settings from NVS and defaults, with the LilyGo board's pins.
+ * @return Radio settings from NVS and defaults, with the target board's pins.
  */
 LoRaConfig loadLoRaConfig();
 

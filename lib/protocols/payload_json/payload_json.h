@@ -28,7 +28,8 @@ bool formatTimestamp(time_t now, char *out, size_t outLen);
 /**
  * Serialises a reading and its signal quality to the JSON published on MQTT.
  *
- * "ts" is null when NTP has not synced yet.
+ * "ts" is null when NTP has not synced yet. "node_type" is "rs485", "cv" or
+ * "ir", or null when the node sent a value no NodeType has.
  *
  * @param[in]  p       Reading to serialise.
  * @param[in]  rssi    Packet RSSI in dBm.

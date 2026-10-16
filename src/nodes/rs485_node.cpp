@@ -79,6 +79,7 @@ void rs485NodeSetup() {
   memcpy(payload.uid,cfg.uid,sizeof(payload.uid));
   payload.community_id = cfg.communityId;
   payload.unit_id = cfg.unitId;
+  payload.node_type = static_cast<uint8_t>(NodeType::Rs485);
 
   if (seqCounterBegin() != EXIT_SUCCESS) {
     Serial.println("[RS485] NVS unavailable for the sequence counter, idling");

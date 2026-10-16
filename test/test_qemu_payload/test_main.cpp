@@ -17,7 +17,7 @@
 
 #include "shared_payload.h"
 
-static_assert(sizeof(Payload) == 34, "Payload is 34 bytes on the air");
+static_assert(sizeof(Payload) == 35, "Payload is 35 bytes on the air");
 static_assert(sizeof(AckPayload) == 20, "AckPayload is 20 bytes on the air");
 static_assert(sizeof(Payload) <= ESP_NOW_MAX_DATA_LEN, "Payload fits one ESP-NOW frame");
 static_assert(sizeof(LinkFrame) == 23, "LinkFrame is 23 bytes on the air");
@@ -54,13 +54,13 @@ void tearDown() {}
  * @{
  */
 
-/** Payload is 34 bytes and AckPayload 20, with no padding. */
+/** Payload is 35 bytes and AckPayload 20, with no padding. */
 void test_sizes() {
-  TEST_ASSERT_EQUAL_size_t(34, sizeof(Payload));
+  TEST_ASSERT_EQUAL_size_t(35, sizeof(Payload));
   TEST_ASSERT_EQUAL_size_t(20, sizeof(AckPayload));
 }
 
-/** Payload's fields sit at fixed offsets: uid, seq, import, export, voltage, community, unit. */
+/** Payload's fields sit at fixed offsets: uid, seq, import, export, voltage, community, unit, node type. */
 void test_payload_field_offsets() {
   TEST_ASSERT_EQUAL_size_t(0, offsetof(Payload, uid));
   TEST_ASSERT_EQUAL_size_t(16, offsetof(Payload, seq));
@@ -69,6 +69,7 @@ void test_payload_field_offsets() {
   TEST_ASSERT_EQUAL_size_t(28, offsetof(Payload, voltage));
   TEST_ASSERT_EQUAL_size_t(32, offsetof(Payload, community_id));
   TEST_ASSERT_EQUAL_size_t(33, offsetof(Payload, unit_id));
+  TEST_ASSERT_EQUAL_size_t(34, offsetof(Payload, node_type));
 }
 
 /** AckPayload carries the uid then the seq, the same prefix as Payload. */
@@ -94,8 +95,9 @@ void test_payload_byte_image() {
   p.voltage = 230.0f;
   p.community_id = 7;
   p.unit_id = 9;
+  p.node_type = static_cast<uint8_t>(NodeType::Ir);
 
-  const uint8_t expected[34] = {
+  const uint8_t expected[35] = {
       0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
       0x04, 0x03, 0x02, 0x01,
       0x00, 0x50, 0x9A, 0x44,
@@ -103,10 +105,18 @@ void test_payload_byte_image() {
       0x00, 0x00, 0x66, 0x43,
       0x07,
       0x09,
+      0x02,
   };
   uint8_t actual[sizeof(Payload)];
   memcpy(actual, &p, sizeof(p));
   TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, actual, sizeof(expected));
+}
+
+/** NodeType's values are the on air encoding: RS485 0, CV 1, IR 2. */
+void test_node_type_values() {
+  TEST_ASSERT_EQUAL_UINT8(0, static_cast<uint8_t>(NodeType::Rs485));
+  TEST_ASSERT_EQUAL_UINT8(1, static_cast<uint8_t>(NodeType::Cv));
+  TEST_ASSERT_EQUAL_UINT8(2, static_cast<uint8_t>(NodeType::Ir));
 }
 
 /** A known AckPayload serialises to the expected little endian bytes. */
@@ -247,6 +257,7 @@ void setup() {
   RUN_TEST(test_ack_field_offsets);
   RUN_TEST(test_packets_fit_both_links);
   RUN_TEST(test_payload_byte_image);
+  RUN_TEST(test_node_type_values);
   RUN_TEST(test_ack_byte_image);
   RUN_TEST(test_payload_round_trips);
   RUN_TEST(test_link_frame_field_offsets);

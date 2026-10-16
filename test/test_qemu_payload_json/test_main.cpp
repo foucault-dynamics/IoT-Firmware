@@ -22,7 +22,7 @@ constexpr time_t UNSYNCED_NOW = 3600;
 /**
  * Builds the reading every JSON test serialises.
  *
- * @return UID 00 to 0F, seq 42, 1234.5 kWh in, 45.25 kWh out, 230 V, community 7, unit 9.
+ * @return UID 00 to 0F, seq 42, 1234.5 kWh in, 45.25 kWh out, 230 V, community 7, unit 9, CV node.
  */
 Payload knownPayload() {
   Payload p{};
@@ -35,6 +35,7 @@ Payload knownPayload() {
   p.voltage = 230.0f;
   p.community_id = 7;
   p.unit_id = 9;
+  p.node_type = static_cast<uint8_t>(NodeType::Cv);
   return p;
 }
 
@@ -85,7 +86,7 @@ void test_json_exact() {
   const char *expected =
       "{\"ts\":\"2026-10-07T14:03:00+10:00\",\"uid\":\"000102030405060708090a0b0c0d0e0f\",\"seq\":42,"
       "\"kwh_import\":1234.5,\"kwh_export\":45.25,\"voltage\":230,\"community_id\":7,\"unit_id\":9,"
-      "\"rssi\":-71,\"snr\":9.5}";
+      "\"node_type\":\"cv\",\"rssi\":-71,\"snr\":9.5}";
   TEST_ASSERT_EQUAL_STRING(expected, out);
   TEST_ASSERT_EQUAL_size_t(strlen(expected), len);
 }
@@ -98,6 +99,34 @@ void test_json_ts_null_before_sync() {
                                out, strlen("{\"ts\":null,\"uid\":\"000102030405060708090a0b0c0d0e0f\",\"seq\":42,"));
 }
 
+/** Each NodeType publishes as its lowercase name. */
+void test_json_node_type_names() {
+  const struct {
+    NodeType type;
+    const char *field;
+  } cases[] = {
+      {NodeType::Rs485, "\"node_type\":\"rs485\""},
+      {NodeType::Cv, "\"node_type\":\"cv\""},
+      {NodeType::Ir, "\"node_type\":\"ir\""},
+  };
+  for (const auto &c : cases) {
+    Payload p = knownPayload();
+    p.node_type = static_cast<uint8_t>(c.type);
+    char out[320];
+    buildPayloadJson(p, -71, 9.5f, SYNCED_NOW, out, sizeof(out));
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(out, c.field), c.field);
+  }
+}
+
+/** A node type no NodeType has publishes as null rather than a guess. */
+void test_json_unknown_node_type_is_null() {
+  Payload p = knownPayload();
+  p.node_type = 3;
+  char out[320];
+  buildPayloadJson(p, -71, 9.5f, SYNCED_NOW, out, sizeof(out));
+  TEST_ASSERT_NOT_NULL(strstr(out, "\"node_type\":null,"));
+}
+
 /** The largest reading fits the gateway's 320 byte buffer with room to spare. */
 void test_json_fits_gateway_buffer() {
   Payload p = knownPayload();
@@ -108,6 +137,7 @@ void test_json_fits_gateway_buffer() {
   p.voltage = -3.4e38f;
   p.community_id = 255;
   p.unit_id = 255;
+  p.node_type = static_cast<uint8_t>(NodeType::Rs485);  // longest name
   char out[320];
   size_t len = buildPayloadJson(p, -32768, -3.4e38f, SYNCED_NOW, out, sizeof(out));
   TEST_ASSERT_LESS_THAN_size_t(sizeof(out) - 1, len);
@@ -134,6 +164,8 @@ void setup() {
   RUN_TEST(test_timestamp_buffer_size);
   RUN_TEST(test_json_exact);
   RUN_TEST(test_json_ts_null_before_sync);
+  RUN_TEST(test_json_node_type_names);
+  RUN_TEST(test_json_unknown_node_type_is_null);
   RUN_TEST(test_json_fits_gateway_buffer);
   RUN_TEST(test_json_small_buffer_fills_without_terminator);
   UNITY_END();
