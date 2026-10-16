@@ -241,12 +241,12 @@ board talks to the computer through a USB to UART bridge chip.
 
 ## Payload Format
 
-Defined in `lib/interfaces/shared/shared_payload.h`. `Payload` is packed to 34
+Defined in `lib/interfaces/shared/shared_payload.h`. `Payload` is packed to 35
 bytes and `AckPayload` to 20:
 
 ```cpp
 #pragma pack(push, 1)
-struct Payload {            // 34 bytes
+struct Payload {            // 35 bytes
     uint8_t uid[UID_LEN];   // 16 byte eFuse UID of the sending node
     uint32_t seq;           // Per node sequence number, deduplicates retries
     float kwh_import;       // OBIS 1.8.0
@@ -254,6 +254,7 @@ struct Payload {            // 34 bytes
     float voltage;          // Grid voltage in volts
     uint8_t community_id;
     uint8_t unit_id;
+    uint8_t node_type;      // NodeType: 0 RS485, 1 CV, 2 IR
 };
 
 struct AckPayload {         // 20 bytes
@@ -262,6 +263,9 @@ struct AckPayload {         // 20 bytes
 };
 #pragma pack(pop)
 ```
+
+The gateway publishes `node_type` in its MQTT JSON as `"rs485"`, `"cv"` or
+`"ir"`, or `null` for a value it does not recognise.
 
 The same header also defines `LinkFrame` (23 bytes), the ESP-NOW join handshake
 between a meter node and the substation. It starts with the magic bytes `KZ`.

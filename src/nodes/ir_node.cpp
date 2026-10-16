@@ -62,6 +62,7 @@ void irNodeSetup() {
   memcpy(payload.uid, cfg.uid, sizeof(payload.uid));
   payload.community_id = cfg.communityId;
   payload.unit_id = cfg.unitId;
+  payload.node_type = static_cast<uint8_t>(NodeType::Ir);
 
   if (seqCounterBegin() != EXIT_SUCCESS) {
     Serial.println("[IR] NVS unavailable for the sequence counter, idling");

@@ -20,10 +20,10 @@ namespace {
  *
  * @todo Replace with the LoRa PCB pinout once it exists.
  */
-const LoRaPins LORA_PINS = {/*sck*/ 4, /*miso*/ 5, /*mosi*/ 6, /*ss*/ 7, /*rst*/ 3, /*dio0*/ 10};
+const LoRaPins LORA_PINS = {/*sck*/ 8, /*miso*/ 9, /*mosi*/ 10, /*ss*/ 6, /*rst*/ 04, /*dio0*/ 03};
 #else
 /**
- * LoRa SPI pins for the LilyGo TTGO LoRa32 v2.1 (classic ESP32).
+ * LoRa SPI pins fo/r the LilyGo TTGO LoRa32 v2.1 (classic ESP32).
  *
  * Board wiring, never an NVS key.
  */

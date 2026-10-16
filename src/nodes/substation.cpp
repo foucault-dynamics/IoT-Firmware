@@ -72,6 +72,11 @@ void substationSetup() {
   radio = new LoRaModule(cfg.lora);
   loraLink = new LoRaLink(*radio, cfg.link);
 
+  if(radio->init() != EXIT_SUCCESS){
+    Serial.println("[Substation] LoRa module init, failed idling");
+    return;
+  }
+
   if (loraLink->init() != EXIT_SUCCESS) {
     Serial.println("[Substation] LoRa init failed, idling");
     return;

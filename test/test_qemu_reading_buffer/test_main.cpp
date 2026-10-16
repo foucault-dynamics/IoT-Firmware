@@ -153,12 +153,13 @@ void test_peek_without_pop_repeats() {
   TEST_ASSERT_EQUAL_size_t(2, readingBufferCount());
 }
 
-/** community_id and unit_id come from the latest push for that UID. */
+/** community_id, unit_id and node_type come from the latest push for that UID. */
 void test_ids_follow_latest_push() {
   readingBufferPush(makePayload(1, 1));
   Payload p = makePayload(1, 2);
   p.community_id = 7;
   p.unit_id = 9;
+  p.node_type = static_cast<uint8_t>(NodeType::Ir);
   readingBufferPush(p);
 
   Payload out = {};
@@ -166,6 +167,7 @@ void test_ids_follow_latest_push() {
   TEST_ASSERT_EQUAL_UINT32(1, out.seq);
   TEST_ASSERT_EQUAL_UINT8(7, out.community_id);
   TEST_ASSERT_EQUAL_UINT8(9, out.unit_id);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(NodeType::Ir), out.node_type);
 }
 
 /**

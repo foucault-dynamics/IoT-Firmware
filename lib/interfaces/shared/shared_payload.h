@@ -18,6 +18,17 @@
 /** Length in bytes of a device UID, the ESP32-C3's eFuse unique ID. */
 const size_t UID_LEN = 16;
 
+/**
+ * Which kind of meter node sent a Payload, carried in Payload::node_type.
+ *
+ * The values are the on air encoding, so never renumber them.
+ */
+enum class NodeType : uint8_t {
+    Rs485 = 0,  ///< Reads the meter over RS485 (Modbus RTU or DLMS/COSEM).
+    Cv = 1,     ///< Reads the meter's display with a camera.
+    Ir = 2,     ///< Reads the meter's optical IR port.
+};
+
 #pragma pack(push, 1)
 /**
  * One meter reading, sent from a meter node to the substation and on to the
@@ -33,6 +44,7 @@ struct Payload {
     float voltage;          ///< Grid voltage in volts.
     uint8_t community_id;   ///< Community the meter belongs to.
     uint8_t unit_id;        ///< Unit within the community.
+    uint8_t node_type;      ///< A NodeType, kept raw so an unknown value survives the trip.
 };
 
 /**
