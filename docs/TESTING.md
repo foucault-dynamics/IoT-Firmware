@@ -13,7 +13,7 @@ export ESP_QEMU=~/.kaizen/qemu/esp-develop-9.2.2-20260417/qemu/bin/qemu-system-r
 pio test -e test_c3 --without-uploading     # every QEMU suite
 ```
 
-Supported in  macOS on Apple Silicon and Linux x86_64.
+Supported on macOS (Apple Silicon) and Linux x86_64.
 
 On macOS QEMU needs these Homebrew libraries:
 
@@ -72,7 +72,7 @@ suite only needs the right folder name.
 | `test_qemu_dlms_driver` | Reading HDLC frames off the bus, the 1000 ms timeout, SNRM and DISC, I-frame sequencing, and whole sessions through the getters, including DISC after a failure |
 | `test_qemu_iec62056` | The baud rate ID table, OBIS parsing, a full optical port session, and handshake failures |
 | `test_qemu_nvs` | NVS read helpers, the defaults and NVS overrides of every node's config loader, the sequence counter resuming from NVS, and every loader and the counter on a never written partition and with NVS unavailable |
-| `test_qemu_payload` | The over the air packets: size, field offsets and byte image of Payload and AckPayload, and the UID helpers |
+| `test_qemu_payload` | The over the air packets: size, field offsets and byte image of Payload, AckPayload and LinkFrame, the LinkFrame make and parse helpers including bad frames, and the UID helpers |
 | `test_qemu_cam_http` | The CV node's CamHttpReader: the request URL, a good read, every way the cam's JSON is rejected, and the unsupported registers |
 | `test_qemu_payload_json` | The gateway's MQTT JSON: the exact output for a known reading, `ts` before and after NTP sync, the `+10:00` offset, and buffer sizes |
 | `test_board_radio` | Wi-Fi station start, channel conflicts, ESP-NOW init, adding a peer, and sends that fail: no ACK, unknown peer, bad length |
@@ -95,7 +95,7 @@ flashing a board, runs the command in `test_testing_command`:
    output back to PlatformIO, which parses Unity's results from it.
 3. It stops QEMU as soon as Unity prints `OK` or `FAIL`. If neither appears
    within 60 seconds, because the firmware crashed or hung, it kills QEMU and
-   fails the run. 
+   fails the run.
 
 Every run starts from a freshly merged image, so NVS is always empty at boot.
 
@@ -171,8 +171,8 @@ class ModbusRtuReader : public Reader {
 
 PlatformIO defines `PIO_UNIT_TESTING` only during `pio test`, so release builds
 are unchanged. The suite then defines that class with static functions that
-forward to the private ones. See `test_qemu_modbus_frame` and
-`test_qemu_iec62056`. `ModbusRtuReader` and `Iec6205621Reader` for examples.
+forward to the private ones. See `test_qemu_modbus_frame` (`ModbusRtuReader`)
+and `test_qemu_iec62056` (`Iec6205621Reader`) for examples.
 
 ### Faking a bus
 

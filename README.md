@@ -37,8 +37,8 @@ flowchart TD
 
     subgraph ir["IR node (ESP32-C3)"]
         direction TB
-        C["RealIRHead (Module)"] --> R2["Iec6205621Reader"]
-        D["SimulatedIRHead (Module)"] --> R2
+        C["RealIrHead (Module)"] --> R2["Iec6205621Reader"]
+        D["SimulatedIrHead (Module)"] --> R2
         T["TcpIrHead (Module)"] --> R2
     end
 

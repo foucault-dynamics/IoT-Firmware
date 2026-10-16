@@ -1,7 +1,7 @@
 /**
  * @file
  * SP3485 probe tests. Needs a real ESP32-C3 with the SP3485 wired as on the
- * rig (RX GPIO 8, TX GPIO 9, DE/RE GPIO 10) and powered. QEMU has no
+ * rig (RX GPIO 1, TX GPIO 9, DE/RE GPIO 10) and powered. QEMU has no
  * transceiver to probe.
  *
  * Run with `pio test -e end_node -f test_board_sp3485` on a connected board.
@@ -15,7 +15,7 @@
 namespace {
 
 /** The rig's wiring, as rs485_loader.cpp gives it. */
-const Rs485Config WIRED = {8, 9, 10, 9600, SERIAL_8N1};
+const Rs485Config WIRED = {1, 9, 10, 9600, SERIAL_8N1};
 /** The rig's wiring with RX moved to GPIO 4, which nothing drives. */
 const Rs485Config RX_UNWIRED = {4, 9, 10, 9600, SERIAL_8N1};
 
@@ -56,6 +56,8 @@ void setup() {
   UNITY_BEGIN();
   RUN_TEST(test_init_succeeds_with_transceiver);
   RUN_TEST(test_init_fails_with_rx_unwired);
+  Serial.flush();
+  delay(500);
   UNITY_END();
 }
 

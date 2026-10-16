@@ -162,7 +162,7 @@ void test_rs485_loader_defaults() {
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ReaderType::ModbusRtu), static_cast<uint8_t>(cfg.readerType));
   TEST_ASSERT_EQUAL_UINT8(6, cfg.espNow.channel);
   TEST_ASSERT_EQUAL_UINT32(100, cfg.espNow.sendTimeoutMs);
-  TEST_ASSERT_EQUAL_UINT8(8, cfg.modbus.bus.rx);
+  TEST_ASSERT_EQUAL_UINT8(1, cfg.modbus.bus.rx);
   TEST_ASSERT_EQUAL_UINT8(9, cfg.modbus.bus.tx);
   TEST_ASSERT_EQUAL_UINT8(10, cfg.modbus.bus.dere);
   TEST_ASSERT_EQUAL_UINT32(9600, cfg.modbus.bus.baudRate);

@@ -1,9 +1,8 @@
 # Getting started
 
-This page gives a rundown of how to start running the project on given hardware for on-boarding developers or any relevant non-experienced party
-. It covers installing the tools, building and flashing each board,
+This page gives a rundown of how to start running the project on given hardware for on-boarding developers or any relevant non-experienced party. It covers installing the tools, building and flashing each board,
 getting one reading all the way from a meter node to MQTT, running the tests,
-and how the code in `src/` is put together. 
+and how the code in `src/` is put together.
 
 ## Platform IO image for each node
 
@@ -23,7 +22,7 @@ the same image, and picks its role at boot from a serial menu.
 | Tool | Needed for | Install |
 |---|---|---|
 | PlatformIO Core | Building, flashing, serial monitor, tests | `brew install platformio`, or `pipx install platformio` |
-| Python 3 | ModbusSim and IrSim | Usually already installed. Each simulator uses its own venv |
+| Python 3 | ModbusSim, IrSim and DlmsSim | Usually already installed. Each simulator uses its own venv |
 | Espressif QEMU | The unit tests | `tools/setup_qemu.sh`, see [Running the tests](#gs_tests) |
 | Doxygen 1.18.0 and Graphviz | Building this site locally | `brew install doxygen graphviz` |
 | A USB-C data cable | Flashing | For flashing the ESP32-C3 supermini or LilyGo board (subject to hardware)|
@@ -318,8 +317,9 @@ real thing. The substation and gateway stay as they are.
 
 | To test | Settings on the end node | Then |
 |---|---|---|
-| A real Modbus meter | `set reader 0`, plus `meter_model`, `baud`, `slave_addr` | SP3485 on GPIO 8 RX, 9 TX, 10 DE/RE |
+| A real Modbus meter | `set reader 0`, plus `meter_model`, `baud`, `slave_addr` | SP3485 on GPIO 1 RX, 9 TX, 10 DE/RE |
 | A real DLMS/COSEM meter | `set reader 5`, plus the `dlms_*` keys | Same SP3485 wiring |
+| DLMS/COSEM against DlmsSim | `set reader 6`, `tcp_port 5022`, `reboot` | Same softAP idea as the Modbus run, run `DlmsSim/DlmsSimTCP.py`. See `DlmsSim/README.md` |
 | IR node, built in simulated meter | Press `2` | Defaults to `simulate 1`, no wiring and no laptop |
 | IR node against IrSim | Press `2`, `set simulate 2`, `reboot` | Same softAP idea, run `IrSim/IrSimTCP.py`. See `IrSim/README.md` |
 | The CV node | Press `3`, and `set espnow_chan 6` | Needs an ESP32-CAM running AI-on-the-edge-device. See `lib/config/secrets/README.md` |
@@ -366,6 +366,7 @@ the substation first if needed.
 | `0` Modbus RTU | `Sp3485` on `Serial1` | `ModbusRtuReader` |
 | `3` Modbus TCP | softAP, then `TcpBus` | `ModbusRtuReader` |
 | `5` DLMS/COSEM | `Sp3485` on `Serial1` | `DlmsCosemReader` |
+| `6` DLMS/COSEM over TCP | softAP, then `TcpBus` | `DlmsCosemReader` |
 
 Its loop is a small state machine, so each call does one step and returns:
 
@@ -440,11 +441,12 @@ pio test -e test_c3 --without-uploading
 `ESP_QEMU` has to be exported in the shell you run `pio test` from, otherwise
 every suite fails before it starts. Put the export in your shell profile.
 
-Other checks worth running before a pull request, which match what CI runs:
+Other checks worth running before a pull request. CI builds both images and
+runs the whole QEMU suite, the rest are local only:
 
 | Command | Checks |
 |---|---|
-| `pio run -e end_node -e lilygo_lora` | Both images still build |
+| `pio run -e end_node -e lilygo_lora` | Both images still build (run by CI) |
 | `pio test -e test_c3 --without-uploading -f test_qemu_nvs` | One suite, faster while iterating |
 | `pio test -e end_node -f test_board_radio` | The radio tests, on a connected C3 |
 | `sh IrSim/native/run.sh` | The IEC 62056-21 reader on the laptop, needs `g++` |
