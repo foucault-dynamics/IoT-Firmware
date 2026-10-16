@@ -28,16 +28,6 @@ int loadCvNodeConfig(CvNodeConfig &cfg) {
   cfg.communityId = static_cast<uint8_t>(readU32("comm_id", 0));
   cfg.unitId = static_cast<uint8_t>(readU32("unit_id", 0));
 
-  // Anything but 1 falls back to HTTP, so a bad value never strands the node
-  cfg.camLink = readU32("cam_link", 0) == 1 ? CamLink::Uart : CamLink::Http;
-
-  // GPIO 20 and 21 are the pins the SuperMini labels RX and TX. Serial runs on
-  // the C3's own USB, so this UART is free for the cam.
-  cfg.camUart.rx = static_cast<uint8_t>(readU32("cam_rx", 20));
-  cfg.camUart.tx = static_cast<uint8_t>(readU32("cam_tx", 21));
-  cfg.camUart.baud = readU32("cam_baud", 115200);
-  cfg.camUart.timeoutMs = 2000;
-
   readStr("ap_ssid", SECRET_CAM_AP_SSID, cfg.ap.ssid, sizeof(cfg.ap.ssid));
   readStr("ap_pass", SECRET_CAM_AP_PASSWORD, cfg.ap.password, sizeof(cfg.ap.password));
   // The cam sits on a static IP at the bottom of the subnet (SECRET_CAM_HOST),

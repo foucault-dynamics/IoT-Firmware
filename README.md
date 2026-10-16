@@ -45,7 +45,6 @@ flowchart TD
     subgraph cv["CV node (ESP32-C3)"]
         direction TB
         E["HttpBus (Module)"] --> R3["CamHttpReader"]
-        U["UartCamBus (Module, prototype)"] --> R3
     end
 
     rs485 -->|"ESP-NOW"| S["Substation / relay"]
@@ -58,13 +57,13 @@ flowchart TD
     classDef untested fill:#fff3cd,stroke:#e0a800,color:#000
 
     class A,B,R1,R4,D,T,R2,E,R3,S,G,M working
-    class C,U untested
+    class C untested
 ```
 
 | Colour | Meaning |
 |---|---|
 | Green | Works (RS485 path tested, CV path run on an ESP32-CAM and C3 SuperMini, the IR readers tested over TCP against their simulators, ESP-NOW, LoRa and MQTT working) |
-| Yellow | Not proven on hardware (the real IR head is untested; the CV node's wired cam link has each side working on hardware but the two have never been wired together, see [`docs/CV_WIRED_LINK.md`](docs/CV_WIRED_LINK.md)) |
+| Yellow | Untested on hardware (Real IR head) |
 
 ## Architecture
 
@@ -151,7 +150,6 @@ Project_Kaizen/
 │   ├── buses/
 │   │   ├── sp3485/          RS485 transceiver Module
 │   │   ├── http_bus/        HTTP client Module for the ESP32-CAM
-│   │   ├── uart_cam_bus/    Wired UART Module for the ESP32-CAM (prototype)
 │   │   ├── tcp_bus/         RTU-over-TCP Module
 │   │   ├── lora/            SX1276 radio Module
 │   │   └── ir_head/         Optical probe Module
@@ -196,17 +194,10 @@ Project_Kaizen/
 │   ├── DlmsSimTCP.py
 │   ├── dlms_poll_test.py
 │   └── README.md
-├── CamSim/
-│   ├── cam_protocol.py
-│   ├── CamSimSerial.py
-│   ├── cam_uart_poll.py
-│   └── README.md
 ├── docs/
 │   ├── GETTING_STARTED.md
 │   ├── COMMENTING.md
-│   ├── TESTING.md
-│   ├── CV_WIRED_LINK.md
-│   └── hw-tests/            Bench test records
+│   └── TESTING.md
 ├── test/
 │   ├── support/             FakeBus, shared by the driver tests
 │   ├── test_qemu_*/         unit tests run in QEMU
@@ -333,15 +324,3 @@ interoperates with a second implementation of the standard.
   one with Gurux's client.
 
 See `DlmsSim/README.md` for the register map, setup and the Gurux workarounds.
-
-## Camera Simulator
-
-`CamSim/` holds the tools for the CV node's wired cam link, a prototype picked
-with `set cam_link 1`. The link and how to switch between it and HTTP are in
-[`docs/CV_WIRED_LINK.md`](docs/CV_WIRED_LINK.md).
-
-- `CamSimSerial.py` plays the cam on a USB to serial adapter wired to the C3,
-  answering `GET /json` with framed demo readings.
-- `cam_uart_poll.py` plays the C3, for bringing up the cam side on its own.
-
-See `CamSim/README.md` for wiring and the error modes.

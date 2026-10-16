@@ -13,7 +13,7 @@ More on the LDF: https://docs.platformio.org/page/librarymanager/ldf.html
 lib/
   interfaces/  module, reader, transmitter, shared
   config/      node_config, nvs_config, secrets
-  buses/       sp3485, http_bus, uart_cam_bus, tcp_bus, lora, ir_head
+  buses/       sp3485, http_bus, tcp_bus, lora, ir_head
   protocols/   modbus_rtu, dlms_cosem, cam_http, iec62056_21, payload_json
   links/       esp_now_uplink, substation_link, lora_link, wifi_radio
   buffering/   seq_counter, reading_buffer
@@ -240,32 +240,15 @@ the cam has joined. Basic auth is sent only when `cam_user` is set. Any status o
 200 fails, and the previous body is always discarded first, so a failed GET can
 never hand back an old reading.
 
-### `uart_cam_bus/`
-
-`UartCamBus : Module`, the CV node's wired alternative to `HttpBus`, picked
-with `cam_link 1`. A prototype: unit tested, and run on a C3 against a stand
-in cam, but not yet wired to a real one. It needs a small addition to the
-cam's firmware, on the cam fork's `wired-json-uart` branch. The protocol,
-wiring and cam side are in `docs/CV_WIRED_LINK.md`.
-
-`send()` takes the same URL `CamHttpReader` gives `HttpBus`, keeps only the
-path, and sends the line `GET /json\n` over a hardware UART (`Serial1`, GPIO
-20 RX and 21 TX by default). The cam answers STX, the `/json` body, ETX.
-`CamUartFrame` picks that frame out of the byte stream, skipping anything
-outside it, so the cam's log console can share the wire. No frame within 2 s,
-or a body over 2048 bytes, fails the request. `camUartRequestLine()` and
-`CamUartFrame` have no hardware dependency, so `test_qemu_cam_uart` covers them
-in QEMU. `test_board_cam_uart` runs the real UART on a C3 in internal loopback.
-
 ### `cam_http/`
 
 `CamHttpReader : Reader`, for the CV node. It reads the meter's display through
 an ESP32-CAM running
 [AI-on-the-edge-device](https://github.com/jomjol/AI-on-the-edge-device), which
 does the digit recognition on the camera and publishes the result over HTTP.
-Configured by `CamHttpConfig`, and stacked on `HttpBus`, or on `UartCamBus`
-for the wired link. It only uses the `Module` interface (`send()`,
-`available()`, `readByte()`), so it works on either without a change.
+Configured by `CamHttpConfig`, and stacked on `HttpBus` today. It only uses
+the `Module` interface (`send()`, `available()`, `readByte()`), so the planned
+wired UART link can replace `HttpBus` without changing it.
 
 `get_import()` sends `http://<cam_host>/json` as the request and parses the
 body with ArduinoJson. The cam reports one object per flow (a "number" in its
