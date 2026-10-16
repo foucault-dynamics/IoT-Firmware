@@ -38,6 +38,9 @@ void RealIrHead::setBaudRate(uint32_t baud) {
 }
 
 void RealIrHead::start() {
+  // A full restart, not begin() on the running UART: retuning it in place
+  // read the data block garbled from the second session on.
+  serial->end();
   // begin() can only flip RX and TX together, so it sets TX's polarity and
   // setRxInvert() then sets RX's on its own.
   serial->begin(baudRate, serialConfig, RX, TX, txInvert);
