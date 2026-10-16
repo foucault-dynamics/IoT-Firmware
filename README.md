@@ -219,13 +219,14 @@ nodes that PCB runs. `test_c3` builds the unit tests instead, see
 |---|---|---|
 | `end_node` (default) | `esp32-c3-devkitm-1` | **Builds.** The end node image, `end_node_main.cpp` with the RS485, IR and CV nodes. |
 | `lilygo_lora` | `ttgo-lora32-v21` | **Builds.** The LoRa PCB image, `lora_main.cpp` with the substation and gateway nodes, on the LilyGo LoRa board. |
+| `lora_c3` | `esp32-c3-devkitm-1` | **Builds.** The same LoRa PCB image on an ESP32-C3 SuperMini wired to an SX1276 breakout. |
 | `test_c3` | `esp32-c3-devkitm-1` | Unit tests in emulated ESP32-C3, `pio test -e test_c3 --without-uploading`. |
 
-There is no C3 build of the LoRa image yet, because the LoRa pins in
-`lib/config/nvs_config/lora_loader.cpp` are the LilyGo pins. It gets added once
-the LoRa PCB pinout exists.
+`lora_c3` picks its LoRa pins in `lib/config/nvs_config/lora_loader.cpp` through
+`CONFIG_IDF_TARGET_ESP32C3`: SCK 4, MISO 5, MOSI 6, SS 7, RST 3, DIO0 10. These
+are placeholders until the LoRa PCB pinout exists.
 
-**Note**:` end_node` sets `ARDUINO_USB_MODE` and `ARDUINO_USB_CDC_ON_BOOT` so serial output
+**Note**: `end_node` and `lora_c3` set `ARDUINO_USB_MODE` and `ARDUINO_USB_CDC_ON_BOOT` so serial output
 appears over the C3's native USB. `lilygo_lora` does not need them, because that
 board talks to the computer through a USB to UART bridge chip.
 
