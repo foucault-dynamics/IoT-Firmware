@@ -464,6 +464,7 @@ a new test. [Commenting convention](COMMENTING.md) has the doc comment rules
 | `[BOOT] '1' is not 4 or 5` | The board has the other image. Flash `end_node` to a C3 and `lilygo_lora` to a LilyGo |
 | `set` seems to do nothing | You have not rebooted, or the value is the wrong type (strings need quotes) |
 | End node logs `[Link] No substation beacon heard` | `espnow_chan` differs, or the substation is off or out of range |
+| End node logs `[Link] Send failed, rejoining` | The substation went off, out of range or busy. The node rejoins and resends at once, and keeps trying discovery on every reading until one answers |
 | `[Substation] Dropped reading from unjoined MAC` | The node missed the join, it rejoins on its next reading. Persistent means the node runs an older image |
 | `[Substation] Relay FAILED` | Gateway off, `lora_*` settings differ between the two boards, or out of range. The reading is kept and retried after 30 s |
 | `[Error] Payload size mismatch!` | The boards were built from different versions of `shared_payload.h` |

@@ -16,7 +16,7 @@
 #define MAC_ARGS(m) (m)[0], (m)[1], (m)[2], (m)[3], (m)[4], (m)[5]
 
 SubstationLink::SubstationLink(EspNowConfig config, const uint8_t *nodeUid)
-    : uplink(config), joined(false), substationMac{}, epoch(0), sendFailures(0) {
+    : uplink(config), joined(false), substationMac{}, epoch(0) {
   memcpy(uid, nodeUid, UID_LEN);
 }
 
@@ -91,7 +91,6 @@ int SubstationLink::join() {
       memcpy(substationMac, mac, ESP_NOW_ADDRESS_LEN);
       epoch = beaconEpoch;
       joined = true;
-      sendFailures = 0;
       Serial.printf("[Link] Joined substation " MAC_FMT "\n", MAC_ARGS(mac));
       return EXIT_SUCCESS;
     }
@@ -124,23 +123,22 @@ void SubstationLink::drainReceived() {
 void SubstationLink::forget() {
   uplink.removePeer(substationMac);
   joined = false;
-  sendFailures = 0;
 }
 
 int SubstationLink::send(const Payload &p) {
   drainReceived();
 
-  if (!joined && join() != EXIT_SUCCESS) {
-    return EXIT_FAILURE;
-  }
-
-  if (uplink.sendPacket(substationMac, reinterpret_cast<const uint8_t *>(&p), sizeof(p)) == EXIT_SUCCESS) {
-    sendFailures = 0;
-    return EXIT_SUCCESS;
-  }
-
-  if (++sendFailures >= MAX_SEND_FAILURES) {
-    Serial.printf("[Link] %u sends failed, forgetting substation\n", MAX_SEND_FAILURES);
+  // The radio already retried the frame, so one failure means the substation
+  // may be gone. Forget it, rejoin (possibly another substation) and resend
+  for (uint8_t attempt = 0; attempt < SEND_ATTEMPTS; attempt++) {
+    // Returns at once while joined
+    if (join() != EXIT_SUCCESS) {
+      return EXIT_FAILURE;
+    }
+    if (uplink.sendPacket(substationMac, reinterpret_cast<const uint8_t *>(&p), sizeof(p)) == EXIT_SUCCESS) {
+      return EXIT_SUCCESS;
+    }
+    Serial.println("[Link] Send failed, rejoining");
     forget();
   }
   return EXIT_FAILURE;

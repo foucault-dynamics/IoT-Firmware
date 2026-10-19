@@ -285,8 +285,10 @@ as a peer to broadcast.
    needed. The substation drops readings from nodes that have not joined.
 
 The node forgets the substation and rejoins on its next `send()` when a beacon
-shows a new epoch (the substation rebooted and lost its joined table), or after
-3 failed sends in a row (it is gone). The nodes call `join()` once in setup and
+shows a new epoch (the substation rebooted and lost its joined table). A failed
+send also forgets it, and `send()` then rejoins straight away and resends the
+reading once, so while no substation answers every reading retries discovery.
+The nodes call `join()` once in setup and
 `send()` per reading.
 
 ### `seq_counter/`

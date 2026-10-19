@@ -25,8 +25,8 @@ constexpr uint32_t JOIN_BEACON_WAIT_MS = 3000;
 constexpr uint32_t JOIN_ACK_WAIT_MS = 2500;
 /** Join frames sent before a join attempt gives up. */
 constexpr uint8_t JOIN_ATTEMPTS = 3;
-/** Failed reading sends in a row before the substation is forgotten and rejoined. */
-constexpr uint8_t MAX_SEND_FAILURES = 3;
+/** Tries a reading gets per send(), with a rejoin between them. */
+constexpr uint8_t SEND_ATTEMPTS = 2;
 
 /**
  * Finds a substation over ESP-NOW, joins it, and sends it readings.
@@ -38,8 +38,10 @@ constexpr uint8_t MAX_SEND_FAILURES = 3;
  * from any node that has not joined.
  *
  * A joined substation is forgotten, and rejoined on the next send(), when its
- * beacon shows a new epoch (it rebooted and lost its joined table) or after
- * MAX_SEND_FAILURES failed sends in a row (it is gone).
+ * beacon shows a new epoch (it rebooted and lost its joined table). It is also
+ * forgotten as soon as a reading fails to send (it may be gone), and send()
+ * then rejoins straight away, so a node without a substation retries
+ * discovery on every reading.
  */
 class SubstationLink {
  private:
@@ -48,7 +50,6 @@ class SubstationLink {
   bool joined;                                 ///< True while a substation has acknowledged our Join.
   uint8_t substationMac[ESP_NOW_ADDRESS_LEN];  ///< Joined substation's MAC, valid while #joined.
   uint32_t epoch;                              ///< Joined substation's boot epoch, valid while #joined.
-  uint8_t sendFailures;                        ///< Failed send() calls in a row since the last success.
 
   /**
    * Waits for any substation's beacon.
@@ -110,6 +111,10 @@ class SubstationLink {
 
   /**
    * Sends one reading to the joined substation, joining first if needed.
+   *
+   * If the send fails, the substation is forgotten, a substation is joined
+   * again (possibly a different one) and the reading is resent, up to
+   * SEND_ATTEMPTS tries in all.
    *
    * @param[in] p  Reading to send.
    * @retval EXIT_SUCCESS  The substation's radio acknowledged the reading.
