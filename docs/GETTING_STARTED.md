@@ -258,6 +258,7 @@ or USB tethered connection as well.
 ### 5.4 What you should see
 
 ```text
+[RS485] Ready                                            end node
 import: ...                                              end node
 export: ...                                              end node
 voltage: ...                                             end node
@@ -268,8 +269,10 @@ voltage: ...                                             end node
 DATA FWD, UID: ..., PUB: SUCCESS                         gateway
 ```
 
-If one board's line is missing, the problem is on the hop into that board, see
-[Troubleshooting](#gs_trouble).
+`[RS485] Ready` prints once the meter answers its probe, and only then does the
+node start reading. The IR and CV nodes print `[IR] Ready` and `[CV] Ready` the
+same way. If one board's line is missing, the problem is on the hop into that
+board, see [Troubleshooting](#gs_trouble).
 
 ### 5.5 Listen to MQTT {#gs_mqtt}
 
@@ -355,6 +358,32 @@ and each pair lives in its own file in `src/nodes/`.
 
 ### The three meter nodes
 
+All three start the same way. Setup loads the config, builds the node's bus and
+reader, and hands them to `endNodeBringUp()` (`lib/bringup/end_node_bringup`),
+which checks the board's own peripherals in one fixed order:
+
+```text
+seqCounterBegin()          NVS for the sequence counter
+wifiRadioStartAp()         only CV, and the TCP simulator modes
+bus->init()                fatal, except a TCP simulator bus whose host may not be up yet
+reader->init(*bus)
+SubstationLink init()      ESP-NOW
+SubstationLink join()      not fatal, send() joins later
+```
+
+Any fatal step logs `[TAG] ..., idling` and the loop then does nothing. Setup
+then creates a `MeterGate`, and every loop starts with `gate->ready()`:
+
+```text
+not ready ──probe passes──► [TAG] Ready ──► read every cycle
+    ▲  └─ probe fails: retry in 5 s              │
+    └──────────── 3 failed reads in a row ◄──────┘
+```
+
+`ready()` probes the meter with the reader's `probe()`, which proves a meter
+answers without reading a value, and does no I/O once ready. Every read is
+reported back with `gate->reportRead()`.
+
 All three end with the same step: fill the `Payload`, take the next sequence
 number with `seqNext()`, and hand it to `SubstationLink::send()`, which joins
 the substation first if needed.
@@ -372,18 +401,20 @@ Its loop is a small state machine, so each call does one step and returns:
 
 ```text
 READ ──all three getters ok──► SEND ──► SLEEP ──60 s passed──► READ
- └── any getter fails: stay in READ, try again next loop
+ └── any getter fails: report it to the gate, stay in READ, try again next loop
 ```
 
 **`ir_node.cpp`** picks an `IrHead` from the `simulate` key (`0`
 `RealIrHead`, `1` `SimulatedIrHead`, `2` `TcpIrHead`) and puts an
 `Iec6205621Reader` on it. One optical session gives import and export together,
-so instead of a state machine it does one read and send per `poll_ms`.
+so instead of a state machine it does one read and send per `poll_ms`, the first
+straight after `[IR] Ready`.
 
 **`cv_node.cpp`** starts a softAP for the camera to join and puts an `HttpBus`
-and a `CamHttpReader` on it. Its loop probes the camera every 5 s until it
-answers, then reads once per `poll_ms`. It sends import, plus export when
-`cam_flow_exp` names a second number on the camera, otherwise export is 0.
+and a `CamHttpReader` on it. Its gate probes the camera every 5 s until it
+answers, then it reads once per `poll_ms`, the first straight after
+`[CV] Ready`. It sends import, plus export when `cam_flow_exp` names a second
+number on the camera, otherwise export is 0.
 
 ### The substation
 
@@ -424,8 +455,8 @@ timing out.
 | Change | Files |
 |---|---|
 | A default value | That node's `lib/config/nvs_config/*_loader.cpp`, or `secrets.h` for credentials and addresses |
-| A new meter protocol | A `Reader` in `lib/protocols/<name>/`, its config struct in `lib/config/node_config/`, its keys in the loader, a `ReaderType` value, and a `case` in `rs485NodeSetup()` |
-| A new bus | A `Module` in `lib/buses/<name>/`, created in the node's setup |
+| A new meter protocol | A `Reader` in `lib/protocols/<name>/` with a `probe()`, its config struct in `lib/config/node_config/`, its keys in the loader, a `ReaderType` value, and a `case` in `rs485NodeSetup()` |
+| A new bus | A `Module` in `lib/buses/<name>/`, created in the node's setup. A UART bus checks its pins and UART with `lib/buses/bus_checks` |
 | A new role | A setup and loop pair in `nodes.h`, a file in `src/nodes/`, a `ModuleType` value and menu line and two `case`s in the entry file, and the file added to that image's `build_src_filter` |
 | The packet format | `shared_payload.h`, then reflash every board |
 
@@ -465,6 +496,24 @@ a new test. [Commenting convention](COMMENTING.md) has the doc comment rules
 | Nothing on serial after flashing the C3 | The board is waiting for a monitor. Open one, or check `pio device list` for the right port |
 | `[BOOT] '1' is not 4 or 5` | The board has the other image. Flash `end_node` to a C3 and `lilygo_lora` to a LilyGo |
 | `set` seems to do nothing | You have not rebooted, or the value is the wrong type (strings need quotes) |
+| `[TAG] NVS unavailable for the sequence counter, idling` | The NVS partition cannot be opened. Reflash with `pio run -t erase` first |
+| `[TAG] SoftAP bring-up failed, idling` | `ap_ssid` or `ap_pass` is invalid (the password needs 8 to 64 chars), or `espnow_chan` clashes with a channel already in use |
+| `[TAG] Bus init failed, idling` | The bus's own line just before it says why, one of the `[SP3485]`, `[RealIrHead]` or `[HttpBus]` lines below |
+| `[TAG] Bus not reachable yet, the meter check will retry` | TCP simulator mode, and the laptop has not joined the softAP or the simulator is not running. Not fatal |
+| `[TAG] Reader init failed, idling` | The reader's config is invalid, for example an empty `cam_host` or `cam_flow`, or a bad DLMS address size |
+| `[TAG] ESP-NOW init failed, idling` | The radio did not start ESP-NOW, usually a channel the AP already holds differently. Reboot, then check `espnow_chan` |
+| `[TAG] Meter check failed, retrying in 5 s` | The meter did not answer its probe. The reader's line just before says how (silence, bad CRC, refused association, no identification, no cam). Check wiring, the meter's address and baud rate, or that the cam has joined |
+| `[TAG] Meter lost after 3 failed reads, re-checking` | The meter stopped answering after being ready. The node probes it every 5 s and prints `[TAG] Ready` again when it is back |
+| `[SP3485] RX not driven in receive, transceiver missing or miswired` | The SP3485 is missing, unpowered, or its RO is not on the RX pin |
+| `[SP3485] RX still driven with DE/RE high, DE/RE not wired` | The DE/RE pin does not reach the SP3485 |
+| `[TAG] UART pins invalid (RX n, TX n)` | An RX or TX pin in NVS is not a GPIO on the C3 |
+| `[TAG] UART failed to start` | The UART driver did not install. Reboot, and check nothing else holds the UART |
+| `[TAG] UART loopback: no echo` or `got 0xNN` | The UART does not echo its own byte internally, so its baud rate or frame format is broken. Reboot, and report it if it persists |
+| `[RealIrHead] RX floats, head missing or unpowered` | The IR head is not plugged in, unpowered, or its RX is on another pin |
+| `[RealIrHead] RX held active: light on sensor or wrong ir_rx_inv` | Light is falling on the head's sensor, or the head idles the other way round, so flip `ir_rx_inv` |
+| `[RealIrHead] RX unstable` | RX is toggling while idle, usually flickering light or a loose wire |
+| `[HttpBus] AP is not up` | The AP did not come up, see the SoftAP line above |
+| `[ModbusRTU Reader] Meter present, no diagnostics (exception N)` | Not an error. The meter does not support FC08, so it refused the probe, which still proves it is there |
 | End node logs `[Link] No substation beacon heard` | `espnow_chan` differs, or the substation is off or out of range |
 | End node logs `[Link] Send failed, rejoining` | The substation went off, out of range or busy. The node rejoins and resends at once, and keeps trying discovery on every reading until one answers |
 | `[Substation] Dropped reading from unjoined MAC` | The node missed the join, it rejoins on its next reading. Persistent means the node runs an older image |

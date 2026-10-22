@@ -67,7 +67,7 @@ flowchart TD
 
 ## Architecture
 
-All reusable code lives in `lib/`, split into six groups. `src/` holds the firmware itself: one entry file
+All reusable code lives in `lib/`, split into seven groups. `src/` holds the firmware itself: one entry file
 per PCB picks a node role, and `src/nodes/` assembles that node from the libraries.
 
 ### Lib directory
@@ -82,6 +82,7 @@ The lib directory contains all code for which the main loop and setup depends in
 | `lib/protocols/` | Meter protocols that turn bytes into values | **Readers** |
 | `lib/links/` | The radio, and what sits on top of it | **Transmitters** |
 | `lib/buffering/` | Buffering of the substation | |
+| `lib/bringup/` | The bring up checks and meter readiness gate every end node shares | |
 
 Three abstractions sit at the centre. A node is assembled by picking one of
 each. The definitions live in `lib/interfaces/`, and every implementation in the
@@ -90,7 +91,7 @@ other groups derives from one of them.
 | Layer | Folder | Header | Responsibility |
 |---|---|---|---|
 | `Module` | `lib/interfaces/module/` | `module.h` | Moves raw bytes over one physical bus. Knows its pins and its peripheral, knows nothing about meaning. `init()`, `send()`, `readByte()`, `available()`. |
-| `Reader` | `lib/interfaces/reader/` | `reader.h` | Speaks a meter protocol on top of a `Module&`. Turns registers into values. `init(Module&)`, `get_import()`, `get_export()`, `get_voltage()`. |
+| `Reader` | `lib/interfaces/reader/` | `reader.h` | Speaks a meter protocol on top of a `Module&`. Turns registers into values. `init(Module&)`, `probe()`, `get_import()`, `get_export()`, `get_voltage()`. |
 | `Transmitter` | `lib/interfaces/transmitter/` | `transmitter.h` | Moves whole packets to a peer address. `init()`, `sendPacket()`, `receivePacket()`. |
 
 A `Reader` holds a `Module&` and is stacked on top of it. `Module` and
@@ -132,6 +133,11 @@ Flow begins in the PCB's entry file where the serial monitor is prompted to choo
 and subsequently its respective loop. At the beginning of each loop, the serial buffer is parsed for any NVS configuration
 to be set (more information in the NVS subfolder README).
 
+Every end node's setup builds its bus and reader and hands them to `endNodeBringUp()`, which checks NVS, the AP when
+there is one, the bus, the reader and ESP-NOW in one fixed order and idles the node on the first failure. A `MeterGate`
+then keeps the node not ready until the meter answers the reader's `probe()`, prints `[TAG] Ready`, and drops back to
+not ready after 3 failed reads in a row. See `lib/README.md` and [Getting started](docs/GETTING_STARTED.md#gs_flow).
+
 
 ## Repository Layout
 
@@ -148,6 +154,7 @@ Project_Kaizen/
 │   │   ├── nvs_config/      NVS loaders filling the config structs
 │   │   └── secrets/         secrets.h
 │   ├── buses/
+│   │   ├── bus_checks/      Pin, UART start and loopback checks
 │   │   ├── sp3485/          RS485 transceiver Module
 │   │   ├── http_bus/        HTTP client Module for the ESP32-CAM
 │   │   ├── tcp_bus/         RTU-over-TCP Module
@@ -164,9 +171,11 @@ Project_Kaizen/
 │   │   ├── substation_link/ Substation discovery and join
 │   │   ├── lora_link/       LoRa Transmitter with ACKs
 │   │   └── wifi_radio/      Radio mode, channel and softAP
-│   └── buffering/
-│       ├── seq_counter/     Persistent reading sequence number
-│       └── reading_buffer/  Substation store and forward buffer
+│   ├── buffering/
+│   │   ├── seq_counter/     Persistent reading sequence number
+│   │   └── reading_buffer/  Substation store and forward buffer
+│   └── bringup/
+│       └── end_node_bringup/ End node bring up and MeterGate
 ├── src/
 │   ├── end_node_main.cpp              end node role dispatch
 │   ├── lora_main.cpp                  LoRa PCB role dispatch
