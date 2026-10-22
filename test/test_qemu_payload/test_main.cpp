@@ -22,6 +22,9 @@ static_assert(sizeof(AckPayload) == 20, "AckPayload is 20 bytes on the air");
 static_assert(sizeof(Payload) <= ESP_NOW_MAX_DATA_LEN, "Payload fits one ESP-NOW frame");
 static_assert(sizeof(LinkFrame) == 23, "LinkFrame is 23 bytes on the air");
 static_assert(sizeof(LinkFrame) != sizeof(Payload), "ESP-NOW tells LinkFrame and Payload apart by size");
+static_assert(sizeof(AckPayload) <= ESP_NOW_MAX_DATA_LEN, "AckPayload fits one ESP-NOW frame");
+static_assert(sizeof(AckPayload) != sizeof(Payload), "ESP-NOW tells AckPayload and Payload apart by size");
+static_assert(sizeof(AckPayload) != sizeof(LinkFrame), "ESP-NOW tells AckPayload and LinkFrame apart by size");
 
 namespace {
 

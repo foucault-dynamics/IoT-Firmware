@@ -353,9 +353,14 @@ which sits beside a `Module` rather than on top of one, `LoRaLink` has to be
 stacked on `LoRaModule`: ESP-NOW's delivery confirmation is built into the
 radio stack, but LoRa's ACK is our own protocol, keyed on the sent
 `Payload`'s uid/seq, so it needs a layer above the raw radio to live in.
-`sendPacket()` retries up to `maxRetries` times, polling for a matching
-`AckPayload` until `ackTimeoutMs`. `receivePacket()` reads a `Payload`-sized
-frame and replies with its own `AckPayload`. The over-the-air format is
+A send makes up to `maxRetries` attempts, each listening for a matching
+`AckPayload` until `ackTimeoutMs`, with 500 ms between attempts. It runs
+either in steps, `beginSend()` then `pollSend()` once per loop pass until it
+returns `Acked` or `Failed`, or blocking through `sendPacket()`, which runs
+that pair to the end. The substation uses the steps so a relay never stalls
+its beacons and ACKs, and only the transmit step blocks, for the packet's
+airtime. `receivePacket()` reads a `Payload`-sized frame and replies with its
+own `AckPayload`. The over-the-air format is
 unchanged by this split.
 
 ### `esp_now_uplink/`
@@ -389,11 +394,13 @@ as a peer to broadcast.
 2. `join()` waits up to 3 s for any beacon, then sends a `Join` with the node's
    UID to that MAC and waits for the matching `JoinAck`, up to 3 tries.
 3. `send()` delivers a `Payload` to the joined substation, joining first if
-   needed. The substation drops readings from nodes that have not joined.
+   needed, then waits up to 1 s for the substation's `AckPayload`, which it
+   sends only once the reading is in its buffer. The substation drops readings
+   from nodes that have not joined, without an ACK.
 
 The node forgets the substation and rejoins on its next `send()` when a beacon
 shows a new epoch (the substation rebooted and lost its joined table). A failed
-send also forgets it, and `send()` then rejoins straight away and resends the
+or unacknowledged send also forgets it, and `send()` then rejoins straight away and resends the
 reading once, so while no substation answers every reading retries discovery.
 The nodes call `join()` once in setup and
 `send()` per reading.

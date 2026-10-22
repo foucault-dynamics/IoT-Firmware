@@ -101,6 +101,29 @@ int SubstationLink::join() {
   return EXIT_FAILURE;
 }
 
+bool SubstationLink::waitForDeliveryAck(uint32_t seq) {
+  uint8_t buf[ESP_NOW_MAX_DATA_LEN];
+  uint8_t from[ESP_NOW_ADDRESS_LEN];
+  unsigned long start = millis();
+  while (millis() - start < DELIVERY_ACK_WAIT_MS) {
+    int len = uplink.receivePacket(from, buf, sizeof(buf));
+    if (len < 0) {
+      delay(5);
+      continue;
+    }
+    if (len != static_cast<int>(sizeof(AckPayload)) || memcmp(from, substationMac, ESP_NOW_ADDRESS_LEN) != 0) {
+      continue;
+    }
+    AckPayload ack;
+    memcpy(&ack, buf, sizeof(ack));
+    if (!uidEquals(ack.uid, uid) || ack.seq != seq) {
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+
 void SubstationLink::drainReceived() {
   uint8_t buf[ESP_NOW_MAX_DATA_LEN];
   uint8_t from[ESP_NOW_ADDRESS_LEN];
@@ -129,16 +152,21 @@ int SubstationLink::send(const Payload &p) {
   drainReceived();
 
   // The radio already retried the frame, so one failure means the substation
-  // may be gone. Forget it, rejoin (possibly another substation) and resend
+  // may be gone. A missing delivery ACK most likely means it no longer has us
+  // joined. Either way forget it, rejoin (possibly another substation) and
+  // resend
   for (uint8_t attempt = 0; attempt < SEND_ATTEMPTS; attempt++) {
     // Returns at once while joined
     if (join() != EXIT_SUCCESS) {
       return EXIT_FAILURE;
     }
-    if (uplink.sendPacket(substationMac, reinterpret_cast<const uint8_t *>(&p), sizeof(p)) == EXIT_SUCCESS) {
+    if (uplink.sendPacket(substationMac, reinterpret_cast<const uint8_t *>(&p), sizeof(p)) != EXIT_SUCCESS) {
+      Serial.println("[Link] Send failed, rejoining");
+    } else if (!waitForDeliveryAck(p.seq)) {
+      Serial.println("[Link] No delivery ACK, rejoining");
+    } else {
       return EXIT_SUCCESS;
     }
-    Serial.println("[Link] Send failed, rejoining");
     forget();
   }
   return EXIT_FAILURE;

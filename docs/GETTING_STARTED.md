@@ -420,13 +420,25 @@ number on the camera, otherwise export is 0.
 
 ```text
 substationLoop()
-  bufferIncoming()            drain ESP-NOW into the reading buffer
-  still backing off?  ──yes──► return
-  readingBufferPeek()         oldest reading, left in the buffer
-  LoRaLink::sendPacket()      send, wait for the gateway's ACK, retry
-    ACK   ──► readingBufferPop()
-    no ACK ─► keep it, back off 30 s (RETRY_BACKOFF_MS)
+  beaconIfDue()               broadcast a beacon once a second
+  handleIncoming()            drain ESP-NOW
+    Join       ──► add or refresh the node, send a JoinAck
+    reading    ──► readingBufferPush(), then an AckPayload back to the node
+    same seq   ──► ACK again, not buffered twice
+  relayStep()                 one step of the LoRa relay, never waits on it
+    relay in flight: LoRaLink::pollSend()
+      Acked   ──► readingBufferPop()
+      Failed  ──► keep it, back off 30 s (RETRY_BACKOFF_MS)
+      Pending ──► return
+    idle, not backing off: readingBufferPeek(), LoRaLink::beginSend()
 ```
+
+The ESP-NOW ACK only goes out once the reading is in the buffer, so the end
+node knows the substation kept it rather than only that its radio heard it. A
+reading from a node that has not joined, or one the buffer refuses, gets no
+ACK, and the node rejoins and resends it. Because the relay runs a step per
+pass instead of blocking for its retries, the substation keeps beaconing and
+ACKing while it waits on the gateway, and each ACK comes back within one pass.
 
 A reading only leaves the buffer once the gateway has acknowledged it, and new
 readings keep being buffered during the back off, so a gateway outage costs
@@ -516,7 +528,10 @@ a new test. [Commenting convention](COMMENTING.md) has the doc comment rules
 | `[ModbusRTU Reader] Meter present, no diagnostics (exception N)` | Not an error. The meter does not support FC08, so it refused the probe, which still proves it is there |
 | End node logs `[Link] No substation beacon heard` | `espnow_chan` differs, or the substation is off or out of range |
 | End node logs `[Link] Send failed, rejoining` | The substation went off, out of range or busy. The node rejoins and resends at once, and keeps trying discovery on every reading until one answers |
-| `[Substation] Dropped reading from unjoined MAC` | The node missed the join, it rejoins on its next reading. Persistent means the node runs an older image |
+| End node logs `[Link] No delivery ACK, rejoining` | The substation's radio took the reading but the substation did not buffer it, usually because it rebooted or forgot the join. The node rejoins and resends at once. Persistent means the substation runs an older image without delivery ACKs |
+| `[Substation] Dropped reading from unjoined MAC` | The node missed the join. It gets no delivery ACK, so it rejoins and resends straight away. Persistent means the node runs an older image |
+| `[Substation] Duplicate UID: ... re-acknowledged` | Not an error. The node resent a reading whose ACK was lost, so it is ACKed again but buffered once |
+| `[Substation] Buffer refused UID: ... not acknowledged` | Every node slot in the reading buffer is taken by other UIDs. The node gets no ACK and its send fails |
 | `[Substation] Relay FAILED` | Gateway off, `lora_*` settings differ between the two boards, or out of range. The reading is kept and retried after 30 s |
 | `[Error] Payload size mismatch!` | The boards were built from different versions of `shared_payload.h` |
 | `[WiFi] Connect Timeout!` on the gateway | Wrong `wifi_ssid` or `wifi_pass`, a 5 GHz only network, or a network that needs a username or sign in page. See [Gateway](#gs_gateway) |
