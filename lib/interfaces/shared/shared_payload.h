@@ -3,9 +3,9 @@
  * Over the air packet formats shared by every node, plus UID helpers.
  *
  * Every node in the network must be built from the same copy of this header.
- * The receive paths tell frames apart by size (Payload and LinkFrame on
- * ESP-NOW, Payload and AckPayload on LoRa) and reject any other size, so
- * changing a struct here means reflashing every board.
+ * The receive paths tell frames apart by size (Payload, LinkFrame and
+ * AckPayload on ESP-NOW, Payload and AckPayload on LoRa) and reject any other
+ * size, so changing a struct here means reflashing every board.
  */
 
 #ifndef SHARED_PAYLOAD_H
@@ -48,10 +48,12 @@ struct Payload {
 };
 
 /**
- * Acknowledgement for one Payload, sent back over LoRa by the gateway.
+ * Acknowledgement for one Payload, sent back on each hop it crossed.
  *
- * Keyed on the UID and sequence number so the substation can match it to the
- * reading it sent.
+ * The gateway sends it over LoRa once it has the reading, and the substation
+ * sends it over ESP-NOW once the reading is in its reading buffer. Keyed on
+ * the UID and sequence number so the sender can match it to the reading it
+ * sent.
  */
 struct AckPayload {
     uint8_t uid[UID_LEN];  ///< UID copied from the acknowledged Payload.
