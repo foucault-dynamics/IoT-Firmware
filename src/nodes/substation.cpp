@@ -10,7 +10,9 @@
  *
  * Readings arriving over ESP-NOW go into the reading buffer straight away.
  * One buffered reading at a time is then relayed over LoRa, whose ACK and
- * retry scheme lives in LoRaLink. A reading only leaves the buffer once the
+ * retry scheme lives in LoRaLink. The relay runs a step per loop() pass
+ * rather than blocking, so beacons, Joins and new readings are still served
+ * while it waits on the gateway. A reading only leaves the buffer once the
  * gateway acknowledges it. After a failed relay the substation waits
  * RETRY_BACKOFF_MS before trying again, while still buffering new readings.
  */
@@ -56,6 +58,7 @@ static size_t joinedCount = 0;  ///< Valid entries at the start of #joined.
 static uint32_t epoch = 0;              ///< Random per boot epoch, sent in every beacon.
 static unsigned long nextBeaconAt = 0;  ///< millis() at which the next beacon is due.
 static unsigned long nextSendAt = 0;    ///< millis() before which no relay is attempted.
+static Payload inFlight;                ///< Reading being relayed, valid while #loraLink has a send pending.
 static bool ready = false;              ///< True once setup fully succeeded.
 
 /** printf format for a MAC address, used with MAC_ARGS(). */
@@ -206,6 +209,49 @@ static void handleIncoming() {
   }
 }
 
+/**
+ * Moves the LoRa relay one step on without blocking, so beacons and node
+ * frames keep being served while a reading is in flight.
+ *
+ * While a relay is in flight, polls it: an ACKed reading leaves the buffer,
+ * a failed one stays and holds off the next relay for RETRY_BACKOFF_MS.
+ * Otherwise, once that backoff is over, starts relaying the next buffered
+ * reading.
+ */
+static void relayStep() {
+  char uidHex[UID_HEX_LEN];
+
+  switch (loraLink->pollSend()) {
+    case LoRaSendStatus::Pending:
+      return;
+
+    case LoRaSendStatus::Acked:
+      readingBufferPop();
+      Serial.printf("[Substation] Relay SUCCESS | UID: %s | SEQ: %u | Remaining: %u\n", uidToHex(inFlight.uid, uidHex), inFlight.seq, readingBufferCount());
+      return;
+
+    case LoRaSendStatus::Failed:
+      nextSendAt = millis() + RETRY_BACKOFF_MS;
+      Serial.printf("[Substation] Relay FAILED | UID: %s | SEQ: %u | Kept, retry in %lus | Buffered: %u\n", uidToHex(inFlight.uid, uidHex), inFlight.seq, RETRY_BACKOFF_MS / 1000, readingBufferCount());
+      return;
+
+    case LoRaSendStatus::Idle:
+      break;
+  }
+
+  // Signed difference so the check still works when millis() wraps
+  if (static_cast<long>(millis() - nextSendAt) < 0) {
+    return;
+  }
+
+  if (!readingBufferPeek(inFlight)) {
+    return;
+  }
+
+  Serial.printf("[Substation] Relaying UID: %s | SEQ: %u\n", uidToHex(inFlight.uid, uidHex), inFlight.seq);
+  loraLink->beginSend(reinterpret_cast<const uint8_t *>(&inFlight), sizeof(Payload));
+}
+
 void substationLoop() {
   if (!ready) {
     return;
@@ -213,27 +259,5 @@ void substationLoop() {
 
   beaconIfDue();
   handleIncoming();
-
-  // Signed difference so the check still works when millis() wraps
-  if (static_cast<long>(millis() - nextSendAt) < 0) {
-    return;
-  }
-
-  Payload pending;
-  if (!readingBufferPeek(pending)) {
-    return;
-  }
-
-  char uidHex[UID_HEX_LEN];
-  Serial.printf("[Substation] Relaying UID: %s | SEQ: %u\n", uidToHex(pending.uid, uidHex), pending.seq);
-
-  int result = loraLink->sendPacket(nullptr, reinterpret_cast<const uint8_t *>(&pending), sizeof(Payload));
-
-  if (result == EXIT_SUCCESS) {
-    readingBufferPop();
-    Serial.printf("[Substation] Relay SUCCESS | UID: %s | SEQ: %u | Remaining: %u\n", uidToHex(pending.uid, uidHex), pending.seq, readingBufferCount());
-  } else {
-    nextSendAt = millis() + RETRY_BACKOFF_MS;
-    Serial.printf("[Substation] Relay FAILED | UID: %s | SEQ: %u | Kept, retry in %lus | Buffered: %u\n", uidToHex(pending.uid, uidHex), pending.seq, RETRY_BACKOFF_MS / 1000, readingBufferCount());
-  }
+  relayStep();
 }
