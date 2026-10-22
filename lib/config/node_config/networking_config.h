@@ -15,6 +15,7 @@
 struct SoftApConfig {
   char ssid[33];      ///< Network name, up to 32 chars.
   char password[65];  ///< WPA2 passphrase, 8 to 64 chars.
+  uint8_t dhcpStart;  ///< Last octet of the first address the AP's DHCP hands out, 11 in a row. 0 starts at .2.
 };
 
 /** ESP-NOW settings for a node's uplink to the substation. */

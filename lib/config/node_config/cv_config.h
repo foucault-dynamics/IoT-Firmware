@@ -22,9 +22,10 @@ struct CamHttpConfig {
 
   HttpBusConfig bus;  ///< HTTP client settings.
 
-  char host[64];      ///< Cam's IP address or hostname on the AP.
-  char path[32];      ///< AI-on-the-edge-device API path, "/json".
-  char flowName[32];  ///< Flow (number) name to read, as set in the cam's config.ini.
+  char host[64];            ///< Cam's IP address or hostname on the AP.
+  char path[32];            ///< AI-on-the-edge-device API path, "/json".
+  char flowName[32];        ///< Flow (number) name of the import reading, as set in the cam's config.ini.
+  char exportFlowName[32];  ///< Flow (number) name of the export reading. Empty if the cam does not read export.
 };
 
 /** Everything the CV node needs, filled in by loadCvNodeConfig(). */

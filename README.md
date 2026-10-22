@@ -44,7 +44,7 @@ flowchart TD
 
     subgraph cv["CV node (ESP32-C3)"]
         direction TB
-        E["http_bus (Module)"] --> R3["http_reader"]
+        E["HttpBus (Module)"] --> R3["CamHttpReader"]
     end
 
     rs485 -->|"ESP-NOW"| S["Substation / relay"]
@@ -62,8 +62,8 @@ flowchart TD
 
 | Colour | Meaning |
 |---|---|
-| Green | Works (RS485 and CV paths tested, the IR readers tested over TCP against their simulators, ESP-NOW, LoRa and MQTT working) |
-| Yellow | Untested on hardware (Real IR head and CV) |
+| Green | Works (RS485 path tested, CV path run on an ESP32-CAM and C3 SuperMini, the IR readers tested over TCP against their simulators, ESP-NOW, LoRa and MQTT working) |
+| Yellow | Untested on hardware (Real IR head) |
 
 ## Architecture
 
@@ -237,6 +237,7 @@ board talks to the computer through a USB to UART bridge chip.
   inherited from NEXTGEN_IEMS. The OLED is unused.
 - SX1276 LoRa module and antennas
 - SP3485 RS485 transceiver on the meter node
+- ESP32-CAM running AI-on-the-edge-device, read by the CV node over HTTP
 - An MQTT broker
 
 ## Payload Format
@@ -282,8 +283,8 @@ rebuild and reflash all environments together.
 without physical hardware. Both expose a three-value register map, voltage at
 address 0, export kWh at 2, import kWh at 4, each a 32-bit big-endian pair, with
 values that change on every poll. These addresses match the
-`MeterModel::Simulated_Serial` and `MeterModel::Simulated_Tcp` rows in
-`node_config.cpp`.
+`MeterModel::Simulated_Serial` and `MeterModel::Simulated_Tcp` rows of
+`METER_MODELS` in `lib/config/nvs_config/rs485_loader.cpp`.
 
 - `ModbusSimTCP.py` serves RTU-over-TCP on `0.0.0.0:5020`. This is what
   `lib/buses/tcp_bus/` talks to.

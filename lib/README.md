@@ -33,7 +33,7 @@ feeds them. A node is assembled by picking one of each.
 ```text
 Reader        protocol meaning   (Modbus RTU registers -> floats)
    | holds a Module&
-Module        raw bytes on a bus (SP3485, TCP socket, IR head)
+Module        raw bytes on a bus (SP3485, TCP socket, IR head, HTTP client)
 
 Transmitter   whole packets to a peer address (ESP-NOW, LoRa)
 ```
@@ -222,13 +222,71 @@ the one the radio is already on. `EspNowUplink::init()` starts the station
 itself on `EspNowConfig::channel` and always registers peers on the station
 interface, so ESP-NOW only nodes (IR, RS485 RTU) never touch this library.
 Nodes that host a network (CV, RS485 in ModbusTCP or DlmsTcp mode) also call
-`wifiRadioStartAp()` on that same channel.
+`wifiRadioStartAp()` on that same channel. The AP's DHCP server hands out 11
+addresses from `SoftApConfig::dhcpStart`, or from `192.168.4.2` when it is 0.
+The CV node starts at `.100`, so no laptop or phone that joins can take the
+camera's static `.2`. The RS485 and IR nodes keep `.2`, which is the default
+`tcp_host` for the simulators.
 
 ### `http_bus/`
 
 `HttpBus : Module`. HTTP client over the AP that `wifi_radio` hosts, for the
 ESP32-CAM (AI-on-the-edge-device). `send()` takes the request URL, performs
 the GET, and buffers the body for `readByte()`/`available()`.
+
+`send()` fails without making a request if the AP is down or nothing has
+joined it yet, so the CV node does not wait out the 5 s request timeout before
+the cam has joined. Basic auth is sent only when `cam_user` is set. Any status other than
+200 fails, and the previous body is always discarded first, so a failed GET can
+never hand back an old reading.
+
+### `cam_http/`
+
+`CamHttpReader : Reader`, for the CV node. It reads the meter's display through
+an ESP32-CAM running
+[AI-on-the-edge-device](https://github.com/jomjol/AI-on-the-edge-device), which
+does the digit recognition on the camera and publishes the result over HTTP.
+Configured by `CamHttpConfig`, and stacked on `HttpBus` today. It only uses
+the `Module` interface (`send()`, `available()`, `readByte()`), so the planned
+wired UART link can replace `HttpBus` without changing it.
+
+`get_import()` sends `http://<cam_host>/json` as the request and parses the
+body with ArduinoJson. The cam reports one object per flow (a "number" in its
+`config.ini`), keyed by the flow name:
+
+```json
+{"main": {"value": "12345.678", "raw": "12345.678", "pre": "12345.678",
+          "error": "no error", "rate": "0.000", "timestamp": "2026-10-10T10:00:00+1000"}}
+```
+
+`get_import()` picks the object named by `cam_flow` and returns its `value`
+string, converted with `atof()`, as kWh. `get_export()` does the same for
+`cam_flow_exp`, a second number set up on the cam, for example a second
+register visible in the same frame. Each getter sends its own request. A read
+fails, and leaves the output untouched, when:
+
+- the bus fails to send or returns an empty body,
+- the body is not valid JSON,
+- the configured flow is not in it,
+- its `error` is anything but empty or the literal `no error`,
+- its `value` is empty, as it is just after the cam boots.
+
+`cam_flow_exp` is empty by default, and then `get_export()` fails without
+sending anything and the CV node sends export as 0. `get_voltage()` always
+fails, because the cam only reads digits. `init()` fails if `cam_host` or
+`cam_flow` is empty. The `/json` path is fixed in `cv_loader.cpp` and is not an
+NVS key.
+
+`probe()` is the CV node's readiness check. It sends one request and passes
+when the cam answers with valid JSON that names `cam_flow`, and `cam_flow_exp`
+if set. It does not need a value yet, so it passes as soon as the cam is up,
+before its first round of recognition. The CV node retries it every 5 s from
+its loop instead of blocking setup, since the cam can take a minute or more to
+boot, and only reports `[CV] ... node ready.` and starts reading once it
+passes.
+
+Tested in QEMU (`test_qemu_cam_http`) against scripted response bodies, and run
+on hardware with an ESP32-CAM and a C3 SuperMini.
 
 ### `lora/`
 

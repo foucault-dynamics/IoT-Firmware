@@ -233,7 +233,7 @@ void test_ir_loader_reads_nvs() {
   TEST_ASSERT_TRUE(cfg.iec.bus.rxInvert);
 }
 
-/** With NVS empty the CV loader gives the secrets.h camera and the /json path. */
+/** With NVS empty the CV loader gives the secrets.h camera, the /json path and a DHCP pool starting at .100. */
 void test_cv_loader_defaults() {
   prefs.end();
   CvNodeConfig cfg;
@@ -246,6 +246,8 @@ void test_cv_loader_defaults() {
   TEST_ASSERT_EQUAL_STRING(SECRET_CAM_HOST, cfg.cam.host);
   TEST_ASSERT_EQUAL_STRING("/json", cfg.cam.path);
   TEST_ASSERT_EQUAL_STRING(SECRET_CAM_FLOW_NAME, cfg.cam.flowName);
+  TEST_ASSERT_EQUAL_STRING(SECRET_CAM_EXPORT_FLOW_NAME, cfg.cam.exportFlowName);
+  TEST_ASSERT_EQUAL_UINT8(100, cfg.ap.dhcpStart);
 }
 
 /** Every CV key set in NVS overrides its default. */
@@ -254,6 +256,7 @@ void test_cv_loader_reads_nvs() {
   prefs.putUInt("poll_ms", 10000);
   prefs.putString("cam_host", "10.0.0.5");
   prefs.putString("cam_flow", "meter");
+  prefs.putString("cam_flow_exp", "export");
   prefs.end();
   CvNodeConfig cfg;
   TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadCvNodeConfig(cfg));
@@ -263,6 +266,7 @@ void test_cv_loader_reads_nvs() {
   TEST_ASSERT_EQUAL_UINT32(10000, cfg.cam.pollIntervalMs);
   TEST_ASSERT_EQUAL_STRING("10.0.0.5", cfg.cam.host);
   TEST_ASSERT_EQUAL_STRING("meter", cfg.cam.flowName);
+  TEST_ASSERT_EQUAL_STRING("export", cfg.cam.exportFlowName);
 }
 
 /** With NVS empty the gateway loader enables TLS MQTT to the secrets.h broker, with 3 LoRa tries of 1500 ms. */

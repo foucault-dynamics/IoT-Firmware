@@ -39,9 +39,12 @@ bool wifiRadioStartAp(const SoftApConfig &cfg, uint8_t channel) {
   WiFi.enableAP(true);
   WiFi.setTxPower(TX_POWER);
 
+  // 0.0.0.0 tells the core to start the DHCP pool right after the AP's own address
+  IPAddress dhcpStart = cfg.dhcpStart == 0 ? IPAddress(0, 0, 0, 0) : IPAddress(192, 168, 4, cfg.dhcpStart);
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1),
                      IPAddress(192, 168, 4, 1),
-                     IPAddress(255, 255, 255, 0));
+                     IPAddress(255, 255, 255, 0),
+                     dhcpStart);
 
   apUp = WiFi.softAP(cfg.ssid, cfg.password, channel);
   if (apUp) {

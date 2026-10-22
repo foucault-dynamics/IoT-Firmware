@@ -21,7 +21,10 @@
 /**
  * Adds the softAP on the given channel, at 192.168.4.1/24.
  *
- * @param[in] cfg      Network name and passphrase.
+ * Its DHCP server hands out 11 addresses from SoftApConfig::dhcpStart, or
+ * from 192.168.4.2 when that is 0.
+ *
+ * @param[in] cfg      Network name, passphrase and DHCP start.
  * @param[in] channel  Wi-Fi channel. Must match any channel already in use.
  * @retval true   The AP is up.
  * @retval false  The radio is on another channel, or the AP failed to start.
