@@ -16,6 +16,13 @@ constexpr unsigned long DATA_TIMEOUT_MS = 3000;
 /** How long to wait for the ETX and BCC after the data block's "!\r\n", in ms. */
 constexpr unsigned long BCC_TIMEOUT_MS = 500;
 
+/**
+ * How long probe() waits after the meter answers, in ms. The meter sends no
+ * data block without an ACK, and drops back to idle once the standard's
+ * inactivity time has passed, so the next session starts clean.
+ */
+constexpr unsigned long PROBE_IDLE_MS = 2000;
+
 /** Rate every mode C session opens at, fixed by the standard. */
 constexpr uint32_t START_BAUD = 300;
 
@@ -32,8 +39,8 @@ int Iec6205621Reader::init(Module &module) {
   // SimulatedIrHead) here. This reader is IEC 62056-21 specific and the
   // optical port is the only thing it's ever attached to.
   head = static_cast<IrHead *>(&module);
-  head->init();
-  currentBaud = START_BAUD;  // every IrHead's init() opens the link at 300
+  // The node already ran the head's init(), which opens the link at 300
+  currentBaud = START_BAUD;
   return EXIT_SUCCESS;
 }
 
@@ -103,7 +110,7 @@ bool Iec6205621Reader::baudRateFromId(char code, uint32_t &baudOut) {
   }
 }
 
-int Iec6205621Reader::handshake(uint32_t &negotiatedBaud) {
+int Iec6205621Reader::requestIdentification(String &identification, uint32_t &offeredBaud) {
   // Step 0: back to the starting baud rate. The last read left the link at
   // whatever rate it negotiated, but the meter dropped back to 300 as soon
   // as it finished sending. Skip this and every read after the first
@@ -132,7 +139,7 @@ int Iec6205621Reader::handshake(uint32_t &negotiatedBaud) {
   // We only need bytes 0 to 4 (the "/", the 3 manufacturer chars, and the
   // baud rate ID). The identification text past that is metadata we
   // don't need for the handshake itself.
-  String identification = readUntil("\r\n", ID_TIMEOUT_MS);
+  identification = readUntil("\r\n", ID_TIMEOUT_MS);
   // An IR head can see its own LED, so our request may come straight back
   // before the meter's answer. Skip it.
   if (identification == "/?!\r\n") {
@@ -151,11 +158,21 @@ int Iec6205621Reader::handshake(uint32_t &negotiatedBaud) {
     return -2;
   }
 
-  char baudId = identification[4];
-  if (!baudRateFromId(baudId, negotiatedBaud)) {
+  if (!baudRateFromId(identification[4], offeredBaud)) {
     Serial.println("[IEC62056-21] unrecognised baud-rate ID in identification message");
     return -3;  // baud rate ID isn't one we have a mapping for
   }
+
+  return 0;
+}
+
+int Iec6205621Reader::handshake(uint32_t &negotiatedBaud) {
+  String identification;
+  int id = requestIdentification(identification, negotiatedBaud);
+  if (id != 0) {
+    return id;
+  }
+  char baudId = identification[4];
 
   // Step 3: acknowledge and select that baud rate. The ACK is fixed except
   // for the baud digit, which we echo straight back from what the meter
@@ -242,4 +259,25 @@ int Iec6205621Reader::get_export(float *val) {
 int Iec6205621Reader::get_voltage(float *val) {
   (void)val;
   return EXIT_FAILURE;
+}
+
+int Iec6205621Reader::probe() {
+  String identification;
+  uint32_t offeredBaud = 0;
+  int id = requestIdentification(identification, offeredBaud);
+
+  // Whatever answered may still be mid session, so let it time out back to
+  // idle before anything else talks to it
+  if (identification.length() > 0) {
+    unsigned long start = millis();
+    while (millis() - start < PROBE_IDLE_MS) {
+      head->readByte();
+    }
+  }
+
+  if (id != 0) {
+    Serial.printf("[IEC62056-21] probe failed (code %d)\n", id);
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
 }

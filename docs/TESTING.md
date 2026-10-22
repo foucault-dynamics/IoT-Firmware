@@ -35,7 +35,8 @@ brew install libgcrypt glib pixman sdl2 libslirp
 ```text
 test/
 ├── support/
-│   └── fake_bus.h                FakeBus, the scripted bus for driver tests
+│   ├── fake_bus.h                FakeBus, the scripted bus for driver tests
+│   └── fake_reader.h             FakeReader, the scripted reader for MeterGate tests
 ├── test_qemu_reading_buffer/     run in QEMU by test_c3
 ├── test_qemu_modbus_frame/
 ├── test_qemu_modbus_driver/
@@ -46,8 +47,11 @@ test/
 ├── test_qemu_payload/
 ├── test_qemu_cam_http/
 ├── test_qemu_payload_json/
+├── test_qemu_bus_checks/
+├── test_qemu_end_node_bringup/
 ├── test_board_radio/             needs a real C3, run by end_node
-└── test_board_sp3485/            needs a real C3 with the SP3485 wired
+├── test_board_sp3485/            needs a real C3 with the SP3485 wired
+└── test_board_ir_head/           needs a real C3 with the IR head wired
 ```
 
 Every folder starting with `test_` is a suite: its own firmware image with its
@@ -67,16 +71,19 @@ suite only needs the right folder name.
 |---|---|
 | `test_qemu_reading_buffer` | The substation's store and forward buffer: FIFO order, overflow, the slot limit, node rotation, and peek without pop |
 | `test_qemu_modbus_frame` | Modbus CRC16 vectors, request frames, and the T3.5 gap for each baud rate and frame format |
-| `test_qemu_modbus_driver` | Decoding both register formats, every way a response is rejected, the 500 ms timeout, replies split across reads, and recovery after a failure |
+| `test_qemu_modbus_driver` | Decoding both register formats, every way a response is rejected, the 500 ms timeout, replies split across reads, recovery after a failure, and the FC08 `probe()`: the exact frame, echo and exception pass, silence, wrong slave, bad CRC and a mismatched echo fail |
 | `test_qemu_dlms_frame` | HDLC FCS, addresses, building and parsing frames, the AARQ and AARE, GET requests and responses, A-XDR numbers, and scaler_unit |
-| `test_qemu_dlms_driver` | Reading HDLC frames off the bus, the 1000 ms timeout, SNRM and DISC, I-frame sequencing, and whole sessions through the getters, including DISC after a failure |
-| `test_qemu_iec62056` | The baud rate ID table, OBIS parsing, a full optical port session, and handshake failures |
+| `test_qemu_dlms_driver` | Reading HDLC frames off the bus, the 1000 ms timeout, SNRM and DISC, I-frame sequencing, whole sessions through the getters, including DISC after a failure, and `probe()`: SNRM, AARQ and DISC with no GET, DM, a rejected AARE and silence |
+| `test_qemu_iec62056` | The baud rate ID table, OBIS parsing, a full optical port session, handshake failures, `probe()` (only the request sent, no baud change, the 2 s idle wait, every failure, the echo skipped), and `init()` not running the head's `init()` |
 | `test_qemu_nvs` | NVS read helpers, the defaults and NVS overrides of every node's config loader, the sequence counter resuming from NVS, and every loader and the counter on a never written partition and with NVS unavailable |
 | `test_qemu_payload` | The over the air packets: size, field offsets and byte image of Payload, AckPayload and LinkFrame, the LinkFrame make and parse helpers including bad frames, and the UID helpers |
-| `test_qemu_cam_http` | The CV node's CamHttpReader: the request URL, a good read, every way the cam's JSON is rejected, and the unsupported registers |
+| `test_qemu_cam_http` | The CV node's CamHttpReader: the request URL, good import and export reads, every way the cam's JSON is rejected, export with no flow configured, voltage, and the readiness `probe()`, malformed JSON included |
+| `test_qemu_bus_checks` | The shared bus checks: classifying a pin from its pulls, which drive is an idle RX line for each polarity, the checked UART start on good and invalid pins, `uartPortOf()`, and the loopback refusing an unknown UART |
+| `test_qemu_end_node_bringup` | MeterGate over a FakeReader: the first probe, the retry gap, staying ready with no probes, the failed read count resetting, falling back after 3 failures and probing straight away, and reads ignored while not ready |
 | `test_qemu_payload_json` | The gateway's MQTT JSON: the exact output for a known reading, `ts` before and after NTP sync, the `+10:00` offset, and buffer sizes |
 | `test_board_radio` | Wi-Fi station start, channel conflicts, ESP-NOW init, adding a peer, and sends that fail: no ACK, unknown peer, bad length |
-| `test_board_sp3485` | The SP3485 probe in `init()`: passes with the transceiver fitted, fails with RX on an undriven pin |
+| `test_board_sp3485` | The SP3485's `init()`, probe, UART start and loopback: passes with the transceiver fitted, fails with RX on an undriven pin, and UART1's loopback on its own |
+| `test_board_ir_head` | RealIrHead's `init()`, RX idle check, UART start and loopback: passes with the PiggyMeter head on GPIO 20/21, fails with RX on an undriven pin, and UART1's loopback at 300 baud 7E1 on its own |
 
 The DLMS suites check the reader against frames written for the tests. To check
 it against an independent implementation, run it against `DlmsSim/`, a Gurux

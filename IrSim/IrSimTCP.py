@@ -48,7 +48,9 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             writer.write(reply)
             await writer.drain()
             _logger.info("-> %s", describe(reply))
-    except (asyncio.IncompleteReadError, ConnectionResetError):
+    except (asyncio.IncompleteReadError, OSError):
+        # OSError covers the reset/aborted connections Windows reports when
+        # the laptop drops off the node's WiFi.
         pass
     finally:
         _logger.info("reader %s disconnected", peer)

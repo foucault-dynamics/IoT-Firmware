@@ -1,0 +1,158 @@
+--- 2026-10-14T19:17:01 port opened
+19:17:28.004  [Cam HTTP Reader] Empty response body
+19:17:57.640  [Cam HTTP Reader] Flow "main" has no value yet.
+19:18:27.572  [CV] import=530.074 export=0.000 seq=1174
+19:18:30.595  [Link] No substation beacon heard
+19:18:30.595  [CV] ESP-NOW send failed.
+19:18:57.705  [CV] import=530.074 export=0.000 seq=1175
+19:19:00.626  [Link] No substation beacon heard
+19:19:00.626  [CV] ESP-NOW send failed.
+19:19:27.540  [CV] import=530.122 export=0.000 seq=1176
+19:19:30.563  [Link] No substation beacon heard
+19:19:30.563  [CV] ESP-NOW send failed.
+19:19:57.660  [CV] import=530.122 export=0.000 seq=1177
+19:20:00.684  [Link] No substation beacon heard
+19:20:00.684  [CV] ESP-NOW send failed.
+19:20:27.580  [CV] import=530.214 export=0.000 seq=1178
+19:20:30.604  [Link] No substation beacon heard
+19:20:30.604  [CV] ESP-NOW send failed.
+19:20:59.429  [CV] import=530.214 export=0.000 seq=1179
+19:21:02.349  [Link] No substation beacon heard
+19:21:02.349  [CV] ESP-NOW send failed.
+19:21:29.437  [CV] import=530.489 export=0.000 seq=1180
+19:21:32.455  [Link] No substation beacon heard
+19:21:32.455  [CV] ESP-NOW send failed.
+19:21:59.350  [CV] import=530.489 export=0.000 seq=1181
+19:22:02.374  [Link] No substation beacon heard
+19:22:02.374  [CV] ESP-NOW send failed.
+19:22:29.379  [CV] import=530.704 export=0.000 seq=1182
+19:22:32.396  [Link] No substation beacon heard
+19:22:32.397  [CV] ESP-NOW send failed.
+19:22:59.392  [CV] import=530.704 export=0.000 seq=1183
+19:23:02.413  [Link] No substation beacon heard
+19:23:02.413  [CV] ESP-NOW send failed.
+19:23:29.416  [CV] import=530.957 export=0.000 seq=1184
+19:23:32.437  [Link] No substation beacon heard
+19:23:32.438  [CV] ESP-NOW send failed.
+19:23:59.333  [CV] import=530.957 export=0.000 seq=1185
+19:24:02.355  [Link] No substation beacon heard
+19:24:02.355  [CV] ESP-NOW send failed.
+19:24:29.451  [CV] import=531.111 export=0.000 seq=1186
+19:24:32.473  [Link] No substation beacon heard
+19:24:32.473  [CV] ESP-NOW send failed.
+19:24:59.350  [CV] import=531.111 export=0.000 seq=1187
+19:25:02.371  [Link] No substation beacon heard
+19:25:02.371  [CV] ESP-NOW send failed.
+19:25:29.450  [CV] import=531.241 export=0.000 seq=1188
+19:25:32.471  [Link] No substation beacon heard
+19:25:32.471  [CV] ESP-NOW send failed.
+19:25:59.370  [CV] import=531.241 export=0.000 seq=1189
+19:26:02.393  [Link] No substation beacon heard
+19:26:02.394  [CV] ESP-NOW send failed.
+19:26:29.398  [CV] import=531.383 export=0.000 seq=1190
+19:26:32.418  [Link] No substation beacon heard
+19:26:32.418  [CV] ESP-NOW send failed.
+19:26:59.416  [CV] import=531.383 export=0.000 seq=1191
+19:27:02.339  [Link] No substation beacon heard
+19:27:02.339  [CV] ESP-NOW send failed.
+19:27:29.454  [CV] import=531.631 export=0.000 seq=1192
+19:27:32.478  [Link] No substation beacon heard
+19:27:32.478  [CV] ESP-NOW send failed.
+19:27:59.397  [CV] import=531.631 export=0.000 seq=1193
+19:28:02.422  [Link] No substation beacon heard
+19:28:02.422  [CV] ESP-NOW send failed.
+19:28:29.433  [CV] import=532.822 export=0.000 seq=1194
+19:28:32.459  [Link] No substation beacon heard
+19:28:32.459  [CV] ESP-NOW send failed.
+19:28:59.370  [CV] import=532.822 export=0.000 seq=1195
+19:29:02.393  [Link] No substation beacon heard
+19:29:02.393  [CV] ESP-NOW send failed.
+19:29:29.503  [CV] import=530.071 export=0.000 seq=1196
+19:29:32.425  [Link] No substation beacon heard
+19:29:32.425  [CV] ESP-NOW send failed.
+19:29:59.336  [CV] import=530.071 export=0.000 seq=1197
+19:30:02.360  [Link] No substation beacon heard
+19:30:02.360  [CV] ESP-NOW send failed.
+19:30:29.473  [CV] import=530.074 export=0.000 seq=1198
+19:30:32.496  [Link] No substation beacon heard
+19:30:32.496  [CV] ESP-NOW send failed.
+19:30:59.383  [3853388][E][WiFiClient.cpp:275] connect(): socket error on fd 48, errno: 104, "Connection reset by peer"
+19:30:59.384  [HttpBus] GET http://192.168.4.2/json failed, HTTP status -1
+19:31:29.425  [Cam HTTP Reader] Flow "main" has no value yet.
+19:31:59.763  [Cam HTTP Reader] Flow "main" has no value yet.
+19:32:29.497  [CV] import=530.074 export=0.000 seq=1199
+19:32:32.422  [Link] No substation beacon heard
+19:32:32.422  [CV] ESP-NOW send failed.
+19:32:59.833  [CV] import=530.074 export=0.000 seq=1200
+19:33:02.752  [Link] No substation beacon heard
+19:33:02.752  [CV] ESP-NOW send failed.
+19:33:29.460  [CV] import=530.122 export=0.000 seq=1201
+19:33:32.485  [Link] No substation beacon heard
+19:33:32.485  [CV] ESP-NOW send failed.
+19:33:59.397  [CV] import=530.122 export=0.000 seq=1202
+19:34:02.420  [Link] No substation beacon heard
+19:34:02.420  [CV] ESP-NOW send failed.
+19:34:29.526  [CV] import=530.214 export=0.000 seq=1203
+19:34:32.451  [Link] No substation beacon heard
+19:34:32.451  [CV] ESP-NOW send failed.
+19:34:59.358  [CV] import=530.214 export=0.000 seq=1204
+19:35:02.376  [Link] No substation beacon heard
+19:35:02.376  [CV] ESP-NOW send failed.
+23:00:32.038  tation beacon heard
+23:00:32.039  [CV] ESP-NOW send failed.
+23:00:32.039  [Link] No substation beacon heard
+23:00:32.039  [CV] ESP-NOW send failed.
+23:00:32.039  [CV] import=530.489 export=0.000 seq=1614
+23:00:32.039  [Link] No substation beacon heard
+23:00:32.039  [CV] ESP-NOW send failed.
+23:00:32.039  [CV] import=530.704 export=0.000 seq=1615
+23:00:32.039  [Link] No substation beacon heard
+23:00:32.039  [CV] ESP-NOW send failed.
+23:00:59.101  [CV] import=530.704 export=0.000 seq=1616
+23:01:02.123  [Link] No substation beacon heard
+23:01:02.123  [CV] ESP-NOW send failed.
+23:01:29.399  [CV] import=530.957 export=0.000 seq=1617
+23:01:32.420  [Link] No substation beacon heard
+23:01:32.420  [CV] ESP-NOW send failed.
+23:01:59.110  [CV] import=530.957 export=0.000 seq=1618
+23:02:02.137  [Link] No substation beacon heard
+23:02:02.137  [CV] ESP-NOW send failed.
+23:02:29.243  [CV] import=531.111 export=0.000 seq=1619
+23:02:32.265  [Link] No substation beacon heard
+23:02:32.266  [CV] ESP-NOW send failed.
+23:02:59.172  [CV] import=531.111 export=0.000 seq=1620
+23:03:02.196  [Link] No substation beacon heard
+23:03:02.196  [CV] ESP-NOW send failed.
+23:03:29.301  [CV] import=531.241 export=0.000 seq=1621
+23:03:32.224  [Link] No substation beacon heard
+23:03:32.224  [CV] ESP-NOW send failed.
+23:03:59.127  [CV] import=531.241 export=0.000 seq=1622
+23:04:02.150  [Link] No substation beacon heard
+23:04:02.150  [CV] ESP-NOW send failed.
+23:04:29.258  [CV] import=531.383 export=0.000 seq=1623
+23:04:32.280  [Link] No substation beacon heard
+23:04:32.280  [CV] ESP-NOW send failed.
+23:04:59.183  [CV] import=531.383 export=0.000 seq=1624
+23:05:02.204  [Link] No substation beacon heard
+23:05:02.204  [CV] ESP-NOW send failed.
+23:05:29.011  [CV] import=531.631 export=0.000 seq=1625
+23:05:32.033  [Link] No substation beacon heard
+23:05:32.033  [CV] ESP-NOW send failed.
+23:05:59.130  [CV] import=531.631 export=0.000 seq=1626
+23:06:02.151  [Link] No substation beacon heard
+23:06:02.151  [CV] ESP-NOW send failed.
+23:06:29.050  [CV] import=531.822 export=0.000 seq=1627
+23:06:32.072  [Link] No substation beacon heard
+23:06:32.072  [CV] ESP-NOW send failed.
+23:06:59.160  [CV] import=531.822 export=0.000 seq=1628
+23:07:02.183  [Link] No substation beacon heard
+23:07:02.183  [CV] ESP-NOW send failed.
+23:07:29.080  [CV] import=530.071 export=0.000 seq=1629
+23:07:32.101  [Link] No substation beacon heard
+23:07:32.101  [CV] ESP-NOW send failed.
+23:07:59.203  [CV] import=530.071 export=0.000 seq=1630
+23:08:02.228  [Link] No substation beacon heard
+23:08:02.228  [CV] ESP-NOW send failed.
+23:08:29.035  [CV] import=530.074 export=0.000 seq=1631
+23:08:32.060  [Link] No substation beacon heard
+23:08:32.060  [CV] ESP-NOW send failed.

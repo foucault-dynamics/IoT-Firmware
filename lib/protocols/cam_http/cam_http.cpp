@@ -5,8 +5,6 @@
 
 #include "cam_http.h"
 
-#include <ArduinoJson.h>
-
 #include <cstdlib>
 #include <cstring>
 
@@ -37,8 +35,10 @@ int CamHttpReader::get_import(float *val) {
 }
 
 int CamHttpReader::get_export(float *val) {
-  (void)val;
-  return EXIT_FAILURE;
+  if (config.exportFlowName[0] == '\0') {
+    return EXIT_FAILURE;
+  }
+  return read_flow(config.exportFlowName, val);
 }
 
 int CamHttpReader::get_voltage(float *val) {
@@ -46,7 +46,26 @@ int CamHttpReader::get_voltage(float *val) {
   return EXIT_FAILURE;
 }
 
-int CamHttpReader::read_flow(const char *flow, float *val) {
+int CamHttpReader::probe() {
+  JsonDocument doc;
+  if (fetch(doc) == EXIT_FAILURE) {
+    return EXIT_FAILURE;
+  }
+
+  if (doc[config.flowName].isNull()) {
+    Serial.printf("[Cam HTTP Reader] Flow \"%s\" not present in response.\n", config.flowName);
+    return EXIT_FAILURE;
+  }
+
+  if (config.exportFlowName[0] != '\0' && doc[config.exportFlowName].isNull()) {
+    Serial.printf("[Cam HTTP Reader] Flow \"%s\" not present in response.\n", config.exportFlowName);
+    return EXIT_FAILURE;
+  }
+
+  return EXIT_SUCCESS;
+}
+
+int CamHttpReader::fetch(JsonDocument &doc) {
   String url = String("http://") + config.host + config.path;
   if (module->send(reinterpret_cast<const uint8_t *>(url.c_str()), url.length()) == EXIT_FAILURE) {
     return EXIT_FAILURE;
@@ -57,10 +76,18 @@ int CamHttpReader::read_flow(const char *flow, float *val) {
     return EXIT_FAILURE;
   }
 
-  JsonDocument doc;
   DeserializationError err = deserializeJson(doc, body);
   if (err) {
     Serial.printf("[Cam HTTP Reader] JSON parse failed: %s\n", err.c_str());
+    return EXIT_FAILURE;
+  }
+
+  return EXIT_SUCCESS;
+}
+
+int CamHttpReader::read_flow(const char *flow, float *val) {
+  JsonDocument doc;
+  if (fetch(doc) == EXIT_FAILURE) {
     return EXIT_FAILURE;
   }
 

@@ -110,12 +110,27 @@ class Iec6205621Reader : public Reader {
   static bool baudRateFromId(char code, uint32_t &baudOut);
 
   /**
-   * Runs the wake up handshake and switches to the meter's offered baud rate.
+   * Asks the meter to identify itself, the first half of every session.
    *
    * Drops #head back to the starting rate and clears anything left over, sends
-   * the request message, reads the meter's identification message (skipping
-   * an echo of the request), ACKs the baud rate it offered, then retunes #head
-   * to that rate.
+   * the request message, then reads the meter's identification message,
+   * skipping an echo of the request, and checks its shape and baud rate ID.
+   *
+   * @param[out] identification  Whatever came back, even on failure. Empty if
+   *                             nothing did.
+   * @param[out] offeredBaud     Rate the meter offered. Set only on success.
+   * @retval 0   A valid identification message.
+   * @retval -1  The meter never answered the request message.
+   * @retval -2  The reply was not shaped like an identification message.
+   * @retval -3  The identification message used an unknown baud rate ID.
+   */
+  int requestIdentification(String &identification, uint32_t &offeredBaud);
+
+  /**
+   * Runs the wake up handshake and switches to the meter's offered baud rate.
+   *
+   * requestIdentification(), then ACKs the baud rate the meter offered and
+   * retunes #head to that rate.
    *
    * @param[out] negotiatedBaud  Rate both sides switched to. Untouched on
    *                             failure.
@@ -135,7 +150,8 @@ class Iec6205621Reader : public Reader {
   explicit Iec6205621Reader(const Iec62056Config &config);
 
   /**
-   * Attaches the IR head and initialises it.
+   * Attaches the IR head. The caller has already run the head's own init(),
+   * which leaves the link at 300 baud.
    *
    * @param[in] module  Must be an IrHead (RealIrHead, SimulatedIrHead or
    *                    TcpIrHead),
@@ -143,6 +159,19 @@ class Iec6205621Reader : public Reader {
    * @retval EXIT_SUCCESS  Always.
    */
   int init(Module &module) override;
+
+  /**
+   * Checks a meter answers by asking it to identify itself, without the ACK,
+   * so no data block is read and the baud rate never changes.
+   *
+   * If anything came back, waits PROBE_IDLE_MS (2 s) draining the head, so
+   * the meter times out of the unfinished session before the next request.
+   *
+   * @retval EXIT_SUCCESS  A valid identification message.
+   * @retval EXIT_FAILURE  Nothing answered, the reply was malformed, or it
+   *                       used an unknown baud rate ID.
+   */
+  int probe() override;
 
   /**
    * Runs a full session and returns the import reading.

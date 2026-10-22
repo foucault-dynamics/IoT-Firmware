@@ -10,6 +10,12 @@
  * substation over ESP-NOW on the same radio, through its station interface
  * beside the AP.
  *
+ * Setup runs the shared endNodeBringUp() checks: NVS, the AP, the HTTP bus
+ * and ESP-NOW. The cam can take a minute or more to boot and join, so instead
+ * of blocking setup on it, a MeterGate probes it every PROBE_RETRY_MS and only
+ * declares the node ready, and starts reading, once it answers with every
+ * configured flow. Reads that keep failing drop the node back to not ready.
+ *
  * @todo Replace HttpBus with a wired UART link once the boards are physically
  *       connected. The reader above it stays unchanged.
  */
@@ -28,19 +34,20 @@
 #include "reader.h"
 #include "seq_counter.h"
 #include "shared_payload.h"
-#include "wifi_radio.h"
+#include "end_node_bringup.h"
 #include "substation_link.h"
 
 static SubstationLink *substation = nullptr;  ///< Link to the substation.
 
-static HttpBus *bus = nullptr;      ///< HTTP client the cam is reached through.
-static Reader *reader = nullptr;    ///< CamHttpReader on top of #bus.
+static HttpBus *bus = nullptr;              ///< HTTP client the cam is reached through.
+static CamHttpReader *reader = nullptr;     ///< Reader on top of #bus.
+static MeterGate *gate = nullptr;           ///< Holds off reading until the cam answers.
 
 static CvNodeConfig cfg;  ///< Config loaded at setup.
 
 static Payload payload;             ///< Reading sent each cycle. Identity fields are set once.
 static unsigned long lastPoll = 0;  ///< millis() of the last reading attempt.
-static bool readerReady = false;    ///< True once setup fully succeeded.
+static bool setupOk = false;        ///< True once setup fully succeeded.
 
 void cvNodeSetup() {
   if (loadCvNodeConfig(cfg) != EXIT_SUCCESS) {
@@ -48,51 +55,27 @@ void cvNodeSetup() {
     return;
   }
 
-  // Bring up the radio the cam and the substation link both share
-  if (!wifiRadioStartAp(cfg.ap, cfg.espNow.channel)) {
-    Serial.println("[CV] Cannot continue without the AP up.");
-    return;
-  }
-
+  // The cam and the substation link share the radio: the cam joins the AP,
+  // and ESP-NOW runs on the station interface beside it
   bus = new HttpBus(cfg.cam.bus);
-  if (bus->init() != EXIT_SUCCESS) {
-    Serial.println("[CV] HTTP bus init failed.");
-    return;
-  }
-
   reader = new CamHttpReader(cfg.cam);
-  if (reader->init(*bus) != EXIT_SUCCESS) {
-    Serial.println("[CV] Cam HTTP reader init failed.");
-    delete reader;
-    reader = nullptr;
+  EndNodeParts parts = {"CV", NodeType::Cv, cfg.uid, cfg.communityId, cfg.unitId,
+                        cfg.espNow, &cfg.ap, bus, reader, BusPolicy::Required};
+
+  if (endNodeBringUp(parts, substation, payload) != EXIT_SUCCESS) {
     return;
   }
-
-  // ESP-NOW runs on the station interface beside the AP, on the same channel
-  substation = new SubstationLink(cfg.espNow, cfg.uid);
-  if (substation->init() != EXIT_SUCCESS) {
-    Serial.println("[CV] ESP-NOW init failed.");
-    return;
-  }
-
-  // Not fatal: send() joins on the first reading if no substation answers now
-  substation->join();
-
-  memcpy(payload.uid, cfg.uid, sizeof(payload.uid));
-  payload.community_id = cfg.communityId;
-  payload.unit_id = cfg.unitId;
-  payload.node_type = static_cast<uint8_t>(NodeType::Cv);
-
-  if (seqCounterBegin() != EXIT_SUCCESS) {
-    Serial.println("[CV] NVS unavailable for the sequence counter, idling");
-    return;
-  }
-
-  readerReady = true;
+  gate = new MeterGate("CV", *reader);
+  setupOk = true;
 }
 
 void cvNodeLoop() {
-  if (!readerReady) {
+  if (!setupOk) {
+    return;
+  }
+  if (!gate->ready()) {
+    // Read straight away once ready, instead of waiting out a whole interval
+    lastPoll = millis() - cfg.cam.pollIntervalMs;
     return;
   }
 
@@ -101,15 +84,28 @@ void cvNodeLoop() {
   }
   lastPoll = millis();
 
-  float reading = 0.0f;
-  if (reader->get_import(&reading) != EXIT_SUCCESS) {
+  float importVal = 0.0f;
+  if (reader->get_import(&importVal) != EXIT_SUCCESS) {
+    gate->reportRead(EXIT_FAILURE);
     return;
   }
 
-  payload.kwh_import = reading;
+  // Export only exists when the cam has a flow for it, otherwise it stays 0.
+  // A failed export read drops the whole reading, so a stale value from the
+  // last cycle is never sent beside a fresh import.
+  float exportVal = payload.kwh_export;
+  if (cfg.cam.exportFlowName[0] != '\0' && reader->get_export(&exportVal) != EXIT_SUCCESS) {
+    gate->reportRead(EXIT_FAILURE);
+    return;
+  }
+  gate->reportRead(EXIT_SUCCESS);
+  payload.kwh_import = importVal;
+  payload.kwh_export = exportVal;
+
   payload.seq = seqNext();
 
-  Serial.printf("[CV] reading=%.3f seq=%lu\n", reading, static_cast<unsigned long>(payload.seq));
+  Serial.printf("[CV] import=%.3f export=%.3f seq=%lu\n", payload.kwh_import, payload.kwh_export,
+                static_cast<unsigned long>(payload.seq));
 
   if (substation->send(payload) != EXIT_SUCCESS) {
     Serial.println("[CV] ESP-NOW send failed.");

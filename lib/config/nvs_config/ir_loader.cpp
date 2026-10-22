@@ -17,10 +17,8 @@ namespace {
 /**
  * UART RX GPIO for the IR head. Board wiring, never an NVS key.
  *
- * From the EE team's IR_probe_signal_testing rig on the C3 SuperMini, where the
- * phototransistor is on 20 and the IR LED on 21.
- *
- * @todo Check against the PCB.
+ * Matches the base PCB (energyiot-electrical), where IO1 (GPIO20) and IO2_TX
+ * (GPIO21) go to the head connector J1 and header J3.
  */
 const uint8_t IR_RX_PIN = 20;
 /** UART TX GPIO for the IR head. Board wiring, never an NVS key. */
@@ -60,9 +58,11 @@ int loadIrNodeConfig(IrNodeConfig &cfg) {
   cfg.iec.bus.tx = IR_TX_PIN;
   cfg.iec.bus.baudRate = 300;       // IEC 62056-21 always starts at 300 baud, not NVS tunable
   cfg.iec.bus.format = SERIAL_7E1;  // fixed by the standard
-  // On for the IR circuit (light ON reads HIGH), off for a plain USB to serial
-  // adapter wired straight to the pins, as in IrSim/IrSimSerial.py testing.
-  cfg.iec.bus.invert = readU32("ir_invert", 1) != 0;
+  // Both off suits the PiggyMeter head (LED on when LOW, RX LOW with light)
+  // and a plain USB to serial adapter wired straight to the pins. A head that
+  // drives or reads light ON as HIGH needs the matching one on.
+  cfg.iec.bus.txInvert = readU32("ir_tx_inv", 0) != 0;
+  cfg.iec.bus.rxInvert = readU32("ir_rx_inv", 0) != 0;
 
   readStr("tcp_host", SECRET_MODBUS_SIM_HOST, cfg.tcp.host, sizeof(cfg.tcp.host));  // the laptop on the softAP
   cfg.tcp.port = static_cast<uint16_t>(readU32("tcp_port", IR_SIM_PORT));

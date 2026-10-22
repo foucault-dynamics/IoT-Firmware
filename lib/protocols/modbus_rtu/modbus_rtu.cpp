@@ -120,7 +120,7 @@ void ModbusRtuReader::build_request(uint8_t *buffer, uint16_t data_type_address)
 }
 
 
-int ModbusRtuReader::read_response(uint8_t *buffer){
+int ModbusRtuReader::read_frame(uint8_t *buffer, size_t max, size_t *len){
   uint32_t startTime = millis();
   unsigned long lastByteReceived = micros();
   size_t index = 0;
@@ -130,7 +130,7 @@ int ModbusRtuReader::read_response(uint8_t *buffer){
     capture = module->readByte();
     if(capture != -1){
       // Keep counting past the buffer so an oversized frame is detected below
-      if(index < RESPONSE_LEN){
+      if(index < max){
 	buffer[index] = capture;
       }
       index++;
@@ -149,7 +149,7 @@ int ModbusRtuReader::read_response(uint8_t *buffer){
     return EXIT_FAILURE;
   }
 
-  if(index > RESPONSE_LEN){
+  if(index > max){
     Serial.println("[ModbusRTU Reader] Response longer than expected");
     return EXIT_FAILURE;
   }
@@ -162,6 +162,17 @@ int ModbusRtuReader::read_response(uint8_t *buffer){
   uint16_t response_crc = buffer[index-2] | buffer[index-1] << 8;
   if(modbus_crc(buffer,index-2) != response_crc){
     Serial.println("[ModbusRTU Reader] CRC does not match possible corruption in line");
+    return EXIT_FAILURE;
+  }
+
+  *len = index;
+  return EXIT_SUCCESS;
+}
+
+
+int ModbusRtuReader::read_response(uint8_t *buffer){
+  size_t index = 0;
+  if(read_frame(buffer,RESPONSE_LEN,&index) == EXIT_FAILURE){
     return EXIT_FAILURE;
   }
 
@@ -186,6 +197,45 @@ int ModbusRtuReader::read_response(uint8_t *buffer){
     return EXIT_FAILURE;
   }
 
+  return EXIT_SUCCESS;
+}
+
+
+int ModbusRtuReader::probe(){
+  // The bus must stay silent for T3.5 between frames
+  while((micros() - last_rx_us) < t35_us);
+
+  uint8_t request[PROBE_FRAME_LEN];
+  request[0] = config.slaveAddress;
+  request[1] = FC_DIAGNOSTICS;
+  request[2] = DIAG_RETURN_QUERY_DATA >> 8;
+  request[3] = DIAG_RETURN_QUERY_DATA & 0xFF;
+  request[4] = PROBE_ECHO >> 8;
+  request[5] = PROBE_ECHO & 0xFF;
+  uint16_t request_crc = modbus_crc(request,6);
+  request[6] = request_crc & 0x00FF;
+  request[7] = (request_crc & 0xFF00) >> 8;
+  if(module->send(request,PROBE_FRAME_LEN) == EXIT_FAILURE){
+    Serial.println("[ModbusRTU Reader] Error with bus");
+    return EXIT_FAILURE;
+  }
+
+  uint8_t response[PROBE_FRAME_LEN];
+  size_t len = 0;
+  if(read_frame(response,PROBE_FRAME_LEN,&len) == EXIT_FAILURE){
+    return EXIT_FAILURE;
+  }
+
+  // A meter without diagnostics still proves it is there by refusing
+  if(len == EXCEPTION_LEN && response[1] == (FC_DIAGNOSTICS | 0x80)){
+    Serial.printf("[ModbusRTU Reader] Meter present, no diagnostics (exception %u)\n",response[2]);
+    return EXIT_SUCCESS;
+  }
+
+  if(len != PROBE_FRAME_LEN || memcmp(response,request,PROBE_FRAME_LEN) != 0){
+    Serial.println("[ModbusRTU Reader] Diagnostics echo does not match");
+    return EXIT_FAILURE;
+  }
   return EXIT_SUCCESS;
 }
 

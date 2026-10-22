@@ -38,6 +38,19 @@ class Reader {
   virtual int init(Module &module) = 0;
 
   /**
+   * Checks a meter answers on the bus, without reading a value.
+   *
+   * A node calls this before declaring itself ready, and again after reads
+   * keep failing. It runs the lightest exchange the protocol has that only a
+   * meter can answer.
+   *
+   * @retval EXIT_SUCCESS  A meter answered.
+   * @retval EXIT_FAILURE  Nothing answered, or the answer was not a valid
+   *                       reply. The reader logs why.
+   */
+  virtual int probe() = 0;
+
+  /**
    * Reads the imported energy register (OBIS 1.8.0).
    *
    * @param[out] val  Imported energy in kWh. Untouched on failure.

@@ -4,17 +4,22 @@
  */
 
 #include "real_ir_head.h"
+#include "bus_checks.h"
 #include <Arduino.h>
 #include <cstdlib>
 
 
 RealIrHead::RealIrHead(IrConfig config, HardwareSerial &serial)
     : RX(config.rx), TX(config.tx), baudRate(config.baudRate),
-      serialConfig(config.format), invert(config.invert), serial(&serial) {}
+      serialConfig(config.format), txInvert(config.txInvert),
+      rxInvert(config.rxInvert), serial(&serial) {}
 
 int RealIrHead::init() {
-  serial->begin(baudRate, serialConfig, RX, TX, invert);
-  return EXIT_SUCCESS;
+  // Before start(), while RX is still a plain GPIO the pulls can probe
+  if (rxIdleCheck("RealIrHead", RX, rxInvert) != EXIT_SUCCESS) return EXIT_FAILURE;
+  if (start() != EXIT_SUCCESS) return EXIT_FAILURE;
+  return uartLoopbackTest("RealIrHead", *serial, uartPortOf(*serial), baudRate,
+                          serialConfig, txInvert, rxInvert);
 }
 
 int RealIrHead::send(const uint8_t *data, size_t len) {
@@ -33,5 +38,22 @@ bool RealIrHead::available() { return serial->available() > 0; }
 
 void RealIrHead::setBaudRate(uint32_t baud) {
   baudRate = baud;
-  serial->begin(baudRate, serialConfig, RX, TX, invert);
+  // The session's next read then fails on its own, so only the cause is logged
+  if (start() != EXIT_SUCCESS) {
+    Serial.printf("[RealIrHead] UART failed to restart at %u baud\n", baud);
+  }
+}
+
+int RealIrHead::start() {
+  // A full restart, not begin() on the running UART: retuning it in place
+  // read the data block garbled from the second session on.
+  serial->end();
+  // begin() can only flip RX and TX together, so it sets TX's polarity and
+  // setRxInvert() then sets RX's on its own.
+  if (uartStartChecked("RealIrHead", *serial, baudRate, serialConfig, RX, TX, txInvert) !=
+      EXIT_SUCCESS) {
+    return EXIT_FAILURE;
+  }
+  serial->setRxInvert(rxInvert);
+  return EXIT_SUCCESS;
 }

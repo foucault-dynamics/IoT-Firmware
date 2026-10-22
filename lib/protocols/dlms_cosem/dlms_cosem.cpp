@@ -542,3 +542,12 @@ int DlmsCosemReader::readRegister(const uint8_t *obis, uint8_t unit, double *val
   disconnect();
   return result;
 }
+
+int DlmsCosemReader::probe(){
+  if(connect() != EXIT_SUCCESS){
+    return EXIT_FAILURE;
+  }
+  int result = associate();
+  disconnect();
+  return result;
+}

@@ -1,0 +1,265 @@
+--- 2026-10-13T21:29:01 port opened
+21:29:25.798  >>> <key3>
+21:29:25.899  [BOOT] module type 3
+21:29:25.900  [WifiRadio] AP started
+21:29:25.900  [WifiRadio] SSID: AMR_Base
+21:29:25.900  [WifiRadio] AP IP: 192.168.4.1
+21:29:25.900  [WifiRadio] Station started
+21:29:25.900  [WifiRadio] Channel: 1
+21:29:28.923  [Link] No substation beacon heard
+21:29:28.923  [CFG] seq = 0 (NVS)
+21:29:28.923  [HttpBus] No station joined the AP yet, skipping request.
+21:29:34.263  [CV] Cam answered with every configured flow, node ready.
+21:29:34.667  [CV] import=0.480 export=0.000 seq=1
+21:29:37.588  [Link] No substation beacon heard
+21:29:37.589  [CV] ESP-NOW send failed.
+21:30:04.492  [CV] import=0.720 export=0.000 seq=2
+21:30:07.515  [Link] No substation beacon heard
+21:30:07.515  [CV] ESP-NOW send failed.
+21:30:34.806  [CV] import=0.720 export=0.000 seq=3
+21:30:37.830  [Link] No substation beacon heard
+21:30:37.830  [CV] ESP-NOW send failed.
+21:31:04.508  [CV] import=1.770 export=0.000 seq=4
+21:31:07.525  [Link] No substation beacon heard
+21:31:07.525  [CV] ESP-NOW send failed.
+21:31:38.132  [CV] import=1.770 export=0.000 seq=5
+21:31:41.149  [Link] No substation beacon heard
+21:31:41.149  [CV] ESP-NOW send failed.
+21:32:04.510  [CV] import=1.120 export=0.000 seq=6
+21:32:07.536  [Link] No substation beacon heard
+21:32:07.536  [CV] ESP-NOW send failed.
+21:32:34.838  [CV] import=1.120 export=0.000 seq=7
+21:32:37.861  [Link] No substation beacon heard
+21:32:37.861  [CV] ESP-NOW send failed.
+21:33:04.554  [CV] import=1.120 export=0.000 seq=8
+21:33:07.578  [Link] No substation beacon heard
+21:33:07.578  [CV] ESP-NOW send failed.
+21:33:34.448  [284338][E][WiFiClient.cpp:275] connect(): socket error on fd 48, errno: 104, "Connection reset by peer"
+21:33:34.448  [HttpBus] GET http://192.168.4.2/json failed, HTTP status -1
+21:34:04.590  [Cam HTTP Reader] Flow "main" has no value yet.
+21:34:34.422  [Cam HTTP Reader] Flow "main" has no value yet.
+21:35:04.550  [CV] import=530.074 export=0.000 seq=9
+21:35:07.572  [Link] No substation beacon heard
+21:35:07.572  [CV] ESP-NOW send failed.
+21:35:34.454  [CV] import=530.074 export=0.000 seq=10
+21:35:37.471  [Link] No substation beacon heard
+21:35:37.471  [CV] ESP-NOW send failed.
+21:36:04.564  [CV] import=530.112 export=0.000 seq=11
+21:36:07.588  [Link] No substation beacon heard
+21:36:07.588  [CV] ESP-NOW send failed.
+21:36:34.491  [CV] import=530.112 export=0.000 seq=12
+21:36:37.513  [Link] No substation beacon heard
+21:36:37.514  [CV] ESP-NOW send failed.
+21:37:04.402  [CV] import=530.115 export=0.000 seq=13
+21:37:07.424  [Link] No substation beacon heard
+21:37:07.424  [CV] ESP-NOW send failed.
+21:37:34.435  [CV] import=530.115 export=0.000 seq=14
+21:37:37.458  [Link] No substation beacon heard
+21:37:37.458  [CV] ESP-NOW send failed.
+21:38:04.478  [CV] import=530.478 export=0.000 seq=15
+21:38:07.400  [Link] No substation beacon heard
+21:38:07.400  [CV] ESP-NOW send failed.
+21:38:34.504  [CV] import=530.478 export=0.000 seq=16
+21:38:37.528  [Link] No substation beacon heard
+21:38:37.528  [CV] ESP-NOW send failed.
+21:39:04.435  [CV] import=530.715 export=0.000 seq=17
+21:39:07.458  [Link] No substation beacon heard
+21:39:07.458  [CV] ESP-NOW send failed.
+21:39:34.468  [CV] import=530.715 export=0.000 seq=18
+21:39:37.492  [Link] No substation beacon heard
+21:39:37.492  [CV] ESP-NOW send failed.
+21:40:04.377  [CV] import=531.757 export=0.000 seq=19
+21:40:07.396  [Link] No substation beacon heard
+21:40:07.396  [CV] ESP-NOW send failed.
+21:40:34.483  [CV] import=531.757 export=0.000 seq=20
+21:40:37.507  [Link] No substation beacon heard
+21:40:37.507  [CV] ESP-NOW send failed.
+21:41:04.405  [CV] import=531.111 export=0.000 seq=21
+21:41:07.427  [Link] No substation beacon heard
+21:41:07.427  [CV] ESP-NOW send failed.
+21:41:34.522  [CV] import=531.111 export=0.000 seq=22
+21:41:37.441  [Link] No substation beacon heard
+21:41:37.442  [CV] ESP-NOW send failed.
+21:42:04.451  [CV] import=531.151 export=0.000 seq=23
+21:42:07.475  [Link] No substation beacon heard
+21:42:07.475  [CV] ESP-NOW send failed.
+21:42:34.472  [CV] import=531.151 export=0.000 seq=24
+21:42:37.493  [Link] No substation beacon heard
+21:42:37.493  [CV] ESP-NOW send failed.
+21:43:04.394  [CV] import=531.475 export=0.000 seq=25
+21:43:07.416  [Link] No substation beacon heard
+21:43:07.416  [CV] ESP-NOW send failed.
+21:43:34.507  [CV] import=531.475 export=0.000 seq=26
+21:43:37.529  [Link] No substation beacon heard
+21:43:37.529  [CV] ESP-NOW send failed.
+21:44:04.428  [CV] import=531.641 export=0.000 seq=27
+21:44:07.451  [Link] No substation beacon heard
+21:44:07.451  [CV] ESP-NOW send failed.
+21:44:34.555  [CV] import=531.641 export=0.000 seq=28
+21:44:37.479  [Link] No substation beacon heard
+21:44:37.479  [CV] ESP-NOW send failed.
+21:45:04.795  [CV] import=532.711 export=0.000 seq=29
+21:45:07.818  [Link] No substation beacon heard
+21:45:07.819  [CV] ESP-NOW send failed.
+21:45:34.523  [CV] import=532.711 export=0.000 seq=30
+21:45:37.548  [Link] No substation beacon heard
+21:45:37.548  [CV] ESP-NOW send failed.
+21:46:04.859  [CV] import=530.071 export=0.000 seq=31
+21:46:07.883  [Link] No substation beacon heard
+21:46:07.883  [CV] ESP-NOW send failed.
+21:46:34.489  [CV] import=530.071 export=0.000 seq=32
+21:46:37.512  [Link] No substation beacon heard
+21:46:37.512  [CV] ESP-NOW send failed.
+21:47:01.002  >>> set cam_flow "wrong"
+21:47:01.002  >>> reboot
+21:47:01.103  [CFG] saved, reboot to apply
+21:47:01.103  ESP-ROM:esp32c3-api1-20210207
+21:47:01.103  Build:Feb  7 2021
+21:47:01.103  rst:0x3 (RTC_SW_SYS_RST),boot:0xd (SPI_FAST_FLASH_BOOT)
+21:47:01.103  Saved PC:0x4038202c
+21:47:01.103  SPIWP:0xee
+21:47:01.103  mode:DIO, clock div:1
+21:47:01.103  load:0x3fcd5810,len:0x38c
+21:47:01.103  load:0x403cc710,len:0x6a0
+21:47:01.103  load:0x403ce710,len:0x2624
+21:47:01.103  entry 0x403cc710
+21:47:03.318  [BOOT] Select module to test:
+21:47:03.318    1: RS485 node
+21:47:03.318    2: IR node
+21:47:03.318    3: CV node
+21:47:30.716  >>> <key3>
+21:47:30.817  [BOOT] module type 3
+21:47:30.817  [CFG] cam_flow = wrong (NVS)
+21:47:30.817  [WifiRadio] AP started
+21:47:30.817  [WifiRadio] SSID: AMR_Base
+21:47:30.817  [WifiRadio] AP IP: 192.168.4.1
+21:47:30.817  [WifiRadio] Station started
+21:47:30.817  [WifiRadio] Channel: 1
+21:47:33.841  [Link] No substation beacon heard
+21:47:33.841  [CFG] seq = 32 (NVS)
+21:47:33.841  [HttpBus] No station joined the AP yet, skipping request.
+21:47:39.078  [Cam HTTP Reader] Flow "wrong" not present in response.
+21:47:44.115  [Cam HTTP Reader] Flow "wrong" not present in response.
+21:47:49.150  [Cam HTTP Reader] Flow "wrong" not present in response.
+21:47:54.290  [Cam HTTP Reader] Flow "wrong" not present in response.
+21:47:59.228  [Cam HTTP Reader] Flow "wrong" not present in response.
+21:48:04.162  [Cam HTTP Reader] Flow "wrong" not present in response.
+21:48:09.198  [Cam HTTP Reader] Flow "wrong" not present in response.
+21:48:14.134  [Cam HTTP Reader] Flow "wrong" not present in response.
+21:48:19.273  [Cam HTTP Reader] Flow "wrong" not present in response.
+21:48:23.408  >>> set cam_flow "main"
+21:48:23.408  >>> set cam_flow_exp "main"
+21:48:23.408  >>> reboot
+21:48:23.509  [CFG] saved, reboot to apply
+21:48:23.509  [CFG] saved, reboot to apply
+21:48:23.509  ESP-ROM:esp32c3-api1-20210207
+21:48:23.509  Build:Feb  7 2021
+21:48:23.509  rst:0x3 (RTC_SW_SYS_RST),boot:0xd (SPI_FAST_FLASH_BOOT)
+21:48:23.509  Saved PC:0x4038202c
+21:48:23.509  SPIWP:0xee
+21:48:23.509  mode:DIO, clock div:1
+21:48:23.509  load:0x3fcd5810,len:0x38c
+21:48:23.509  load:0x403cc710,len:0x6a0
+21:48:23.509  load:0x403ce710,len:0x2624
+21:48:23.509  entry 0x403cc710
+21:48:25.728  [BOOT] Select module to test:
+21:48:25.728    1: RS485 node
+21:48:25.728    2: IR node
+21:48:25.728    3: CV node
+21:48:35.405  >>> <key3>
+21:48:35.506  [BOOT] module type 3
+21:48:35.506  [CFG] cam_flow = main (NVS)
+21:48:35.506  [CFG] cam_flow_exp = main (NVS)
+21:48:35.506  [WifiRadio] AP started
+21:48:35.506  [WifiRadio] SSID: AMR_Base
+21:48:35.506  [WifiRadio] AP IP: 192.168.4.1
+21:48:35.506  [WifiRadio] Station started
+21:48:35.506  [WifiRadio] Channel: 1
+21:48:38.530  [Link] No substation beacon heard
+21:48:38.530  [CFG] seq = 32 (NVS)
+21:48:38.530  [HttpBus] No station joined the AP yet, skipping request.
+21:48:43.771  [CV] Cam answered with every configured flow, node ready.
+21:48:54.052  [CV] import=530.115 export=530.115 seq=33
+21:48:57.076  [Link] No substation beacon heard
+21:48:57.076  [CV] ESP-NOW send failed.
+21:49:24.078  [CV] import=530.115 export=530.115 seq=34
+21:49:27.100  [Link] No substation beacon heard
+21:49:27.100  [CV] ESP-NOW send failed.
+21:49:54.106  [CV] import=530.478 export=530.478 seq=35
+21:49:57.129  [Link] No substation beacon heard
+21:49:57.129  [CV] ESP-NOW send failed.
+21:50:22.520  >>> set cam_flow_exp "export"
+21:50:22.520  >>> reboot
+21:50:22.621  [CFG] saved, reboot to apply
+21:50:22.621  ESP-ROM:esp32c3-api1-20210207
+21:50:22.621  Build:Feb  7 2021
+21:50:22.621  rst:0x3 (RTC_SW_SYS_RST),boot:0xd (SPI_FAST_FLASH_BOOT)
+21:50:22.621  Saved PC:0x4038202c
+21:50:22.621  SPIWP:0xee
+21:50:22.621  mode:DIO, clock div:1
+21:50:22.621  load:0x3fcd5810,len:0x38c
+21:50:22.621  load:0x403cc710,len:0x6a0
+21:50:22.621  load:0x403ce710,len:0x2624
+21:50:22.621  entry 0x403cc710
+21:50:24.836  [BOOT] Select module to test:
+21:50:24.836    1: RS485 node
+21:50:24.836    2: IR node
+21:50:24.836    3: CV node
+21:50:34.510  >>> <key3>
+21:50:34.611  [BOOT] module type 3
+21:50:34.611  [CFG] cam_flow = main (NVS)
+21:50:34.611  [CFG] cam_flow_exp = export (NVS)
+21:50:34.611  [WifiRadio] AP started
+21:50:34.611  [WifiRadio] SSID: AMR_Base
+21:50:34.611  [WifiRadio] AP IP: 192.168.4.1
+21:50:34.611  [WifiRadio] Station started
+21:50:34.611  [WifiRadio] Channel: 1
+21:50:37.634  [Link] No substation beacon heard
+21:50:37.634  [CFG] seq = 35 (NVS)
+21:50:37.634  [HttpBus] No station joined the AP yet, skipping request.
+21:50:42.873  [Cam HTTP Reader] Flow "export" not present in response.
+21:50:47.910  [Cam HTTP Reader] Flow "export" not present in response.
+21:50:52.947  [Cam HTTP Reader] Flow "export" not present in response.
+21:50:58.087  [Cam HTTP Reader] Flow "export" not present in response.
+21:51:03.025  [Cam HTTP Reader] Flow "export" not present in response.
+21:51:07.963  [Cam HTTP Reader] Flow "export" not present in response.
+21:51:12.999  [Cam HTTP Reader] Flow "export" not present in response.
+21:51:17.930  [Cam HTTP Reader] Flow "export" not present in response.
+21:51:23.067  [Cam HTTP Reader] Flow "export" not present in response.
+21:51:28.001  [Cam HTTP Reader] Flow "export" not present in response.
+21:51:30.820  >>> set cam_flow_exp ""
+21:51:30.821  >>> reboot
+21:51:30.921  [CFG] saved, reboot to apply
+21:51:30.922  ESP-ROM:esp32c3-api1-20210207
+21:51:30.922  Build:Feb  7 2021
+21:51:30.922  rst:0x3 (RTC_SW_SYS_RST),boot:0xd (SPI_FAST_FLASH_BOOT)
+21:51:30.922  Saved PC:0x4038202c
+21:51:30.922  SPIWP:0xee
+21:51:30.922  mode:DIO, clock div:1
+21:51:30.922  load:0x3fcd5810,len:0x38c
+21:51:30.922  load:0x403cc710,len:0x6a0
+21:51:30.922  load:0x403ce710,len:0x2624
+21:51:30.922  entry 0x403cc710
+21:51:33.137  [BOOT] Select module to test:
+21:51:33.138    1: RS485 node
+21:51:33.138    2: IR node
+21:51:33.138    3: CV node
+21:51:42.808  >>> <key3>
+21:51:42.909  [BOOT] module type 3
+21:51:42.909  [CFG] cam_flow = main (NVS)
+21:51:42.909  [CFG] cam_flow_exp =  (NVS)
+21:51:42.909  [WifiRadio] AP started
+21:51:42.909  [WifiRadio] SSID: AMR_Base
+21:51:42.909  [WifiRadio] AP IP: 192.168.4.1
+21:51:42.909  [WifiRadio] Station started
+21:51:42.909  [WifiRadio] Channel: 1
+21:51:45.931  [Link] No substation beacon heard
+21:51:45.932  [CFG] seq = 35 (NVS)
+21:51:45.932  [HttpBus] No station joined the AP yet, skipping request.
+21:51:51.270  [CV] Cam answered with every configured flow, node ready.
+21:52:01.237  [CV] import=531.757 export=0.000 seq=36
+21:52:04.261  [Link] No substation beacon heard
+21:52:04.261  [CV] ESP-NOW send failed.
+21:52:31.361  [CV] import=531.757 export=0.000 seq=37
+21:52:34.385  [Link] No substation beacon heard
+21:52:34.385  [CV] ESP-NOW send failed.

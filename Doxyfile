@@ -26,7 +26,9 @@ RECURSIVE              = YES
 USE_MDFILE_AS_MAINPAGE = README.md
 
 # secrets.h holds Wi-Fi, MQTT and AP credentials. Keep it off the public site.
-EXCLUDE                = lib/config/secrets
+# docs/hw-tests holds raw bench evidence (logs, photos), read on GitHub instead.
+EXCLUDE                = lib/config/secrets \
+                         docs/hw-tests
 
 # The first sentence of a /** */ block is the summary, so @brief is never needed.
 JAVADOC_AUTOBRIEF      = YES

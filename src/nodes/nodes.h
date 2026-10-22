@@ -4,26 +4,28 @@
  *
  * Each pair lives in its own file in src/nodes/, which assembles that node from
  * the libraries in lib/. A setup function that fails logs why and leaves the
- * node idle, and its loop function then does nothing.
+ * node idle, and its loop function then does nothing. The end nodes share one
+ * bring up, endNodeBringUp(), and a MeterGate that holds each loop off reading
+ * until the meter answers a probe, printing "[TAG] Ready" when it does.
  */
 
 #ifndef NODES_H
 #define NODES_H
 
 
-/** Loads config, starts the ESP-NOW uplink and builds the Modbus or DLMS/COSEM bus and reader. */
+/** Loads config, builds the Modbus or DLMS/COSEM bus and reader, and runs the shared bring up. */
 void rs485NodeSetup();
-/** Steps the read, send, sleep cycle. Never blocks between readings. */
+/** Waits for the meter to answer, then steps the read, send, sleep cycle. Never blocks between readings. */
 void rs485NodeLoop();
 
-/** Loads config, starts the ESP-NOW uplink and builds the IR head and reader. */
+/** Loads config, builds the IR head and reader, and runs the shared bring up. */
 void irNodeSetup();
-/** Reads the meter and sends the result once per poll interval. */
+/** Waits for the meter to answer, then reads it and sends the result once per poll interval. */
 void irNodeLoop();
 
-/** Loads config, starts the AP for the cam and the ESP-NOW uplink, and builds the reader. */
+/** Loads config, builds the HTTP bus and cam reader, and runs the shared bring up, AP included. */
 void cvNodeSetup();
-/** Reads the cam and sends the result once per poll interval. */
+/** Waits for the cam to answer, then reads it and sends the result once per poll interval. */
 void cvNodeLoop();
 
 /** Loads config and starts LoRa and ESP-NOW. */

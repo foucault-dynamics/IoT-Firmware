@@ -57,6 +57,20 @@ class DlmsCosemReader : public Reader {
    */
   int init(Module &module) override;
 
+  /**
+   * Checks the meter answers by opening a session without reading anything:
+   * SNRM, then the AARQ, then DISC whenever the link came up.
+   *
+   * An accepted association proves the meter is there, speaks DLMS/COSEM at
+   * these addresses and will serve this client. DISC's result is ignored, as
+   * in readRegister().
+   *
+   * @retval EXIT_SUCCESS  The meter answered UA and accepted the association.
+   * @retval EXIT_FAILURE  The link did not come up, or the association failed
+   *                       or was refused.
+   */
+  int probe() override;
+
   int get_import(float *val) override;
   int get_export(float *val) override;
   int get_voltage(float *val) override;

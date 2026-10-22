@@ -34,6 +34,7 @@ class FakeBus : public IrHead {
 
   std::vector<std::vector<uint8_t>> sent;  ///< Every frame passed to send(), in order.
   std::vector<uint32_t> baudRates;         ///< Every rate passed to setBaudRate(), in order.
+  int inits = 0;                           ///< Times init() was called.
 
   /**
    * Queues a reply that arrives all at once, straight after its send().
@@ -62,11 +63,14 @@ class FakeBus : public IrHead {
   void queueSilence() { replies.push_back({}); }
 
   /**
-   * Does nothing, there is no peripheral.
+   * Counts the call, there is no peripheral.
    *
    * @retval EXIT_SUCCESS  Always.
    */
-  int init() override { return EXIT_SUCCESS; }
+  int init() override {
+    inits++;
+    return EXIT_SUCCESS;
+  }
 
   /**
    * Records the frame and starts the next scripted reply.

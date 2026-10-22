@@ -41,7 +41,8 @@ serial instead, so they live in NVS on the device.
 | `SECRET_CAM_AP_SSID` | `ap_ssid` | Name of the WiFi access point the CV node creates. The camera joins it directly, so no router is needed at the meter site |
 | `SECRET_CAM_AP_PASSWORD` | `ap_pass` | Password for that access point |
 | `SECRET_CAM_HOST` | `cam_host` | IP of the camera. Fixed, because it is set as a static IP in the camera's own `wlan.ini` |
-| `SECRET_CAM_FLOW_NAME` | `cam_flow` | Number name in the camera's `config.ini` (`main.dig1` / `main.ana1`), used to pick which reading to poll |
+| `SECRET_CAM_FLOW_NAME` | `cam_flow` | Number name in the camera's `config.ini` for the import reading. The `main` in ROI names like `main.dig1` |
+| `SECRET_CAM_EXPORT_FLOW_NAME` | `cam_flow_exp` | Number name for the export reading. Empty if the camera only reads import |
 | `SECRET_CAM_USER` | `cam_user` | HTTP user for the AI-on-the-edge-device API. Empty if auth is off |
 | `SECRET_CAM_PASS` | `cam_pass` | HTTP password for that API. Empty if auth is off |
 

@@ -18,6 +18,10 @@ HttpBus::HttpBus(const HttpBusConfig &config) {
 }
 
 int HttpBus::init() {
+  if (!wifiRadioApUp()) {
+    Serial.println("[HttpBus] AP is not up");
+    return EXIT_FAILURE;
+  }
   return EXIT_SUCCESS;
 }
 

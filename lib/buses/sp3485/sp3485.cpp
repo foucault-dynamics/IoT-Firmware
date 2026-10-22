@@ -4,6 +4,7 @@
  */
 
 #include "sp3485.h"
+#include "bus_checks.h"
 #include "HardwareSerial.h"
 #include "esp32-hal-gpio.h"
 #include "rs485_config.h"
@@ -21,39 +22,20 @@ Sp3485::Sp3485(Rs485Config config, HardwareSerial &serial){
   this->serial = &serial;
 }
 
-/** Time for RX to settle after its pull changes, in us. */
-static const uint32_t PULL_SETTLE_US = 50;
-
-/**
- * Reads a pin with an internal pull applied, once the level has settled.
- *
- * @param[in] pin   GPIO to read.
- * @param[in] mode  INPUT_PULLUP or INPUT_PULLDOWN.
- * @return The pin's level, HIGH or LOW.
- */
-static int readWithPull(uint8_t pin, uint8_t mode){
-  pinMode(pin,mode);
-  delayMicroseconds(PULL_SETTLE_US);
-  return digitalRead(pin);
-}
-
-
 int Sp3485::probe(){
   pinMode(derePin,OUTPUT);
 
   digitalWrite(derePin,LOW);
-  int up = readWithPull(RX,INPUT_PULLUP);
-  int down = readWithPull(RX,INPUT_PULLDOWN);
-  if(up != down){
+  PinDrive drive = probePin(RX);
+  if(drive != PinDrive::DrivenHigh && drive != PinDrive::DrivenLow){
     Serial.println("[SP3485] RX not driven in receive, transceiver missing or miswired");
     return EXIT_FAILURE;
   }
 
   digitalWrite(derePin,HIGH);
-  up = readWithPull(RX,INPUT_PULLUP);
-  down = readWithPull(RX,INPUT_PULLDOWN);
+  drive = probePin(RX);
   digitalWrite(derePin,LOW);
-  if(up != HIGH || down != LOW){
+  if(drive != PinDrive::Floating){
     Serial.println("[SP3485] RX still driven with DE/RE high, DE/RE not wired");
     return EXIT_FAILURE;
   }
@@ -65,10 +47,13 @@ int Sp3485::init(){
   if(probe() != EXIT_SUCCESS){
     return EXIT_FAILURE;
   }
-  serial->begin(baudRate,serialConfig,RX,TX);
+  if(uartStartChecked("SP3485",*serial,baudRate,serialConfig,RX,TX,false) != EXIT_SUCCESS){
+    return EXIT_FAILURE;
+  }
   pinMode(derePin,OUTPUT);
   digitalWrite(derePin,LOW);
-  return EXIT_SUCCESS;
+  // DE/RE stays low, so the driver is off and the test byte never reaches the bus
+  return uartLoopbackTest("SP3485",*serial,uartPortOf(*serial),baudRate,serialConfig,false,false);
 }
 
 

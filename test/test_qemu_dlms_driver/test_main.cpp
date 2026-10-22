@@ -8,7 +8,7 @@
  * SNRM and DISC sent, which replies are accepted, and the sequence reset.
  * Then I-frame exchanges: LLC headers, N(S) and N(R) in both directions, and
  * every way a reply is rejected. Then whole sessions through the getters,
- * including DISC after a failed read. millis() runs in real time under QEMU,
+ * including DISC after a failed read, and the probe's SNRM, AARQ and DISC. millis() runs in real time under QEMU,
  * so the timeouts are real.
  */
 
@@ -741,6 +741,66 @@ void test_session_refused_link_skips_disc() {
   assertSent(bus, {SNRM});
 }
 
+/**
+ * Probes through a reader set up on @p bus.
+ *
+ * @param[in] bus  Bus with the meter's replies queued.
+ * @return What probe() returned.
+ */
+int probeWith(FakeBus &bus) {
+  DlmsCosemReader reader(makeConfig());
+  reader.init(bus);
+  return reader.probe();
+}
+
+/** UA and an accepted AARE pass the probe, which then disconnects and never GETs. */
+void test_probe_passes_and_sends_no_get() {
+  FakeBus bus;
+  bus.queueReply(UA);
+  bus.queueReply(respond(0x30, AARE));
+  bus.queueReply(UA);
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, probeWith(bus));
+  assertSent(bus, {SNRM, request(0x10, AARQ), DISC});
+}
+
+/** A refused SNRM fails the probe with no AARQ or DISC sent. */
+void test_probe_dm_fails_without_aarq() {
+  FakeBus bus;
+  bus.queueReply(reply(HDLC_DM));
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, probeWith(bus));
+  assertSent(bus, {SNRM});
+}
+
+/** A rejected association fails the probe, and DISC is still sent. */
+void test_probe_rejected_aare_fails_with_disc() {
+  std::vector<uint8_t> rejected = AARE;
+  rejected[17] = 0x01;  // association-result: rejected-permanent
+  FakeBus bus;
+  bus.queueReply(UA);
+  bus.queueReply(respond(0x30, rejected));
+  bus.queueReply(UA);
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, probeWith(bus));
+  assertSent(bus, {SNRM, request(0x10, AARQ), DISC});
+}
+
+/** Nothing answering the SNRM fails the probe. */
+void test_probe_silence_fails() {
+  FakeBus bus;
+  bus.queueSilence();
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, probeWith(bus));
+  assertSent(bus, {SNRM});
+}
+
+/** Silence after the UA fails the probe, and DISC is still sent. */
+void test_probe_silence_after_ua_fails_with_disc() {
+  FakeBus bus;
+  bus.queueReply(UA);
+  bus.queueSilence();
+  bus.queueSilence();
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, probeWith(bus));
+  assertSent(bus, {SNRM, request(0x10, AARQ), DISC});
+}
+
 /** @} */
 
 /** Runs every test once the serial port is up. */
@@ -782,6 +842,11 @@ void setup() {
   RUN_TEST(test_session_object_undefined_sends_disc);
   RUN_TEST(test_session_wrong_unit_fails);
   RUN_TEST(test_session_refused_link_skips_disc);
+  RUN_TEST(test_probe_passes_and_sends_no_get);
+  RUN_TEST(test_probe_dm_fails_without_aarq);
+  RUN_TEST(test_probe_rejected_aare_fails_with_disc);
+  RUN_TEST(test_probe_silence_fails);
+  RUN_TEST(test_probe_silence_after_ua_fails_with_disc);
   UNITY_END();
 }
 
