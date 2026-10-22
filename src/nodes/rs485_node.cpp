@@ -4,13 +4,14 @@
  * substation.
  *
  * The bus is an Sp3485 for a real meter, or a TcpBus for ModbusSim testing,
- * which also brings up a softAP for the simulator host to join. Each cycle
- * reads import, export and voltage, sends them over ESP-NOW, then waits
- * POLL_INTERVAL_MS without blocking loop().
+ * which also brings up a softAP for the simulator host to join. Setup runs the
+ * shared endNodeBringUp() checks, then a MeterGate keeps the node not ready
+ * until the meter answers a probe. Each cycle reads import, export and
+ * voltage, sends them over ESP-NOW, then waits POLL_INTERVAL_MS without
+ * blocking loop(). Reads that keep failing drop the node back to not ready.
  */
 
 #include <Arduino.h>
-#include <WiFi.h>
 #include <cstdint>
 #include <cstdlib>
 #include "shared_payload.h"
@@ -24,7 +25,7 @@
 #include "seq_counter.h"
 #include "modbus_rtu.h"
 #include "dlms_cosem.h"
-#include "wifi_radio.h"
+#include "end_node_bringup.h"
 #include "substation_link.h"
 
 /** Steps of the node's read, send, sleep cycle. */
@@ -39,6 +40,7 @@ static SubstationLink *substation;  ///< Link to the substation.
 
 static Module *bus;     ///< Sp3485 or TcpBus, picked by Rs485NodeConfig::readerType.
 static Reader *reader;  ///< ModbusRtuReader or DlmsCosemReader on top of #bus.
+static MeterGate *gate; ///< Holds off reading until the meter answers.
 
 static Rs485NodeConfig cfg;  ///< Config loaded at setup.
 
@@ -47,7 +49,7 @@ static constexpr unsigned long POLL_INTERVAL_MS = 60UL * 1000UL;
 
 static volatile States state = READ;  ///< Current step of the cycle.
 static unsigned long lastPoll = 0;    ///< millis() when the last send finished.
-static bool readerReady = false;      ///< True once setup fully succeeded.
+static bool setupOk = false;          ///< True once setup fully succeeded.
 
 static Payload payload;  ///< Reading sent each cycle. Identity fields are set once.
 
@@ -55,134 +57,79 @@ void rs485NodeSetup() {
 
   if (loadRs485NodeConfig(cfg) != EXIT_SUCCESS) {
     Serial.println("[RS485] NVS unavailable, idling");
-    readerReady = false;
     return;
   }
 
-  // The simulator host joins this softAP to reach the TCP bus
-  if ((cfg.readerType == ReaderType::ModbusTCP || cfg.readerType == ReaderType::DlmsTcp)
-      && !wifiRadioStartAp(cfg.ap, cfg.espNow.channel)) {
-    Serial.println("[RS485] SoftAP bring-up failed, idling");
-    readerReady = false;
-    return;
-  }
-
-  substation = new SubstationLink(cfg.espNow, cfg.uid);
-  if (substation->init() != EXIT_SUCCESS) {
-    readerReady = false;
-    return;
-  }
-
-  // Not fatal: send() joins on the first reading if no substation answers now
-  substation->join();
-
-  memcpy(payload.uid,cfg.uid,sizeof(payload.uid));
-  payload.community_id = cfg.communityId;
-  payload.unit_id = cfg.unitId;
-  payload.node_type = static_cast<uint8_t>(NodeType::Rs485);
-
-  if (seqCounterBegin() != EXIT_SUCCESS) {
-    Serial.println("[RS485] NVS unavailable for the sequence counter, idling");
-    readerReady = false;
-    return;
-  }
+  EndNodeParts parts = {"RS485", NodeType::Rs485, cfg.uid, cfg.communityId, cfg.unitId,
+                        cfg.espNow, nullptr, nullptr, nullptr, BusPolicy::Required};
 
   switch (cfg.readerType) {
-  case ReaderType::ModbusRtu:{
+  case ReaderType::ModbusRtu:
     bus = new Sp3485(cfg.modbus.bus, Serial1);
-    if (bus->init() != EXIT_SUCCESS) {
-      Serial.println("[RS485] Sp3485 init failed.");
-      break;
-    }
-
     reader = new ModbusRtuReader(cfg.modbus);
-    if (reader->init(*bus) == EXIT_SUCCESS) {
-      readerReady = true;
-    } else {
-      delete reader;
-      reader = nullptr;
-    }
     break;
-  }
-  case ReaderType::DlmsCosem:{
+  case ReaderType::DlmsCosem:
     bus = new Sp3485(cfg.dlms.bus, Serial1);
-    if (bus->init() != EXIT_SUCCESS) {
-      Serial.println("[RS485] Sp3485 init failed.");
-      break;
-    }
-
     reader = new DlmsCosemReader(cfg.dlms);
-    if (reader->init(*bus) == EXIT_SUCCESS) {
-      readerReady = true;
-    } else {
-      delete reader;
-      reader = nullptr;
-    }
     break;
-  }
+  case ReaderType::ModbusTCP:
+    // Testing only. The simulator host joins this softAP, and may not have yet
+    bus = new TcpBus(cfg.tcp);
+    reader = new ModbusRtuReader(cfg.modbus);
+    parts.ap = &cfg.ap;
+    parts.busPolicy = BusPolicy::Tolerated;
+    break;
+  case ReaderType::DlmsTcp:
+    bus = new TcpBus(cfg.tcp);
+    reader = new DlmsCosemReader(cfg.dlms);
+    parts.ap = &cfg.ap;
+    parts.busPolicy = BusPolicy::Tolerated;
+    break;
   case ReaderType::IEMS:
     Serial.println("[RS485] IEMS reader not on this branch. Idling.");
-    break;
+    return;
   case ReaderType::Iec62056:
     Serial.println("Not applicable");
-    break;
-  case ReaderType::ModbusTCP: {
-    bus = new TcpBus(cfg.tcp);
-    // Testing only, so keep retrying until the simulator is reachable
-    while(true){
-      if(bus->init() == EXIT_SUCCESS) break;
-      Serial.println("[RS485] TcpBus init failed.");
-    }
-
-    reader = new ModbusRtuReader(cfg.modbus);
-    if (reader->init(*bus) == EXIT_SUCCESS) {
-      readerReady = true;
-    } else {
-      delete reader;
-      reader = nullptr;
-    }
-    break;
-  }
-  case ReaderType::DlmsTcp: {
-    bus = new TcpBus(cfg.tcp);
-    while(true){
-      if(bus->init() == EXIT_SUCCESS) break;
-      Serial.println("[RS485] TcpBus init failed.");
-    }
-
-    reader = new DlmsCosemReader(cfg.dlms);
-    if (reader->init(*bus) == EXIT_SUCCESS) {
-      readerReady = true;
-    } else {
-      delete reader;
-      reader = nullptr;
-    }
-    break;
-  }
+    return;
   default:
     Serial.println("[RS485] Reader type not applicable to this node. Idling.");
-    break;
+    return;
   }
+  parts.bus = bus;
+  parts.reader = reader;
+
+  if (endNodeBringUp(parts, substation, payload) != EXIT_SUCCESS) {
+    return;
+  }
+  gate = new MeterGate("RS485", *reader);
   state = READ;
+  setupOk = true;
 }
 
 void rs485NodeLoop() {
 
-  if (!readerReady) {
+  if (!setupOk) {
+    return;
+  }
+  if (!gate->ready()) {
     return;
   }
 
   switch (state) {
   case READ:
     if(reader->get_import(&payload.kwh_import) == EXIT_FAILURE){
+      gate->reportRead(EXIT_FAILURE);
       return;
     }
     if(reader->get_export(&payload.kwh_export) == EXIT_FAILURE){
+      gate->reportRead(EXIT_FAILURE);
       return;
     }
     if(reader->get_voltage(&payload.voltage) == EXIT_FAILURE){
+      gate->reportRead(EXIT_FAILURE);
       return;
     }
+    gate->reportRead(EXIT_SUCCESS);
     Serial.printf("import: %f\n",payload.kwh_import);
     Serial.printf("export: %f\n",payload.kwh_export);
     Serial.printf("voltage: %f\n",payload.voltage);
