@@ -17,12 +17,10 @@ constexpr uint32_t JOIN_BEACON_WAIT_MS = 3000;
 /**
  * Longest each Join waits for its JoinAck, in ms.
  *
- * Long enough to outlast one LoRa relay on the substation (3 tries of about
- * 1.8 s with the default lora_retries and lora_ack_ms), during which it
- * cannot answer. A Join the radio confirmed waits in the substation's queue
- * and is answered once the relay ends.
+ * The substation answers from its loop(), so this has to outlast one pass of
+ * it, as DELIVERY_ACK_WAIT_MS does.
  */
-constexpr uint32_t JOIN_ACK_WAIT_MS = 2500;
+constexpr uint32_t JOIN_ACK_WAIT_MS = 1000;
 /**
  * Longest send() waits for the substation's AckPayload for a reading, in ms.
  *
