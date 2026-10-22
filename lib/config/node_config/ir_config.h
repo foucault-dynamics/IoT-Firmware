@@ -30,12 +30,21 @@ struct IrConfig {
   uint32_t baudRate;    ///< Starting baud rate. IEC 62056-21 always opens at 300.
   SerialConfig format;  ///< Frame format. The standard fixes it at 7E1.
   /**
-   * Flips the UART's RX and TX polarity.
+   * Flips the UART's TX polarity.
    *
-   * IEC 62056-21 sends a 0 bit as light ON, but the IR circuit reads and drives
-   * light ON as HIGH, which a plain UART treats as a 1.
+   * IEC 62056-21 sends a 0 bit as light ON and idles with the light OFF. Off
+   * for the PiggyMeter head, which lights its LED on LOW. On for a head that
+   * lights it on HIGH, or the LED would be on whenever the UART idles.
    */
-  bool invert;
+  bool txInvert;
+  /**
+   * Flips the UART's RX polarity.
+   *
+   * Off for the PiggyMeter head, whose RX already idles HIGH in the dark and
+   * goes LOW with light, the way a UART expects. On for a head that reads
+   * light ON as HIGH.
+   */
+  bool rxInvert;
 };
 
 /** IEC 62056-21 reader settings. */

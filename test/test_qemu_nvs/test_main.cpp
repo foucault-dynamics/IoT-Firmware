@@ -195,7 +195,7 @@ void test_rs485_loader_reads_nvs() {
   TEST_ASSERT_EQUAL_UINT8(32, cfg.dlms.clientSap);
 }
 
-/** With NVS empty the IR loader gives the simulated head at 300 baud 7E1, inverted. */
+/** With NVS empty the IR loader gives the simulated head at 300 baud 7E1, not inverted. */
 void test_ir_loader_defaults() {
   prefs.end();
   IrNodeConfig cfg;
@@ -209,7 +209,8 @@ void test_ir_loader_defaults() {
   TEST_ASSERT_EQUAL_UINT8(21, cfg.iec.bus.tx);
   TEST_ASSERT_EQUAL_UINT32(300, cfg.iec.bus.baudRate);
   TEST_ASSERT_EQUAL_UINT32(SERIAL_7E1, cfg.iec.bus.format);
-  TEST_ASSERT_TRUE(cfg.iec.bus.invert);
+  TEST_ASSERT_FALSE(cfg.iec.bus.txInvert);
+  TEST_ASSERT_FALSE(cfg.iec.bus.rxInvert);
   TEST_ASSERT_EQUAL_UINT16(5021, cfg.tcp.port);
 }
 
@@ -218,7 +219,8 @@ void test_ir_loader_reads_nvs() {
   prefs.putUInt("simulate", static_cast<uint32_t>(IrHeadMode::Real));
   prefs.putUInt("espnow_chan", 11);
   prefs.putUInt("poll_ms", 15000);
-  prefs.putUInt("ir_invert", 0);
+  prefs.putUInt("ir_tx_inv", 1);
+  prefs.putUInt("ir_rx_inv", 1);
   prefs.end();
   IrNodeConfig cfg;
   TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, loadIrNodeConfig(cfg));
@@ -227,7 +229,8 @@ void test_ir_loader_reads_nvs() {
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(IrHeadMode::Real), static_cast<uint8_t>(cfg.headMode));
   TEST_ASSERT_EQUAL_UINT8(11, cfg.espNow.channel);
   TEST_ASSERT_EQUAL_UINT32(15000, cfg.iec.pollIntervalMs);
-  TEST_ASSERT_FALSE(cfg.iec.bus.invert);
+  TEST_ASSERT_TRUE(cfg.iec.bus.txInvert);
+  TEST_ASSERT_TRUE(cfg.iec.bus.rxInvert);
 }
 
 /** With NVS empty the CV loader gives the secrets.h camera and the /json path. */

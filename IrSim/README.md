@@ -23,6 +23,7 @@ reads never return the same thing and a stale reading is obvious.
 | `IrSimSerial.py` | Fake meter on a serial port. Real 300 baud 7E1, real baud switch. Closest to the real thing. Needs `pyserial`. |
 | `ir_poll_test.py` | Reads a meter exactly like the firmware does, from the laptop. Use it to check a server before pointing firmware at it. |
 | `native/` | Builds the firmware's real `Iec6205621Reader` for the laptop and runs it against fake meters. `sh IrSim/native/run.sh` |
+| `board_meter/` | The fake meter as firmware for a second board with an IR head, so the IR node reads it over real light. |
 
 `--no-frame` on either server drops STX/ETX/BCC so the data block matches
 `SimulatedIrHead` byte for byte.
@@ -122,20 +123,44 @@ pins first.
 
 1. Find the adapter's port: Device Manager > Ports (COM & LPT), e.g. `COM6`.
 2. `py IrSimSerial.py COM6`
-3. On the ESP32: `set simulate 0`, `set ir_invert 0`, `reboot`, press `2`.
+3. On the ESP32: `set simulate 0`, `reboot`, press `2`.
 
-`ir_invert 0` matters: the IR circuit needs the UART inverted (light ON reads
-HIGH, but IEC 62056-21 sends a 0 bit as light ON), and a plain adapter doesn't.
-Set it back to `1` before using the IR circuit.
+`ir_tx_inv` and `ir_rx_inv` stay `0`, the same as for the PiggyMeter head.
 
 The server log shows the request and identification arriving at 300 baud, then
 the data block at 9600.
 
-### 5. The PCB
+### 5. Two boards over real light
 
-Same as 4 but against a real meter, with `RealIrHead` on the PCB's IR pins
-and `ir_invert 1`. Check the PCB's pins against `IR_RX_PIN` / `IR_TX_PIN`
-first; they come from the test rig, not the PCB.
+`board_meter/` is the fake meter as firmware for a second board with its own
+PiggyMeter head, so the IR node reads it through real IR light. Lolin S2 Mini
+(RX 11, TX 12) or ESP32-C3 SuperMini (RX 20, TX 21).
+
+| PiggyMeter | Board |
+|---|---|
+| VCC | 3V3 (not 5V) |
+| GND | GND |
+| RX | RX pin |
+| TX | TX pin |
+
+1. Flash it from `IrSim/board_meter`:
+   `pio run -e s2_mini -t upload` (or `-e c3`). The S2 Mini only takes an
+   upload in download mode: hold 0 while plugging it in. If the upload stops
+   with "Serial data stream stopped", run esptool with `--no-stub` instead.
+2. On the IR node: `set simulate 0`, `set poll_ms 5000`, `reboot`, press `2`.
+3. Face the two heads at each other, both UP arrows up, a few cm apart.
+
+The meter's serial monitor shows each message it receives and sends. Typing
+`t` or `r` there flips its TX or RX polarity, for a head wired the other way
+round; the node's matching keys are `ir_tx_inv` and `ir_rx_inv`.
+
+So far the 300 baud handshake works every time and the 9600 baud data block
+only sometimes, depending on distance and angle.
+
+### 6. The PCB
+
+Same as 5 but against a real meter, with `RealIrHead` on the PCB's IR pins
+and `ir_tx_inv 0`, `ir_rx_inv 0`.
 To check the PCB's readings, read the same meter from the laptop with an
 optical probe and `py ir_poll_test.py --serial COM6`. That uses the same
 handshake as the firmware, so the two should agree.

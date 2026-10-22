@@ -312,9 +312,9 @@ node, keyed by UID, so readings are held until the gateway acknowledges them.
 and switches to the meter's offered rate for the data block. Three heads:
 
 - `RealIrHead` is the EE team's UART to IR circuit on `Serial1`, 7E1, with
-  RX/TX optionally inverted (`ir_invert`) since the circuit reads light ON as
-  HIGH. Pins come from the `IR_probe_signal_testing` rig and still need
-  checking against the PCB.
+  TX and RX polarity set separately (`ir_tx_inv`, `ir_rx_inv`), both off for
+  the PiggyMeter head, since IR circuits differ in which way round each is.
+  Pins 20 and 21 match the base PCB.
 - `SimulatedIrHead` plays back a canned EM211 session with no wires at all.
 - `TcpIrHead` carries the same bytes over `TcpBus` to `IrSim/IrSimTCP.py`, the
   IR counterpart of `ModbusSim/ModbusSimTCP.py`.

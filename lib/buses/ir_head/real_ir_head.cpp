@@ -10,10 +10,11 @@
 
 RealIrHead::RealIrHead(IrConfig config, HardwareSerial &serial)
     : RX(config.rx), TX(config.tx), baudRate(config.baudRate),
-      serialConfig(config.format), invert(config.invert), serial(&serial) {}
+      serialConfig(config.format), txInvert(config.txInvert),
+      rxInvert(config.rxInvert), serial(&serial) {}
 
 int RealIrHead::init() {
-  serial->begin(baudRate, serialConfig, RX, TX, invert);
+  start();
   return EXIT_SUCCESS;
 }
 
@@ -33,5 +34,15 @@ bool RealIrHead::available() { return serial->available() > 0; }
 
 void RealIrHead::setBaudRate(uint32_t baud) {
   baudRate = baud;
-  serial->begin(baudRate, serialConfig, RX, TX, invert);
+  start();
+}
+
+void RealIrHead::start() {
+  // A full restart, not begin() on the running UART: retuning it in place
+  // read the data block garbled from the second session on.
+  serial->end();
+  // begin() can only flip RX and TX together, so it sets TX's polarity and
+  // setRxInvert() then sets RX's on its own.
+  serial->begin(baudRate, serialConfig, RX, TX, txInvert);
+  serial->setRxInvert(rxInvert);
 }
