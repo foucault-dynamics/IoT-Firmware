@@ -83,7 +83,7 @@ class CamHttpReader : public Reader {
    * @retval EXIT_FAILURE  The request failed, the JSON was bad, or a
    *                       configured flow is missing.
    */
-  int probe();
+  int probe() override;
 
  private:
   CamHttpConfig config;  ///< Cam address, API path and flow names.

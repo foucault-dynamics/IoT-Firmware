@@ -3,8 +3,8 @@
  * Unit and driver tests for Iec6205621Reader, run in QEMU.
  *
  * Reaches the private baud rate table, OBIS parser and handshake through the
- * Iec6205621ReaderTest friend class, and runs whole sessions over a scripted
- * FakeBus.
+ * Iec6205621ReaderTest friend class, and runs whole sessions and the probe
+ * over a scripted FakeBus.
  *
  * test_obis_rejects_non_numeric_value and
  * test_obis_missing_bracket_does_not_borrow_next_line guard against two fixed
@@ -118,6 +118,32 @@ void assertHandshakeFails(const char *reply, int expected) {
   TEST_ASSERT_EQUAL_size_t(0, bus.baudRates.size());
   // Only the request message, no ACK
   TEST_ASSERT_EQUAL_size_t(1, bus.sent.size());
+}
+
+/**
+ * Probes through a fresh reader over @p bus.
+ *
+ * @param[in] bus  Bus with the meter's reply queued.
+ * @return What probe() returned.
+ */
+int probeWith(FakeBus &bus) {
+  Iec6205621Reader reader(Iec62056Config{});
+  reader.init(bus);
+  return reader.probe();
+}
+
+/**
+ * Checks the probe fails on @p reply, sends only the request and never
+ * switches baud rate.
+ *
+ * @param[in] reply  What the meter sends back.
+ */
+void assertProbeFails(const char *reply) {
+  FakeBus bus;
+  bus.queueText(reply);
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, probeWith(bus));
+  TEST_ASSERT_EQUAL_size_t(1, bus.sent.size());
+  TEST_ASSERT_EQUAL_size_t(0, bus.baudRates.size());
 }
 
 }  // namespace
@@ -301,6 +327,71 @@ void test_voltage_unsupported() {
   TEST_ASSERT_EQUAL_FLOAT(SENTINEL, voltage);
 }
 
+/** A valid identification passes the probe, which sends only the request and keeps 300 baud. */
+void test_probe_passes_on_identification() {
+  FakeBus bus;
+  bus.queueText(ID_9600);
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, probeWith(bus));
+  TEST_ASSERT_EQUAL_size_t(1, bus.sent.size());
+  const char request[] = "/?!\r\n";
+  TEST_ASSERT_EQUAL_size_t(5, bus.sent[0].size());
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(request, bus.sent[0].data(), 5);
+  TEST_ASSERT_EQUAL_size_t(0, bus.baudRates.size());
+}
+
+/** After a reply the probe waits out the meter's session, at least 2000 ms. */
+void test_probe_waits_after_reply() {
+  FakeBus bus;
+  bus.queueText(ID_9600);
+  unsigned long start = millis();
+  probeWith(bus);
+  TEST_ASSERT_GREATER_OR_EQUAL_UINT32(2000, millis() - start);
+}
+
+/** With no reply the probe returns once the ID timeout runs out, with no extra wait. */
+void test_probe_returns_quickly_on_silence() {
+  FakeBus bus;
+  bus.queueSilence();
+  unsigned long start = millis();
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, probeWith(bus));
+  // The 2000 ms ID timeout, and none of the 2000 ms idle wait
+  TEST_ASSERT_LESS_THAN_UINT32(3000, millis() - start);
+}
+
+/** No reply fails the probe. */
+void test_probe_silence_fails() {
+  FakeBus bus;
+  bus.queueSilence();
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, probeWith(bus));
+  TEST_ASSERT_EQUAL_size_t(0, bus.baudRates.size());
+}
+
+/** A reply not shaped like an identification message fails the probe. */
+void test_probe_malformed_fails() {
+  assertProbeFails("EMH5EM211\r\n");
+}
+
+/** An identification with an unknown baud rate ID fails the probe. */
+void test_probe_unknown_baud_id_fails() {
+  assertProbeFails("/EMH9EM211\r\n");
+}
+
+/** The head seeing its own request is skipped, and the meter's reply behind it passes. */
+void test_probe_skips_own_echo() {
+  FakeBus bus;
+  bus.queueText("/?!\r\n/EMH5EM211\r\n");
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, probeWith(bus));
+  TEST_ASSERT_EQUAL_size_t(1, bus.sent.size());
+}
+
+/** init() only attaches the head. The node has already run the head's own init(). */
+void test_init_does_not_init_head() {
+  FakeBus bus;
+  Iec6205621Reader reader(Iec62056Config{});
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, reader.init(bus));
+  TEST_ASSERT_EQUAL_INT(0, bus.inits);
+}
+
 /** @} */
 
 /** Runs every test once the serial port is up. */
@@ -325,6 +416,14 @@ void setup() {
   RUN_TEST(test_handshake_malformed_id);
   RUN_TEST(test_handshake_unknown_baud_id);
   RUN_TEST(test_voltage_unsupported);
+  RUN_TEST(test_probe_passes_on_identification);
+  RUN_TEST(test_probe_waits_after_reply);
+  RUN_TEST(test_probe_returns_quickly_on_silence);
+  RUN_TEST(test_probe_silence_fails);
+  RUN_TEST(test_probe_malformed_fails);
+  RUN_TEST(test_probe_unknown_baud_id_fails);
+  RUN_TEST(test_probe_skips_own_echo);
+  RUN_TEST(test_init_does_not_init_head);
   UNITY_END();
 }
 

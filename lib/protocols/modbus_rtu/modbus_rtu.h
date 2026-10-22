@@ -24,6 +24,16 @@
 #define RESPONSE_LEN 9
 /** Shortest frame worth checking: address, function, CRC. */
 #define MIN_FRAME_LEN 4
+/** Function code for the serial line diagnostics. */
+#define FC_DIAGNOSTICS 0x08
+/** Diagnostics sub-function that asks the meter to echo the request back. */
+#define DIAG_RETURN_QUERY_DATA 0x0000
+/** Data the probe asks the meter to echo. */
+#define PROBE_ECHO 0xA55A
+/** Probe frame length, sent and echoed: address, function, sub-function, data, CRC. */
+#define PROBE_FRAME_LEN 8
+/** Exception response length: address, function, exception code, CRC. */
+#define EXCEPTION_LEN 5
 /** How long to wait for a complete response, in ms. */
 #define TIMEOUT 500 // 500ms
 
@@ -59,6 +69,22 @@ class ModbusRtuReader: public Reader{
    * @retval EXIT_FAILURE  The frame format's stop bit setting was invalid.
    */
   int init(Module &module) override;
+
+  /**
+   * Checks the meter answers, with the Diagnostics function's Return Query
+   * Data (08 00 00), which asks it to echo the request without reading
+   * anything.
+   *
+   * A meter that does not support diagnostics answers with an exception
+   * instead. That still proves it is there and listening at this address, so
+   * it passes too.
+   *
+   * @retval EXIT_SUCCESS  The meter echoed the request exactly, or refused it
+   *                       with a valid exception response.
+   * @retval EXIT_FAILURE  The send failed, nothing answered, or the answer had
+   *                       the wrong address, a bad CRC or did not match.
+   */
+  int probe() override;
 
   int get_import(float *val) override;
   int get_export(float *val) override;
@@ -104,10 +130,25 @@ private:
   void build_request(uint8_t *buffer,uint16_t data_type_address);
 
   /**
+   * Reads one frame of any length and checks its framing.
+   *
+   * T3.5 of silence after a byte ends the frame. Checks the length, slave
+   * address and CRC, logging which check failed. Updates #last_rx_us.
+   *
+   * @param[out] buffer  At least @p max bytes. Holds the frame.
+   * @param[in]  max     Longest frame accepted.
+   * @param[out] len     Frame length, CRC included. Set only on success.
+   * @retval EXIT_SUCCESS  A frame from this slave with a good CRC.
+   * @retval EXIT_FAILURE  Timed out, shorter than MIN_FRAME_LEN, longer than
+   *                       @p max, from another slave, or a bad CRC.
+   */
+  int read_frame(uint8_t *buffer, size_t max, size_t *len);
+
+  /**
    * Reads one response frame and validates it.
    *
-   * Checks the length, slave address, CRC, exception flag, function code and
-   * byte count, logging which check failed. Updates #last_rx_us.
+   * read_frame() checks the framing, then this checks the exception flag,
+   * length, function code and byte count, logging which check failed.
    *
    * @param[out] buffer  At least RESPONSE_LEN bytes. Holds the frame.
    * @retval EXIT_SUCCESS  A valid 2 register response.

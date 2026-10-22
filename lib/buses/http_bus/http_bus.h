@@ -43,9 +43,11 @@ class HttpBus : public Module {
   explicit HttpBus(const HttpBusConfig &config);
 
   /**
-   * Does nothing, because wifi_radio.h owns bringing the AP up.
+   * Checks the AP the cam joins is up. wifi_radio.h owns bringing it up, so
+   * this runs after wifiRadioStartAp().
    *
-   * @retval EXIT_SUCCESS  Always.
+   * @retval EXIT_SUCCESS  The AP is up.
+   * @retval EXIT_FAILURE  The AP is down, so the cam cannot be reached.
    */
   int init() override;
 

@@ -3,7 +3,7 @@
  * Driver tests for ModbusRtuReader over a scripted FakeBus, run in QEMU.
  *
  * Covers decoding a valid response in both register formats, every way a
- * response is rejected, and bus timing: the 500 ms timeout, replies split
+ * response is rejected, the FC08 probe, and bus timing: the 500 ms timeout, replies split
  * across reads, and recovery after a failed attempt. millis() and micros() run
  * in real time under QEMU, so the timeouts are real.
  */
@@ -106,6 +106,21 @@ void assertRejected(const std::vector<uint8_t> &response) {
   float val;
   TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, readImport(bus, RegisterFormat::IEEE_754Float, val));
   TEST_ASSERT_EQUAL_FLOAT(SENTINEL, val);
+}
+
+/** The probe frame for slave 1, FC08 Return Query Data with A5 5A, CRC included. */
+const std::vector<uint8_t> PROBE_FRAME = {0x01, 0x08, 0x00, 0x00, 0xA5, 0x5A, 0x1B, 0x60};
+
+/**
+ * Probes through a fresh reader with one scripted reply.
+ *
+ * @param[in] bus  Bus with the meter's reply queued.
+ * @return What probe() returned.
+ */
+int probeWith(FakeBus &bus) {
+  ModbusRtuReader reader(makeConfig(RegisterFormat::IEEE_754Float));
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, reader.init(bus));
+  return reader.probe();
 }
 
 }  // namespace
@@ -251,6 +266,60 @@ void test_second_attempt_succeeds_after_failure() {
   TEST_ASSERT_EQUAL_size_t(2, bus.sent.size());
 }
 
+/** probe() sends exactly one FC08 Return Query Data frame. */
+void test_probe_sends_diagnostics_frame() {
+  FakeBus bus;
+  bus.queueReply(PROBE_FRAME);
+  probeWith(bus);
+  TEST_ASSERT_EQUAL_size_t(1, bus.sent.size());
+  TEST_ASSERT_EQUAL_size_t(PROBE_FRAME.size(), bus.sent[0].size());
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(PROBE_FRAME.data(), bus.sent[0].data(), PROBE_FRAME.size());
+}
+
+/** An exact echo of the probe frame passes. */
+void test_probe_echo_passes() {
+  FakeBus bus;
+  bus.queueReply(PROBE_FRAME);
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, probeWith(bus));
+}
+
+/** An illegal function exception still proves a meter is there, so it passes. */
+void test_probe_exception_passes() {
+  FakeBus bus;
+  bus.queueReply(withCrc({0x01, 0x88, 0x01}));
+  TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, probeWith(bus));
+}
+
+/** Nothing answering fails the probe. */
+void test_probe_silence_fails() {
+  FakeBus bus;
+  bus.queueSilence();
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, probeWith(bus));
+}
+
+/** An echo from another slave address fails the probe. */
+void test_probe_wrong_slave_fails() {
+  FakeBus bus;
+  bus.queueReply(withCrc({0x02, 0x08, 0x00, 0x00, 0xA5, 0x5A}));
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, probeWith(bus));
+}
+
+/** An echo with a corrupted CRC fails the probe. */
+void test_probe_bad_crc_fails() {
+  std::vector<uint8_t> corrupted = PROBE_FRAME;
+  corrupted.back() ^= 0xFF;
+  FakeBus bus;
+  bus.queueReply(corrupted);
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, probeWith(bus));
+}
+
+/** An echo with different data, even with a good CRC, fails the probe. */
+void test_probe_mismatched_echo_fails() {
+  FakeBus bus;
+  bus.queueReply(withCrc({0x01, 0x08, 0x00, 0x00, 0x5A, 0xA5}));
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, probeWith(bus));
+}
+
 /** @} */
 
 /** Runs every test once the serial port is up. */
@@ -272,6 +341,13 @@ void setup() {
   RUN_TEST(test_split_reply_within_t35_is_joined);
   RUN_TEST(test_split_reply_past_t35_is_rejected);
   RUN_TEST(test_second_attempt_succeeds_after_failure);
+  RUN_TEST(test_probe_sends_diagnostics_frame);
+  RUN_TEST(test_probe_echo_passes);
+  RUN_TEST(test_probe_exception_passes);
+  RUN_TEST(test_probe_silence_fails);
+  RUN_TEST(test_probe_wrong_slave_fails);
+  RUN_TEST(test_probe_bad_crc_fails);
+  RUN_TEST(test_probe_mismatched_echo_fails);
   UNITY_END();
 }
 

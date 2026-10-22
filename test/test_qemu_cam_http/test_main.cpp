@@ -255,6 +255,15 @@ void test_probe_fails_on_missing_export_flow() {
   TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, reader.probe());
 }
 
+/** probe() fails when the cam answers with something that is not JSON. */
+void test_probe_fails_on_malformed_json() {
+  FakeBus bus;
+  bus.queueText("{\"main\":");
+  CamHttpReader reader(camConfig());
+  reader.init(bus);
+  TEST_ASSERT_EQUAL_INT(EXIT_FAILURE, reader.probe());
+}
+
 /** @} */
 
 /** Runs every test once the serial port is up. */
@@ -279,6 +288,7 @@ void setup() {
   RUN_TEST(test_probe_fails_without_answer);
   RUN_TEST(test_probe_fails_on_missing_flow);
   RUN_TEST(test_probe_fails_on_missing_export_flow);
+  RUN_TEST(test_probe_fails_on_malformed_json);
   UNITY_END();
 }
 
