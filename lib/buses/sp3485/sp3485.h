@@ -59,11 +59,16 @@ class Sp3485 : public Module {
   Sp3485(Rs485Config config, HardwareSerial &serial);
 
   /**
-   * Probes the transceiver, then starts the UART and sets up the DE/RE pin as
-   * an output, driven low so the node idles listening.
+   * Probes the transceiver, starts the UART, sets up the DE/RE pin as an
+   * output driven low so the node idles listening, then checks the UART with
+   * a loopback test. DE/RE stays low through the test, so the driver is off
+   * and nothing reaches the bus.
    *
-   * @retval EXIT_SUCCESS  The probe passed and the UART is started.
-   * @retval EXIT_FAILURE  The probe failed, see probe(). The UART is not started.
+   * @retval EXIT_SUCCESS  The probe passed, the UART is running and its
+   *                       loopback echoed.
+   * @retval EXIT_FAILURE  The probe failed (see probe()), the UART driver did
+   *                       not start, or the loopback echo was missing or
+   *                       wrong.
    */
   int init() override;
 
