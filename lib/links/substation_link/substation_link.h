@@ -23,6 +23,14 @@ constexpr uint32_t JOIN_BEACON_WAIT_MS = 3000;
  * and is answered once the relay ends.
  */
 constexpr uint32_t JOIN_ACK_WAIT_MS = 2500;
+/**
+ * Longest send() waits for the substation's AckPayload for a reading, in ms.
+ *
+ * The substation answers from its loop(), so this has to outlast one pass of
+ * it. The slowest pass holds one LoRa transmit (about 0.4 s for a Payload at
+ * SF10 and 125 kHz) plus a few ESP-NOW sends.
+ */
+constexpr uint32_t DELIVERY_ACK_WAIT_MS = 1000;
 /** Join frames sent before a join attempt gives up. */
 constexpr uint8_t JOIN_ATTEMPTS = 3;
 /** Tries a reading gets per send(), with a rejoin between them. */
@@ -35,13 +43,15 @@ constexpr uint8_t SEND_ATTEMPTS = 2;
  * node. The substation broadcasts LinkFrameType::Beacon frames; join() takes
  * the first one it hears, then trades a Join for a JoinAck with that
  * substation. Only then does send() deliver readings, which a substation drops
- * from any node that has not joined.
+ * from any node that has not joined. A reading only counts as delivered once
+ * the substation answers it with an AckPayload, which it sends after the
+ * reading is in its buffer.
  *
  * A joined substation is forgotten, and rejoined on the next send(), when its
  * beacon shows a new epoch (it rebooted and lost its joined table). It is also
- * forgotten as soon as a reading fails to send (it may be gone), and send()
- * then rejoins straight away, so a node without a substation retries
- * discovery on every reading.
+ * forgotten as soon as a reading fails to send or goes unacknowledged (it may
+ * be gone, or may have forgotten us), and send() then rejoins straight away,
+ * so a node without a substation retries discovery on every reading.
  */
 class SubstationLink {
  private:
@@ -73,6 +83,18 @@ class SubstationLink {
    * @retval false  It did not.
    */
   bool waitForJoinAck(const uint8_t *mac, uint32_t expectEpoch);
+
+  /**
+   * Waits for the joined substation's AckPayload for a reading.
+   *
+   * Frames from other senders, of another size, or carrying another UID or
+   * sequence number are skipped.
+   *
+   * @param[in] seq  Sequence number of the reading sent.
+   * @retval true   The matching ACK arrived within DELIVERY_ACK_WAIT_MS.
+   * @retval false  It did not.
+   */
+  bool waitForDeliveryAck(uint32_t seq);
 
   /**
    * Empties the receive queue, forgetting the substation if its beacon shows
@@ -112,13 +134,16 @@ class SubstationLink {
   /**
    * Sends one reading to the joined substation, joining first if needed.
    *
-   * If the send fails, the substation is forgotten, a substation is joined
-   * again (possibly a different one) and the reading is resent, up to
-   * SEND_ATTEMPTS tries in all.
+   * A try succeeds once the substation acknowledges buffering the reading.
+   * If the send fails or no ACK arrives within DELIVERY_ACK_WAIT_MS, the
+   * substation is forgotten, a substation is joined again (possibly a
+   * different one) and the reading is resent, up to SEND_ATTEMPTS tries in
+   * all.
    *
    * @param[in] p  Reading to send.
-   * @retval EXIT_SUCCESS  The substation's radio acknowledged the reading.
-   * @retval EXIT_FAILURE  No substation could be joined, or the send failed.
+   * @retval EXIT_SUCCESS  The substation acknowledged buffering the reading.
+   * @retval EXIT_FAILURE  No substation could be joined, or every try failed
+   *                       or went unacknowledged.
    */
   int send(const Payload &p);
 };
