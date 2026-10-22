@@ -8,6 +8,12 @@
  * carries a random epoch picked at boot, so a joined node notices a reboot
  * (which empties the joined table) and joins again.
  *
+ * Each reading the buffer takes is answered over ESP-NOW with an AckPayload,
+ * so the node knows it was kept rather than only heard by the radio. A
+ * reading that is dropped (unjoined node, buffer refused) gets no ACK. A
+ * resend of the last reading ACKed for a node, whose ACK was lost, is ACKed
+ * again but not buffered twice.
+ *
  * Readings arriving over ESP-NOW go into the reading buffer straight away.
  * One buffered reading at a time is then relayed over LoRa, whose ACK and
  * retry scheme lives in LoRaLink. The relay runs a step per loop() pass
@@ -49,6 +55,8 @@ static constexpr unsigned long BEACON_INTERVAL_MS = 1000;
 struct JoinedNode {
   uint8_t mac[ESP_NOW_ADDRESS_LEN];  ///< Node's station MAC, the address readings arrive from.
   uint8_t uid[UID_LEN];              ///< UID the node joined with.
+  uint32_t lastSeq;                  ///< Sequence number of the last reading ACKed, valid while #hasSeq.
+  bool hasSeq;                       ///< True once a reading from this node has been ACKed.
 };
 
 /** Joined nodes, capped at the reading buffer's node slots so every joined node can be buffered. */
@@ -158,6 +166,11 @@ static void handleJoin(const uint8_t *mac, const LinkFrame &frame) {
     }
     index = static_cast<int>(joinedCount++);
     memcpy(joined[index].mac, mac, ESP_NOW_ADDRESS_LEN);
+    joined[index].hasSeq = false;
+  } else if (!uidEquals(joined[index].uid, frame.uid)) {
+    // Another device on this MAC, so the last seq says nothing about it. A
+    // rejoin by the same node keeps it, as its seq survives a reboot in NVS
+    joined[index].hasSeq = false;
   }
   memcpy(joined[index].uid, frame.uid, UID_LEN);
 
@@ -175,8 +188,23 @@ static void handleJoin(const uint8_t *mac, const LinkFrame &frame) {
 }
 
 /**
+ * Tells a node its reading is in the reading buffer.
+ *
+ * A lost ACK is fine, the node resends the reading and is ACKed again.
+ *
+ * @param[in] mac  Node's MAC.
+ * @param[in] p    The buffered reading.
+ */
+static void sendDeliveryAck(const uint8_t *mac, const Payload &p) {
+  AckPayload ack{};
+  memcpy(ack.uid, p.uid, UID_LEN);
+  ack.seq = p.seq;
+  uplink->sendPacket(mac, reinterpret_cast<const uint8_t *>(&ack), sizeof(ack));
+}
+
+/**
  * Handles every frame waiting in the ESP-NOW queue: readings from joined
- * nodes go into the reading buffer, Joins are answered.
+ * nodes go into the reading buffer and are ACKed, Joins are answered.
  */
 static void handleIncoming() {
   uint8_t mac[ESP_NOW_ADDRESS_LEN];
@@ -196,16 +224,33 @@ static void handleIncoming() {
       continue;
     }
 
-    if (findJoined(mac) < 0) {
+    // No ACK, so the node finds out it is not joined and joins again
+    int index = findJoined(mac);
+    if (index < 0) {
       Serial.printf("[Substation] Dropped reading from unjoined MAC: " MAC_FMT "\n", MAC_ARGS(mac));
       continue;
     }
+    JoinedNode &node = joined[index];
 
     Payload incoming;
     memcpy(&incoming, buf, sizeof(incoming));
     char uidHex[UID_HEX_LEN];
-    readingBufferPush(incoming);
+
+    // Equality rather than <= so a node whose counter was wiped still gets through
+    if (node.hasSeq && node.lastSeq == incoming.seq) {
+      Serial.printf("[Substation] Duplicate UID: %s | SEQ: %u, re-acknowledged\n", uidToHex(incoming.uid, uidHex), incoming.seq);
+      sendDeliveryAck(mac, incoming);
+      continue;
+    }
+
+    if (!readingBufferPush(incoming)) {
+      Serial.printf("[Substation] Buffer refused UID: %s | SEQ: %u, not acknowledged\n", uidToHex(incoming.uid, uidHex), incoming.seq);
+      continue;
+    }
+    node.lastSeq = incoming.seq;
+    node.hasSeq = true;
     Serial.printf("[Substation] Buffered UID: %s | SEQ: %u | Total: %u\n", uidToHex(incoming.uid, uidHex), incoming.seq, readingBufferCount());
+    sendDeliveryAck(mac, incoming);
   }
 }
 
