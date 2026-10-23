@@ -9,7 +9,8 @@ IR optical head, or camera) chosen by its role in the network.
 
 New to the codebase? Start with [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md),
 which covers installing, flashing, a first end to end run, testing, and how the
-code in `src/` flows.
+code in `src/` flows. Setting up the CV node and its camera is in
+[`docs/CV_GETTING_STARTED.md`](docs/CV_GETTING_STARTED.md).
 
 API docs for every class, function and config struct are published at
 **https://foucault-dynamics.github.io/IoT-Firmware/**, rebuilt from the code on
@@ -205,6 +206,7 @@ Project_Kaizen/
 │   └── README.md
 ├── docs/
 │   ├── GETTING_STARTED.md
+│   ├── CV_GETTING_STARTED.md
 │   ├── COMMENTING.md
 │   └── TESTING.md
 ├── test/

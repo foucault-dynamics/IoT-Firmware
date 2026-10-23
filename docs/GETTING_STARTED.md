@@ -325,7 +325,7 @@ real thing. The substation and gateway stay as they are.
 | DLMS/COSEM against DlmsSim | `set reader 6`, `tcp_port 5022`, `reboot` | Same softAP idea as the Modbus run, run `DlmsSim/DlmsSimTCP.py`. See `DlmsSim/README.md` |
 | IR node, built in simulated meter | Press `2` | Defaults to `simulate 1`, no wiring and no laptop |
 | IR node against IrSim | Press `2`, `set simulate 2`, `reboot` | Same softAP idea, run `IrSim/IrSimTCP.py`. See `IrSim/README.md` |
-| The CV node | Press `3`, and `set espnow_chan 6` | Needs an ESP32-CAM running AI-on-the-edge-device. See `lib/config/secrets/README.md` |
+| The CV node | Press `3`, and `set espnow_chan 6` | Needs an ESP32-CAM running AI-on-the-edge-device. See [CV node: getting started](CV_GETTING_STARTED.md) |
 
 ## 6. How the code in src/ fits together {#gs_flow}
 
