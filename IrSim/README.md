@@ -154,12 +154,13 @@ The meter's serial monitor shows each message it receives and sends. Typing
 `t` or `r` there flips its TX or RX polarity, for a head wired the other way
 round; the node's matching keys are `ir_tx_inv` and `ir_rx_inv`.
 
-So far the 300 baud handshake works every time and the 9600 baud data block
-only sometimes, depending on distance and angle.
+The 300 baud handshake and the 9600 baud data block both read on every poll
+(since `31358cb`). See `docs/hw-tests/2026-10-09-ir-node/` for the runs and
+known issues.
 
 ### 6. The PCB
 
-Same as 5 but against a real meter, with `RealIrHead` on the PCB's IR pins
+Not yet run: no real meter has been read so far. Same as 5 but against a real meter, with `RealIrHead` on the PCB's IR pins
 and `ir_tx_inv 0`, `ir_rx_inv 0`.
 To check the PCB's readings, read the same meter from the laptop with an
 optical probe and `py ir_poll_test.py --serial COM6`. That uses the same

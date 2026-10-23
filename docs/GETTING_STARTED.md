@@ -327,6 +327,96 @@ real thing. The substation and gateway stay as they are.
 | IR node against IrSim | Press `2`, `set simulate 2`, `reboot` | Same softAP idea, run `IrSim/IrSimTCP.py`. See `IrSim/README.md` |
 | The CV node | Press `3`, and `set espnow_chan 6` | Needs an ESP32-CAM running AI-on-the-edge-device. See [CV node: getting started](CV_GETTING_STARTED.md) |
 
+### 5.7 IR node {#gs_ir}
+
+The IR node reads a meter's optical port with IEC 62056-21 mode C: a request
+at 300 baud 7E1, the meter's identification, an ACK that switches both sides
+to the speed the meter offers (9600 for IrSim), then a data block with the
+import (`1-0:1.8.0`) and export (`1-0:2.8.0`) kWh. The `simulate` key picks
+what is at the other end. The substation and gateway are set up as in 5.1 and
+5.2.
+
+| `simulate` | Meter | You need |
+|---|---|---|
+| `1` (default) | `SimulatedIrHead`, a canned session inside the firmware | The C3 only |
+| `2` | `IrSim/IrSimTCP.py` on a laptop, over Wi-Fi | The C3 and a laptop |
+| `0` | A real head on the UART, `RealIrHead` | The C3, a PiggyMeter head, and a meter or `IrSim/board_meter` on a second board |
+
+Start with `1`, then `2`, then `0`, so each step only adds one new thing that
+can go wrong. Every mode reads every `poll_ms`, 60 s by default. For a demo,
+`set poll_ms 5000` and `reboot`, and set it back to `60000` after.
+
+**Simulated meter (`simulate 1`).** Flash `end_node`, open the monitor and
+press `2`. Nothing else: readings start straight away. The values are fixed,
+so every reading is the same.
+
+**IrSim over Wi-Fi (`simulate 2`).** The same idea as the Modbus run in 5.3.
+
+1. In the C3's monitor, `set simulate 2`, `reboot`, and press `2`. The node
+   starts its own network, `kaizen-rs485` (`ap_ssid`), and waits for the fake
+   meter. Set everything before this reboot: while it waits it does not read
+   serial commands.
+2. Join `kaizen-rs485` from the laptop. The first device gets `192.168.4.2`,
+   the default `tcp_host`. If yours differs, `set tcp_host "192.168.4.3"` and
+   `reboot`.
+3. Run the fake meter. It needs no packages:
+
+   ```sh
+   cd IrSim
+   python3 IrSimTCP.py         # Windows: py IrSimTCP.py
+   ```
+
+   Windows Firewall may ask about Python the first time. Allow it on private
+   networks, or the C3 can't connect.
+
+Import and export go up on every read, so two readings are never the same and
+a stuck reading is obvious. As in 5.3, the laptop has no internet while it is
+on `kaizen-rs485`, so watch MQTT from a second device.
+
+**Real IR head (`simulate 0`).** Wire a PiggyMeter head to the C3:
+
+| PiggyMeter | ESP32-C3 |
+|---|---|
+| VCC | 3V3 (not 5V) |
+| GND | GND |
+| TX | GPIO 20 (`IR_RX_PIN`) |
+| RX | GPIO 21 (`IR_TX_PIN`) |
+
+The pins are constants in `lib/config/nvs_config/ir_loader.cpp`, not NVS keys.
+On the one base board tested so far, header J3 does not reach GPIO 20/21, so
+wire to the C3's pins directly, or see the J3 note in the IR test report,
+`docs/hw-tests/2026-10-09-ir-node/`. Then
+`set simulate 0`, `reboot` and press `2`. Neither `ir_tx_inv` nor `ir_rx_inv`
+is needed for the PiggyMeter, both stay `0`.
+
+With no real meter, flash `IrSim/board_meter` to a second board with its own
+PiggyMeter head and face the two heads at each other, a few cm apart, both UP
+arrows up. See section 5 of `IrSim/README.md` for its wiring and flashing.
+Keep bright light off the head while the node starts: its start-up check
+reads light on the sensor as a fault.
+
+**What you should see** on the C3, then the same substation and gateway lines
+as in 5.4:
+
+```text
+[IR] Ready
+[IR] import=1234.567 export=45.123 seq=1
+```
+
+If a read fails, the line before `[IR] Meter read failed.` says which step
+broke:
+
+| Line | Usually |
+|---|---|
+| `[IEC62056-21] meter never responded to request message` | No meter, heads not facing each other, IrSim not running, or the wrong pins |
+| `[IEC62056-21] identification message malformed` | Noise or partial light. Move the heads closer and line them up |
+| `[IEC62056-21] no data block received after ACK` | The baud switch failed, or the light dropped out after the handshake |
+| `[IEC62056-21] BCC mismatch` | Bits corrupted on the way, usually light or distance |
+| `[IEC62056-21] data block missing required OBIS code` | The meter answered but has no `1-0:1.8.0`, for example a meter that uses short labels like `1.8.0` |
+
+`IrSim/README.md` has more ways to test, from laptop only up to a USB to serial
+adapter in place of the light.
+
 ## 6. How the code in src/ fits together {#gs_flow}
 
 ### Two entry files, one pattern
@@ -521,7 +611,7 @@ a new test. [Commenting convention](COMMENTING.md) has the doc comment rules
 | `[TAG] UART pins invalid (RX n, TX n)` | An RX or TX pin in NVS is not a GPIO on the C3 |
 | `[TAG] UART failed to start` | The UART driver did not install. Reboot, and check nothing else holds the UART |
 | `[TAG] UART loopback: no echo` or `got 0xNN` | The UART does not echo its own byte internally, so its baud rate or frame format is broken. Reboot, and report it if it persists |
-| `[RealIrHead] RX floats, head missing or unpowered` | The IR head is not plugged in, unpowered, or its RX is on another pin |
+| `[RealIrHead] RX floats, head missing or unpowered` | The IR head is not plugged in, unpowered, or its RX is on another pin. The firmware expects GPIO 20 (RX) and 21 (TX). On the base board tested so far, header J3 does not reach those pins, so wire the head to the C3's pins directly, or through J2 on GPIO 1 and 0 with `IR_RX_PIN` and `IR_TX_PIN` in `ir_loader.cpp` changed in a local build |
 | `[RealIrHead] RX held active: light on sensor or wrong ir_rx_inv` | Light is falling on the head's sensor, or the head idles the other way round, so flip `ir_rx_inv` |
 | `[RealIrHead] RX unstable` | RX is toggling while idle, usually flickering light or a loose wire |
 | `[HttpBus] AP is not up` | The AP did not come up, see the SoftAP line above |
