@@ -379,10 +379,11 @@ on `kaizen-rs485`, so watch MQTT from a second device.
 |---|---|
 | VCC | 3V3 (not 5V) |
 | GND | GND |
-| TX | GPIO 20 (`IR_RX_PIN`) |
-| RX | GPIO 21 (`IR_TX_PIN`) |
+| RX (the light sensor's output) | GPIO 20 (`IR_RX_PIN`) |
+| TX (drives the IR LED) | GPIO 21 (`IR_TX_PIN`) |
 
-The pins are constants in `lib/config/nvs_config/ir_loader.cpp`, not NVS keys.
+Not crossed over: the PiggyMeter's labels name the board's side, so RX goes
+to RX and TX to TX, unlike a USB to serial adapter. The pins are constants in `lib/config/nvs_config/ir_loader.cpp`, not NVS keys.
 On the one base board tested so far, header J3 does not reach GPIO 20/21, so
 wire to the C3's pins directly, or see the J3 note in the IR test report,
 `docs/hw-tests/2026-10-09-ir-node/`. Then
