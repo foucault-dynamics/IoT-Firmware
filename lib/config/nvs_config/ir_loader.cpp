@@ -19,6 +19,12 @@ namespace {
  *
  * Matches the base PCB (energyiot-electrical), where IO1 (GPIO20) and IO2_TX
  * (GPIO21) go to the head connector J1 and header J3.
+ *
+ * On the base board used for the 2026-10-15 bench run, J3 pins 7 and 8 do not
+ * reach GPIO20/21 (likely a bad joint), so the head was wired through J2 to
+ * GPIO1 (RX) and GPIO0 (TX) with these two constants changed locally. Keep
+ * 20/21 here, and change them only in a local build for a board with that
+ * fault. See docs/hw-tests/2026-10-09-ir-node.
  */
 const uint8_t IR_RX_PIN = 20;
 /** UART TX GPIO for the IR head. Board wiring, never an NVS key. */

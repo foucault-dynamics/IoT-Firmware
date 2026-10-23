@@ -521,7 +521,7 @@ a new test. [Commenting convention](COMMENTING.md) has the doc comment rules
 | `[TAG] UART pins invalid (RX n, TX n)` | An RX or TX pin in NVS is not a GPIO on the C3 |
 | `[TAG] UART failed to start` | The UART driver did not install. Reboot, and check nothing else holds the UART |
 | `[TAG] UART loopback: no echo` or `got 0xNN` | The UART does not echo its own byte internally, so its baud rate or frame format is broken. Reboot, and report it if it persists |
-| `[RealIrHead] RX floats, head missing or unpowered` | The IR head is not plugged in, unpowered, or its RX is on another pin |
+| `[RealIrHead] RX floats, head missing or unpowered` | The IR head is not plugged in, unpowered, or its RX is on another pin. The firmware expects GPIO 20 (RX) and 21 (TX). On the base board tested so far, header J3 does not reach those pins, so wire the head to the C3's pins directly, or through J2 on GPIO 1 and 0 with `IR_RX_PIN` and `IR_TX_PIN` in `ir_loader.cpp` changed in a local build |
 | `[RealIrHead] RX held active: light on sensor or wrong ir_rx_inv` | Light is falling on the head's sensor, or the head idles the other way round, so flip `ir_rx_inv` |
 | `[RealIrHead] RX unstable` | RX is toggling while idle, usually flickering light or a loose wire |
 | `[HttpBus] AP is not up` | The AP did not come up, see the SoftAP line above |
