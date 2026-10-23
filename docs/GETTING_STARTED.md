@@ -35,7 +35,7 @@ first build takes a few minutes.
 ```sh
 git clone git@github.com:foucault-dynamics/IoT-Firmware.git
 cd IoT-Firmware
-pio run -e end_node -e lilygo_lora     # proves the toolchain works
+pio run -e end_node -e lilygo_lora     # proves compilation
 ```
 
 ## 2. Build, flash and open the serial monitor
@@ -49,17 +49,14 @@ pio run -e end_node -e lilygo_lora     # proves the toolchain works
 | `pio run -e end_node -t upload --upload-port /dev/cu.usbmodem1101` | Flashes one board when several are plugged in |
 | `pio device monitor --echo` | Opens serial at 115200 baud, showing what you type |
 
-Two things catch everyone the first time:
+Common flashing issues:
 
-- The end node waits for the serial monitor before it does anything
-  (`while(!Serial)` in `src/end_node_main.cpp`), because the C3 talks over its
-  own USB port and anything printed before a monitor is attached is lost. Open
-  the monitor and the boot menu appears about two seconds later.
+- The end node waits for the serial monitor before it does anything, so it won't work if no serial monitor is connected.
 - If the C3 will not take an upload, hold its BOOT button while plugging it in.
   That forces the bootloader, and the upload then works.
 - If no output is shown in the Serial monitor, click the RST button on the board. 
 
-## 3. First boot: choose a role
+## 3. First boot:
 
 The board prints a menu and waits for one key.
 
@@ -71,9 +68,7 @@ The board prints a menu and waits for one key.
 | `lilygo_lora` | `4` | Substation | `[Substation]` |
 | `lilygo_lora` | `5` | Gateway | `[Gateway]`, `[WiFi]`, `[MQTT]` |
 
-The menu comes back on every boot. That is temporary: it stands in for the
-module ID pin on the final end node PCB and whatever ID mechanism the LoRa PCB
-gets, (FUTURE DEVELOPMENT).
+The menu comes back on every boot.
 
 ## 4. Configure a board over serial
 
@@ -95,7 +90,6 @@ way round) is saved but never used, so check the type in
 [NVS config keys](../lib/config/nvs_config/NVS_KEYS.md), which lists every key and more information on NVS.
 
 Three settings have to agree between boards, or readings silently go nowhere.
-End nodes need no substation address: they hear its beacon and join it at boot.
 
 | Setting | Rule |
 |---|---|
@@ -108,20 +102,34 @@ End nodes need no substation address: they hear its beacon and join it at boot.
 This takes one reading from a simulated Modbus meter all the way to an MQTT
 broker on the internet, and then shows you how to watch it arrive. You need one
 ESP32-C3, two LilyGo boards, a laptop, and a 2.4 GHz Wi-Fi network with
-internet access for the gateway.
+internet access for the gateway. OPTIONAL: RS485 converter and SP3485 transceiver.
+
+For the optional serial run, wire the SP3485 to the C3 like this:
+
+| SP3485 pin | ESP32-C3 pin |
+|---|---|
+| GND | GND |
+| VCC | 3V3 or 5V |
+| RTS (DE/RE) | GPIO 10 |
+| TXD (RO) | GPIO 1 (RX) |
+| RXD (DI) | GPIO 9 (TX) |
 
 ```text
 ModbusSimTCP.py ──Wi-Fi──► RS485 node ──ESP-NOW──► substation ──LoRa──► gateway ──Wi-Fi──► broker ──► mosquitto_sub
  (laptop)                  (C3)                    (LilyGo)             (LilyGo)          (internet)
+ 
+ OPTIONAL:
+ 
+ ModbusSimSerial.py ──RS485──► RS485 node ──ESP-NOW──► substation ──LoRa──► gateway ──Wi-Fi──► broker ──► mosquitto_sub
+	 (laptop)                  (C3)                    (LilyGo)             (LilyGo)          (internet)
 ```
 
-Bring the boards up in this order, from the broker end back towards the meter,
-so each board has somewhere to send to as soon as it starts.
+We are going to start from the top but there is no strict order of setup, you can setup each node independently and if instructions are followed, the system should work.
 
 ### 5.1 Gateway: connect it to the internet (LilyGo board) {#gs_gateway}
 
-Flash `lilygo_lora`, open the monitor and press `5`. Then point it at your
-Wi-Fi and reboot:
+Compile and flash the `lilygo_lora` environment to a Lilygo board, open the monitor and press `5`. Then point it at your
+Wi-Fi network and reboot:
 
 ```text
 set wifi_ssid "MyNetwork"
@@ -215,6 +223,7 @@ cd ModbusSim
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install pymodbus
+python3 -m pip install pyserial
 ```
 
 Flash `end_node` to the C3, open its monitor and press `1`. It boots in its
@@ -224,8 +233,13 @@ Configure it for the simulator and reboot:
 ```text
 set reader 3
 reboot
+
+OPTIONAL:
+set reader 0
+reboot
 ```
 
+#### MODBUS OVER WIFI:
 Press `1` again. `reader 3` is Modbus TCP: the node starts its own Wi-Fi
 network, `kaizen-rs485` with password `kaizen123`, and waits for the simulator
 to appear on it.
@@ -254,6 +268,45 @@ from the last.
 While the laptop is on `kaizen-rs485` it has no internet, so watch MQTT from a
 second device, such as another laptop or a phone, or give the laptop a wired
 or USB tethered connection as well.
+
+#### MODBUS OVER SERIAL
+Press `1` again. `reader 0` is Modbus RTU over a real RS485 line: the node
+talks to the SP3485 on `Serial1`, and the laptop plays the meter through a
+USB to RS485 converter. It is also the default, so a fresh board is already in
+this mode and `set reader 0` is only needed to come back from `reader 3`.
+
+Wire the SP3485 before that reboot, as in the table at the start of this
+section. The pins are fixed in `rs485_loader.cpp`, not NVS keys. At boot the
+node checks the transceiver before anything else, and unlike the TCP mode a
+failure here is fatal: it prints `[RS485] Bus init failed, idling` after one
+of the `[SP3485]` lines in [Troubleshooting](#gs_trouble), and does nothing
+more until you fix the wiring and reboot.
+
+Then, on the laptop:
+
+1. Plug in the USB to RS485 converter and wire its A to the SP3485's A, its B
+   to B, and its GND to the C3's GND, so both ends share a ground.
+2. Find the converter's port with `pio device list`, or `ls /dev/cu.*` on
+   macOS. A CH340 based converter shows up as something like
+   `/dev/cu.wchusbserial10`.
+3. Start the simulator on that port, with the venv active:
+
+   ```sh
+   python3 ModbusSimSerial.py /dev/cu.wchusbserial10
+   ```
+
+   Leave the port off and it defaults to `/dev/cu.wchusbserial10`.
+
+The node's other settings already match the simulator: 9600 baud `8N1`, slave
+address 1 and the same register map, so nothing else needs setting. Until the
+simulator answers, the node prints `[RS485] Meter check failed, retrying in
+5 s`. Once it does, the node prints `[RS485] Ready`, reads straight away and
+then every 60 s, the same as the TCP run. If the check never passes with the
+simulator running, swap A and B, since converters do not agree on which is
+which.
+
+The laptop stays on its normal network in this mode, so you can watch MQTT
+from the same laptop.
 
 ### 5.4 What you should see
 
@@ -500,41 +553,3 @@ runs the whole QEMU suite, the rest are local only:
 [Testing](TESTING.md) has the suite list, how a QEMU run works and how to write
 a new test. [Commenting convention](COMMENTING.md) has the doc comment rules
 `doxygen` enforces.
-
-## 8. Troubleshooting {#gs_trouble}
-
-| Symptom | Likely cause |
-|---|---|
-| Nothing on serial after flashing the C3 | The board is waiting for a monitor. Open one, or check `pio device list` for the right port |
-| `[BOOT] '1' is not 4 or 5` | The board has the other image. Flash `end_node` to a C3 and `lilygo_lora` to a LilyGo |
-| `set` seems to do nothing | You have not rebooted, or the value is the wrong type (strings need quotes) |
-| `[TAG] NVS unavailable for the sequence counter, idling` | The NVS partition cannot be opened. Reflash with `pio run -t erase` first |
-| `[TAG] SoftAP bring-up failed, idling` | `ap_ssid` or `ap_pass` is invalid (the password needs 8 to 64 chars), or `espnow_chan` clashes with a channel already in use |
-| `[TAG] Bus init failed, idling` | The bus's own line just before it says why, one of the `[SP3485]`, `[RealIrHead]` or `[HttpBus]` lines below |
-| `[TAG] Bus not reachable yet, the meter check will retry` | TCP simulator mode, and the laptop has not joined the softAP or the simulator is not running. Not fatal |
-| `[TAG] Reader init failed, idling` | The reader's config is invalid, for example an empty `cam_host` or `cam_flow`, or a bad DLMS address size |
-| `[TAG] ESP-NOW init failed, idling` | The radio did not start ESP-NOW, usually a channel the AP already holds differently. Reboot, then check `espnow_chan` |
-| `[TAG] Meter check failed, retrying in 5 s` | The meter did not answer its probe. The reader's line just before says how (silence, bad CRC, refused association, no identification, no cam). Check wiring, the meter's address and baud rate, or that the cam has joined |
-| `[TAG] Meter lost after 3 failed reads, re-checking` | The meter stopped answering after being ready. The node probes it every 5 s and prints `[TAG] Ready` again when it is back |
-| `[SP3485] RX not driven in receive, transceiver missing or miswired` | The SP3485 is missing, unpowered, or its RO is not on the RX pin |
-| `[SP3485] RX still driven with DE/RE high, DE/RE not wired` | The DE/RE pin does not reach the SP3485 |
-| `[TAG] UART pins invalid (RX n, TX n)` | An RX or TX pin in NVS is not a GPIO on the C3 |
-| `[TAG] UART failed to start` | The UART driver did not install. Reboot, and check nothing else holds the UART |
-| `[TAG] UART loopback: no echo` or `got 0xNN` | The UART does not echo its own byte internally, so its baud rate or frame format is broken. Reboot, and report it if it persists |
-| `[RealIrHead] RX floats, head missing or unpowered` | The IR head is not plugged in, unpowered, or its RX is on another pin |
-| `[RealIrHead] RX held active: light on sensor or wrong ir_rx_inv` | Light is falling on the head's sensor, or the head idles the other way round, so flip `ir_rx_inv` |
-| `[RealIrHead] RX unstable` | RX is toggling while idle, usually flickering light or a loose wire |
-| `[HttpBus] AP is not up` | The AP did not come up, see the SoftAP line above |
-| `[ModbusRTU Reader] Meter present, no diagnostics (exception N)` | Not an error. The meter does not support FC08, so it refused the probe, which still proves it is there |
-| End node logs `[Link] No substation beacon heard` | `espnow_chan` differs, or the substation is off or out of range |
-| End node logs `[Link] Send failed, rejoining` | The substation went off, out of range or busy. The node rejoins and resends at once, and keeps trying discovery on every reading until one answers |
-| End node logs `[Link] No delivery ACK, rejoining` | The substation's radio took the reading but the substation did not buffer it, usually because it rebooted or forgot the join. The node rejoins and resends at once. Persistent means the substation runs an older image without delivery ACKs |
-| `[Substation] Dropped reading from unjoined MAC` | The node missed the join. It gets no delivery ACK, so it rejoins and resends straight away. Persistent means the node runs an older image |
-| `[Substation] Duplicate UID: ... re-acknowledged` | Not an error. The node resent a reading whose ACK was lost, so it is ACKed again but buffered once |
-| `[Substation] Buffer refused UID: ... not acknowledged` | Every node slot in the reading buffer is taken by other UIDs. The node gets no ACK and its send fails |
-| `[Substation] Relay FAILED` | Gateway off, `lora_*` settings differ between the two boards, or out of range. The reading is kept and retried after 30 s |
-| `[Error] Payload size mismatch!` | The boards were built from different versions of `shared_payload.h` |
-| `[WiFi] Connect Timeout!` on the gateway | Wrong `wifi_ssid` or `wifi_pass`, a 5 GHz only network, or a network that needs a username or sign in page. See [Gateway](#gs_gateway) |
-| Gateway repeats `[MQTT] Connection Failed` | No Wi-Fi, wrong `mqtt_host` or `mqtt_port`, a broker without TLS, or wrong `mqtt_user` and `mqtt_pass`. `set mqtt_on 0` to test without one |
-| `PUB: SUCCESS` on the gateway but `mosquitto_sub` shows nothing | Different broker or topic on the two sides, or `mosquitto_sub` is missing `--tls-use-os-certs`. Rerun it with `-d` |
-| `ESP_QEMU is not set` | Run `tools/setup_qemu.sh` and export the line it prints |
