@@ -1,0 +1,13 @@
+17:59:52.533 > ets Jun  8 2016 00:22:57
+17:59:52.534 > 
+17:59:52.534 > rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+17:59:52.538 > configsip: 188777542, SPIWP:0xee
+17:59:52.538 > clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+17:59:52.549 > mode:DIO, clock div:2
+17:59:52.549 > load:0x3fff0030,len:1184
+17:59:52.549 > load:0x40078000,len:13232
+17:59:52.555 > load:0x40080400,len:3028
+17:59:52.555 > entry 0x400805e4
+17:59:54.969 > [BOOT] Select module to test:
+17:59:54.969 >   4: Substation
+17:59:54.969 >   5: Gateway
