@@ -384,8 +384,8 @@ on `kaizen-rs485`, so watch MQTT from a second device.
 
 The pins are constants in `lib/config/nvs_config/ir_loader.cpp`, not NVS keys.
 On the one base board tested so far, header J3 does not reach GPIO 20/21, so
-wire to the C3's pins directly, or see the J3 note in
-[the IR test report](hw-tests/2026-10-09-ir-node/README.md). Then
+wire to the C3's pins directly, or see the J3 note in the IR test report,
+`docs/hw-tests/2026-10-09-ir-node/`. Then
 `set simulate 0`, `reboot` and press `2`. Neither `ir_tx_inv` nor `ir_rx_inv`
 is needed for the PiggyMeter, both stay `0`.
 
