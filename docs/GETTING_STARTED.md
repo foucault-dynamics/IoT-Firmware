@@ -278,9 +278,8 @@ this mode and `set reader 0` is only needed to come back from `reader 3`.
 Wire the SP3485 before that reboot, as in the table at the start of this
 section. The pins are fixed in `rs485_loader.cpp`, not NVS keys. At boot the
 node checks the transceiver before anything else, and unlike the TCP mode a
-failure here is fatal: it prints `[RS485] Bus init failed, idling` after one
-of the `[SP3485]` lines in [Troubleshooting](#gs_trouble), and does nothing
-more until you fix the wiring and reboot.
+failure here is fatal: it prints `[RS485] Bus init failed, idling` after an
+`[SP3485]` line, and does nothing more until you fix the wiring and reboot.
 
 Then, on the laptop:
 
@@ -325,7 +324,7 @@ DATA FWD, UID: ..., PUB: SUCCESS                         gateway
 `[RS485] Ready` prints once the meter answers its probe, and only then does the
 node start reading. The IR and CV nodes print `[IR] Ready` and `[CV] Ready` the
 same way. If one board's line is missing, the problem is on the hop into that
-board, see [Troubleshooting](#gs_trouble).
+board.
 
 ### 5.5 Listen to MQTT {#gs_mqtt}
 
