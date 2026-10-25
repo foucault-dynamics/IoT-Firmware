@@ -35,7 +35,7 @@ first build takes a few minutes.
 ```sh
 git clone git@github.com:foucault-dynamics/IoT-Firmware.git
 cd IoT-Firmware
-pio run -e end_node -e lilygo_lora     # proves the toolchain works
+pio run -e end_node -e lilygo_lora     # proves compilation
 ```
 
 ## 2. Build, flash and open the serial monitor
@@ -49,17 +49,14 @@ pio run -e end_node -e lilygo_lora     # proves the toolchain works
 | `pio run -e end_node -t upload --upload-port /dev/cu.usbmodem1101` | Flashes one board when several are plugged in |
 | `pio device monitor --echo` | Opens serial at 115200 baud, showing what you type |
 
-Two things catch everyone the first time:
+Common flashing issues:
 
-- The end node waits for the serial monitor before it does anything
-  (`while(!Serial)` in `src/end_node_main.cpp`), because the C3 talks over its
-  own USB port and anything printed before a monitor is attached is lost. Open
-  the monitor and the boot menu appears about two seconds later.
+- The end node waits for the serial monitor before it does anything, so it won't work if no serial monitor is connected.
 - If the C3 will not take an upload, hold its BOOT button while plugging it in.
   That forces the bootloader, and the upload then works.
 - If no output is shown in the Serial monitor, click the RST button on the board. 
 
-## 3. First boot: choose a role
+## 3. First boot:
 
 The board prints a menu and waits for one key.
 
@@ -71,9 +68,7 @@ The board prints a menu and waits for one key.
 | `lilygo_lora` | `4` | Substation | `[Substation]` |
 | `lilygo_lora` | `5` | Gateway | `[Gateway]`, `[WiFi]`, `[MQTT]` |
 
-The menu comes back on every boot. That is temporary: it stands in for the
-module ID pin on the final end node PCB and whatever ID mechanism the LoRa PCB
-gets, (FUTURE DEVELOPMENT).
+The menu comes back on every boot.
 
 ## 4. Configure a board over serial
 
@@ -95,7 +90,6 @@ way round) is saved but never used, so check the type in
 [NVS config keys](../lib/config/nvs_config/NVS_KEYS.md), which lists every key and more information on NVS.
 
 Three settings have to agree between boards, or readings silently go nowhere.
-End nodes need no substation address: they hear its beacon and join it at boot.
 
 | Setting | Rule |
 |---|---|
@@ -108,20 +102,34 @@ End nodes need no substation address: they hear its beacon and join it at boot.
 This takes one reading from a simulated Modbus meter all the way to an MQTT
 broker on the internet, and then shows you how to watch it arrive. You need one
 ESP32-C3, two LilyGo boards, a laptop, and a 2.4 GHz Wi-Fi network with
-internet access for the gateway.
+internet access for the gateway. OPTIONAL: RS485 converter and SP3485 transceiver.
+
+For the optional serial run, wire the SP3485 to the C3 like this:
+
+| SP3485 pin | ESP32-C3 pin |
+|---|---|
+| GND | GND |
+| VCC | 3V3 or 5V |
+| RTS (DE/RE) | GPIO 10 |
+| TXD (RO) | GPIO 1 (RX) |
+| RXD (DI) | GPIO 9 (TX) |
 
 ```text
 ModbusSimTCP.py ──Wi-Fi──► RS485 node ──ESP-NOW──► substation ──LoRa──► gateway ──Wi-Fi──► broker ──► mosquitto_sub
  (laptop)                  (C3)                    (LilyGo)             (LilyGo)          (internet)
+ 
+ OPTIONAL:
+ 
+ ModbusSimSerial.py ──RS485──► RS485 node ──ESP-NOW──► substation ──LoRa──► gateway ──Wi-Fi──► broker ──► mosquitto_sub
+	 (laptop)                  (C3)                    (LilyGo)             (LilyGo)          (internet)
 ```
 
-Bring the boards up in this order, from the broker end back towards the meter,
-so each board has somewhere to send to as soon as it starts.
+We are going to start from the top but there is no strict order of setup, you can setup each node independently and if instructions are followed, the system should work.
 
 ### 5.1 Gateway: connect it to the internet (LilyGo board) {#gs_gateway}
 
-Flash `lilygo_lora`, open the monitor and press `5`. Then point it at your
-Wi-Fi and reboot:
+Compile and flash the `lilygo_lora` environment to a Lilygo board, open the monitor and press `5`. Then point it at your
+Wi-Fi network and reboot:
 
 ```text
 set wifi_ssid "MyNetwork"
@@ -215,6 +223,7 @@ cd ModbusSim
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install pymodbus
+python3 -m pip install pyserial
 ```
 
 Flash `end_node` to the C3, open its monitor and press `1`. It boots in its
@@ -224,8 +233,13 @@ Configure it for the simulator and reboot:
 ```text
 set reader 3
 reboot
+
+OPTIONAL:
+set reader 0
+reboot
 ```
 
+#### MODBUS OVER WIFI:
 Press `1` again. `reader 3` is Modbus TCP: the node starts its own Wi-Fi
 network, `kaizen-rs485` with password `kaizen123`, and waits for the simulator
 to appear on it.
@@ -255,6 +269,44 @@ While the laptop is on `kaizen-rs485` it has no internet, so watch MQTT from a
 second device, such as another laptop or a phone, or give the laptop a wired
 or USB tethered connection as well.
 
+#### MODBUS OVER SERIAL
+Press `1` again. `reader 0` is Modbus RTU over a real RS485 line: the node
+talks to the SP3485 on `Serial1`, and the laptop plays the meter through a
+USB to RS485 converter. It is also the default, so a fresh board is already in
+this mode and `set reader 0` is only needed to come back from `reader 3`.
+
+Wire the SP3485 before that reboot, as in the table at the start of this
+section. The pins are fixed in `rs485_loader.cpp`, not NVS keys. At boot the
+node checks the transceiver before anything else, and unlike the TCP mode a
+failure here is fatal: it prints `[RS485] Bus init failed, idling` after an
+`[SP3485]` line, and does nothing more until you fix the wiring and reboot.
+
+Then, on the laptop:
+
+1. Plug in the USB to RS485 converter and wire its A to the SP3485's A, its B
+   to B, and its GND to the C3's GND, so both ends share a ground.
+2. Find the converter's port with `pio device list`, or `ls /dev/cu.*` on
+   macOS. A CH340 based converter shows up as something like
+   `/dev/cu.wchusbserial10`.
+3. Start the simulator on that port, with the venv active:
+
+   ```sh
+   python3 ModbusSimSerial.py /dev/cu.wchusbserial10
+   ```
+
+   Leave the port off and it defaults to `/dev/cu.wchusbserial10`.
+
+The node's other settings already match the simulator: 9600 baud `8N1`, slave
+address 1 and the same register map, so nothing else needs setting. Until the
+simulator answers, the node prints `[RS485] Meter check failed, retrying in
+5 s`. Once it does, the node prints `[RS485] Ready`, reads straight away and
+then every 60 s, the same as the TCP run. If the check never passes with the
+simulator running, swap A and B, since converters do not agree on which is
+which.
+
+The laptop stays on its normal network in this mode, so you can watch MQTT
+from the same laptop.
+
 ### 5.4 What you should see
 
 ```text
@@ -272,7 +324,7 @@ DATA FWD, UID: ..., PUB: SUCCESS                         gateway
 `[RS485] Ready` prints once the meter answers its probe, and only then does the
 node start reading. The IR and CV nodes print `[IR] Ready` and `[CV] Ready` the
 same way. If one board's line is missing, the problem is on the hop into that
-board, see [Troubleshooting](#gs_trouble).
+board.
 
 ### 5.5 Listen to MQTT {#gs_mqtt}
 
@@ -325,7 +377,7 @@ real thing. The substation and gateway stay as they are.
 | DLMS/COSEM against DlmsSim | `set reader 6`, `tcp_port 5022`, `reboot` | Same softAP idea as the Modbus run, run `DlmsSim/DlmsSimTCP.py`. See `DlmsSim/README.md` |
 | IR node, built in simulated meter | Press `2` | Defaults to `simulate 1`, no wiring and no laptop |
 | IR node against IrSim | Press `2`, `set simulate 2`, `reboot` | Same softAP idea, run `IrSim/IrSimTCP.py`. See `IrSim/README.md` |
-| The CV node | Press `3`, and `set espnow_chan 6` | Needs an ESP32-CAM running AI-on-the-edge-device. See `lib/config/secrets/README.md` |
+| The CV node | Press `3`, and `set espnow_chan 6` | Needs an ESP32-CAM running AI-on-the-edge-device. See [CV node: getting started](CV_GETTING_STARTED.md) |
 
 ### 5.7 IR node {#gs_ir}
 
