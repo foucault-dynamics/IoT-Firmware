@@ -379,6 +379,97 @@ real thing. The substation and gateway stay as they are.
 | IR node against IrSim | Press `2`, `set simulate 2`, `reboot` | Same softAP idea, run `IrSim/IrSimTCP.py`. See `IrSim/README.md` |
 | The CV node | Press `3`, and `set espnow_chan 6` | Needs an ESP32-CAM running AI-on-the-edge-device. See [CV node: getting started](CV_GETTING_STARTED.md) |
 
+### 5.7 IR node {#gs_ir}
+
+The IR node reads a meter's optical port with IEC 62056-21 mode C: a request
+at 300 baud 7E1, the meter's identification, an ACK that switches both sides
+to the speed the meter offers (9600 for IrSim), then a data block with the
+import (`1-0:1.8.0`) and export (`1-0:2.8.0`) kWh. The `simulate` key picks
+what is at the other end. The substation and gateway are set up as in 5.1 and
+5.2.
+
+| `simulate` | Meter | You need |
+|---|---|---|
+| `1` (default) | `SimulatedIrHead`, a canned session inside the firmware | The C3 only |
+| `2` | `IrSim/IrSimTCP.py` on a laptop, over Wi-Fi | The C3 and a laptop |
+| `0` | A real head on the UART, `RealIrHead` | The C3, a PiggyMeter head, and a meter or `IrSim/board_meter` on a second board |
+
+Start with `1`, then `2`, then `0`, so each step only adds one new thing that
+can go wrong. Every mode reads every `poll_ms`, 60 s by default. For a demo,
+`set poll_ms 5000` and `reboot`, and set it back to `60000` after.
+
+**Simulated meter (`simulate 1`).** Flash `end_node`, open the monitor and
+press `2`. Nothing else: readings start straight away. The values are fixed,
+so every reading is the same.
+
+**IrSim over Wi-Fi (`simulate 2`).** The same idea as the Modbus run in 5.3.
+
+1. In the C3's monitor, `set simulate 2`, `reboot`, and press `2`. The node
+   starts its own network, `kaizen-rs485` (`ap_ssid`), and waits for the fake
+   meter. Set everything before this reboot: while it waits it does not read
+   serial commands.
+2. Join `kaizen-rs485` from the laptop. The first device gets `192.168.4.2`,
+   the default `tcp_host`. If yours differs, `set tcp_host "192.168.4.3"` and
+   `reboot`.
+3. Run the fake meter. It needs no packages:
+
+   ```sh
+   cd IrSim
+   python3 IrSimTCP.py         # Windows: py IrSimTCP.py
+   ```
+
+   Windows Firewall may ask about Python the first time. Allow it on private
+   networks, or the C3 can't connect.
+
+Import and export go up on every read, so two readings are never the same and
+a stuck reading is obvious. As in 5.3, the laptop has no internet while it is
+on `kaizen-rs485`, so watch MQTT from a second device.
+
+**Real IR head (`simulate 0`).** Wire a PiggyMeter head to the C3:
+
+| PiggyMeter | ESP32-C3 |
+|---|---|
+| VCC | 3V3 (not 5V) |
+| GND | GND |
+| RX (the light sensor's output) | GPIO 20 (`IR_RX_PIN`) |
+| TX (drives the IR LED) | GPIO 21 (`IR_TX_PIN`) |
+
+Not crossed over: the PiggyMeter's labels name the board's side, so RX goes
+to RX and TX to TX, unlike a USB to serial adapter. The pins are constants in `lib/config/nvs_config/ir_loader.cpp`, not NVS keys.
+On the one base board tested so far, header J3 does not reach GPIO 20/21, so
+wire to the C3's pins directly, or see the J3 note in the IR test report,
+`docs/hw-tests/2026-10-09-ir-node/`. Then
+`set simulate 0`, `reboot` and press `2`. Neither `ir_tx_inv` nor `ir_rx_inv`
+is needed for the PiggyMeter, both stay `0`.
+
+With no real meter, flash `IrSim/board_meter` to a second board with its own
+PiggyMeter head and face the two heads at each other, a few cm apart, both UP
+arrows up. See section 5 of `IrSim/README.md` for its wiring and flashing.
+Keep bright light off the head while the node starts: its start-up check
+reads light on the sensor as a fault.
+
+**What you should see** on the C3, then the same substation and gateway lines
+as in 5.4:
+
+```text
+[IR] Ready
+[IR] import=1234.567 export=45.123 seq=1
+```
+
+If a read fails, the line before `[IR] Meter read failed.` says which step
+broke:
+
+| Line | Usually |
+|---|---|
+| `[IEC62056-21] meter never responded to request message` | No meter, heads not facing each other, IrSim not running, or the wrong pins |
+| `[IEC62056-21] identification message malformed` | Noise or partial light. Move the heads closer and line them up |
+| `[IEC62056-21] no data block received after ACK` | The baud switch failed, or the light dropped out after the handshake |
+| `[IEC62056-21] BCC mismatch` | Bits corrupted on the way, usually light or distance |
+| `[IEC62056-21] data block missing required OBIS code` | The meter answered but has no `1-0:1.8.0`, for example a meter that uses short labels like `1.8.0` |
+
+`IrSim/README.md` has more ways to test, from laptop only up to a USB to serial
+adapter in place of the light.
+
 ## 6. How the code in src/ fits together {#gs_flow}
 
 ### Two entry files, one pattern
@@ -552,3 +643,41 @@ runs the whole QEMU suite, the rest are local only:
 [Testing](TESTING.md) has the suite list, how a QEMU run works and how to write
 a new test. [Commenting convention](COMMENTING.md) has the doc comment rules
 `doxygen` enforces.
+
+## 8. Troubleshooting {#gs_trouble}
+
+| Symptom | Likely cause |
+|---|---|
+| Nothing on serial after flashing the C3 | The board is waiting for a monitor. Open one, or check `pio device list` for the right port |
+| `[BOOT] '1' is not 4 or 5` | The board has the other image. Flash `end_node` to a C3 and `lilygo_lora` to a LilyGo |
+| `set` seems to do nothing | You have not rebooted, or the value is the wrong type (strings need quotes) |
+| `[TAG] NVS unavailable for the sequence counter, idling` | The NVS partition cannot be opened. Reflash with `pio run -t erase` first |
+| `[TAG] SoftAP bring-up failed, idling` | `ap_ssid` or `ap_pass` is invalid (the password needs 8 to 64 chars), or `espnow_chan` clashes with a channel already in use |
+| `[TAG] Bus init failed, idling` | The bus's own line just before it says why, one of the `[SP3485]`, `[RealIrHead]` or `[HttpBus]` lines below |
+| `[TAG] Bus not reachable yet, the meter check will retry` | TCP simulator mode, and the laptop has not joined the softAP or the simulator is not running. Not fatal |
+| `[TAG] Reader init failed, idling` | The reader's config is invalid, for example an empty `cam_host` or `cam_flow`, or a bad DLMS address size |
+| `[TAG] ESP-NOW init failed, idling` | The radio did not start ESP-NOW, usually a channel the AP already holds differently. Reboot, then check `espnow_chan` |
+| `[TAG] Meter check failed, retrying in 5 s` | The meter did not answer its probe. The reader's line just before says how (silence, bad CRC, refused association, no identification, no cam). Check wiring, the meter's address and baud rate, or that the cam has joined |
+| `[TAG] Meter lost after 3 failed reads, re-checking` | The meter stopped answering after being ready. The node probes it every 5 s and prints `[TAG] Ready` again when it is back |
+| `[SP3485] RX not driven in receive, transceiver missing or miswired` | The SP3485 is missing, unpowered, or its RO is not on the RX pin |
+| `[SP3485] RX still driven with DE/RE high, DE/RE not wired` | The DE/RE pin does not reach the SP3485 |
+| `[TAG] UART pins invalid (RX n, TX n)` | An RX or TX pin in NVS is not a GPIO on the C3 |
+| `[TAG] UART failed to start` | The UART driver did not install. Reboot, and check nothing else holds the UART |
+| `[TAG] UART loopback: no echo` or `got 0xNN` | The UART does not echo its own byte internally, so its baud rate or frame format is broken. Reboot, and report it if it persists |
+| `[RealIrHead] RX floats, head missing or unpowered` | The IR head is not plugged in, unpowered, or its RX is on another pin. The firmware expects GPIO 20 (RX) and 21 (TX). On the base board tested so far, header J3 does not reach those pins, so wire the head to the C3's pins directly, or through J2 on GPIO 1 and 0 with `IR_RX_PIN` and `IR_TX_PIN` in `ir_loader.cpp` changed in a local build |
+| `[RealIrHead] RX held active: light on sensor or wrong ir_rx_inv` | Light is falling on the head's sensor, or the head idles the other way round, so flip `ir_rx_inv` |
+| `[RealIrHead] RX unstable` | RX is toggling while idle, usually flickering light or a loose wire |
+| `[HttpBus] AP is not up` | The AP did not come up, see the SoftAP line above |
+| `[ModbusRTU Reader] Meter present, no diagnostics (exception N)` | Not an error. The meter does not support FC08, so it refused the probe, which still proves it is there |
+| End node logs `[Link] No substation beacon heard` | `espnow_chan` differs, or the substation is off or out of range |
+| End node logs `[Link] Send failed, rejoining` | The substation went off, out of range or busy. The node rejoins and resends at once, and keeps trying discovery on every reading until one answers |
+| End node logs `[Link] No delivery ACK, rejoining` | The substation's radio took the reading but the substation did not buffer it, usually because it rebooted or forgot the join. The node rejoins and resends at once. Persistent means the substation runs an older image without delivery ACKs |
+| `[Substation] Dropped reading from unjoined MAC` | The node missed the join. It gets no delivery ACK, so it rejoins and resends straight away. Persistent means the node runs an older image |
+| `[Substation] Duplicate UID: ... re-acknowledged` | Not an error. The node resent a reading whose ACK was lost, so it is ACKed again but buffered once |
+| `[Substation] Buffer refused UID: ... not acknowledged` | Every node slot in the reading buffer is taken by other UIDs. The node gets no ACK and its send fails |
+| `[Substation] Relay FAILED` | Gateway off, `lora_*` settings differ between the two boards, or out of range. The reading is kept and retried after 30 s |
+| `[Error] Payload size mismatch!` | The boards were built from different versions of `shared_payload.h` |
+| `[WiFi] Connect Timeout!` on the gateway | Wrong `wifi_ssid` or `wifi_pass`, a 5 GHz only network, or a network that needs a username or sign in page. See [Gateway](#gs_gateway) |
+| Gateway repeats `[MQTT] Connection Failed` | No Wi-Fi, wrong `mqtt_host` or `mqtt_port`, a broker without TLS, or wrong `mqtt_user` and `mqtt_pass`. `set mqtt_on 0` to test without one |
+| `PUB: SUCCESS` on the gateway but `mosquitto_sub` shows nothing | Different broker or topic on the two sides, or `mosquitto_sub` is missing `--tls-use-os-certs`. Rerun it with `-d` |
+| `ESP_QEMU is not set` | Run `tools/setup_qemu.sh` and export the line it prints |

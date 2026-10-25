@@ -428,7 +428,10 @@ and switches to the meter's offered rate for the data block. Three heads:
 - `RealIrHead` is the EE team's UART to IR circuit on `Serial1`, 7E1, with
   TX and RX polarity set separately (`ir_tx_inv`, `ir_rx_inv`), both off for
   the PiggyMeter head, since IR circuits differ in which way round each is.
-  Pins 20 and 21 match the base PCB. `init()` first runs `rxIdleCheck()` while
+  Pins 20 and 21 match the base PCB. They are constants in `ir_loader.cpp`, not
+  NVS keys. On the one base board tested so far, header J3 does not reach
+  GPIO 20/21, so its bench runs used GPIO 1 (RX) and 0 (TX) through J2, set in
+  a local build (see `docs/hw-tests/2026-10-09-ir-node/`). `init()` first runs `rxIdleCheck()` while
   RX is still a plain GPIO: a fitted, powered head in the dark holds RX at the
   idle level, so a missing head, light on the sensor or a wrong `ir_rx_inv`
   fails here. It then starts the UART with `uartStartChecked()` and runs
